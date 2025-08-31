@@ -1,0 +1,551 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações - Offer Search{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card glass-card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-cog me-2"></i>
+                        Configurações do Sistema
+                    </h4>
+                </div>
+                <div class="card-body">
+                     Nav tabs 
+                    <ul class="nav nav-tabs mb-4" id="settingsTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="profile-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#profile" type="button" role="tab">
+                                <i class="fas fa-user me-2"></i>Perfil
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="alerts-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#alerts" type="button" role="tab">
+                                <i class="fas fa-bell me-2"></i>Alertas
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="environment-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#environment" type="button" role="tab">
+                                <i class="fas fa-server me-2"></i>Variáveis de Ambiente
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="notifications-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#notifications" type="button" role="tab">
+                                <i class="fas fa-envelope me-2"></i>Notificações
+                            </button>
+                        </li>
+                    </ul>
+
+                     Tab panes 
+                    <div class="tab-content" id="settingsTabContent">
+                         Perfil 
+                        <div class="tab-pane fade show active" id="profile" role="tabpanel">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Informações Pessoais</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <form id="profileForm">
+                                                <div class="mb-3">
+                                                    <label for="userName" class="form-label">Nome</label>
+                                                    <input type="text" class="form-control" id="userName" 
+                                                           value="{{ session.user_name or '' }}">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="userEmail" class="form-label">Email</label>
+                                                    <input type="email" class="form-control" id="userEmail" readonly>
+                                                </div>
+                                                <button type="submit" class="btn btn-primary">
+                                                    <i class="fas fa-save me-2"></i>Salvar Alterações
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Alterar Senha</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <form id="passwordForm">
+                                                <div class="mb-3">
+                                                    <label for="currentPassword" class="form-label">Senha Atual</label>
+                                                    <input type="password" class="form-control" id="currentPassword" required>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="newPassword" class="form-label">Nova Senha</label>
+                                                    <input type="password" class="form-control" id="newPassword" required>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="confirmPassword" class="form-label">Confirmar Nova Senha</label>
+                                                    <input type="password" class="form-control" id="confirmPassword" required>
+                                                </div>
+                                                <button type="submit" class="btn btn-warning">
+                                                    <i class="fas fa-key me-2"></i>Alterar Senha
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                         Alertas 
+                        <div class="tab-pane fade" id="alerts" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h6 class="mb-0">Alertas de Preço</h6>
+                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#alertModal">
+                                    <i class="fas fa-plus me-2"></i>Novo Alerta
+                                </button>
+                            </div>
+                            
+                            <div id="alertsList">
+                                 Alertas serão carregados via JavaScript 
+                            </div>
+                        </div>
+
+                         Variáveis de Ambiente 
+                        <div class="tab-pane fade" id="environment" role="tabpanel">
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Atenção:</strong> Altere essas configurações apenas se souber o que está fazendo. 
+                                Valores incorretos podem quebrar o funcionamento do sistema.
+                            </div>
+                            
+                            <form id="envForm">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="supabaseUrl" class="form-label">Supabase URL</label>
+                                            <input type="text" class="form-control" id="supabaseUrl" 
+                                                   name="SUPABASE_URL" value="{{ env_vars.SUPABASE_URL }}"
+                                                   placeholder="https://xxx.supabase.co">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="supabaseKey" class="form-label">Supabase Key</label>
+                                            <input type="password" class="form-control" id="supabaseKey" 
+                                                   name="SUPABASE_KEY" value="{{ env_vars.SUPABASE_KEY }}"
+                                                   placeholder="Chave do Supabase">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="serpapiKey" class="form-label">SerpAPI Key</label>
+                                            <input type="password" class="form-control" id="serpapiKey" 
+                                                   name="SERPAPI_KEY" value="{{ env_vars.SERPAPI_KEY }}"
+                                                   placeholder="Chave da SerpAPI">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="secretKey" class="form-label">Secret Key</label>
+                                            <input type="password" class="form-control" id="secretKey" 
+                                                   name="SECRET_KEY" value="{{ env_vars.SECRET_KEY }}"
+                                                   placeholder="Chave secreta do Flask">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="flaskDebug" class="form-label">Flask Debug</label>
+                                            <select class="form-select" id="flaskDebug" name="FLASK_DEBUG">
+                                                <option value="False" {% if env_vars.FLASK_DEBUG == 'False' %}selected{% endif %}>False</option>
+                                                <option value="True" {% if env_vars.FLASK_DEBUG == 'True' %}selected{% endif %}>True</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="port" class="form-label">Porta</label>
+                                            <input type="number" class="form-control" id="port" 
+                                                   name="PORT" value="{{ env_vars.PORT }}" min="1000" max="65535">
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="fas fa-save me-2"></i>Atualizar Variáveis
+                                </button>
+                            </form>
+                        </div>
+
+                         Notificações 
+                        <div class="tab-pane fade" id="notifications" role="tabpanel">
+                            <form id="notificationForm">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" id="emailAlerts" checked>
+                                            <label class="form-check-label" for="emailAlerts">
+                                                <strong>Alertas por Email</strong>
+                                                <br><small class="text-muted">Receber notificações de alertas de preço por email</small>
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" id="browserNotifications" checked>
+                                            <label class="form-check-label" for="browserNotifications">
+                                                <strong>Notificações do Navegador</strong>
+                                                <br><small class="text-muted">Mostrar notificações no navegador</small>
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" id="dailySummary">
+                                            <label class="form-check-label" for="dailySummary">
+                                                <strong>Resumo Diário</strong>
+                                                <br><small class="text-muted">Receber resumo diário das atividades</small>
+                                            </label>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-save me-2"></i>Salvar Configurações
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+ Modal Alerta 
+<div class="modal fade" id="alertModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h5 class="modal-title" id="alertModalTitle">Novo Alerta de Preço</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="alertForm">
+                <div class="modal-body">
+                    <input type="hidden" id="alertId" name="alert_id">
+                    
+                    <div class="mb-3">
+                        <label for="produtoNome" class="form-label">Nome do Produto</label>
+                        <input type="text" class="form-control" id="produtoNome" name="produto_nome" 
+                               placeholder="Ex: iPhone 15 Pro" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="precoAlvo" class="form-label">Preço Alvo (R$)</label>
+                        <input type="number" class="form-control" id="precoAlvo" name="preco_alvo" 
+                               step="0.01" min="0.01" placeholder="0.00" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="tipoAlerta" class="form-label">Tipo de Alerta</label>
+                        <select class="form-select" id="tipoAlerta" name="tipo_alerta" required>
+                            <option value="menor_que">Menor que o preço alvo</option>
+                            <option value="maior_que">Maior que o preço alvo</option>
+                            <option value="igual_a">Igual ao preço alvo</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="alertaAtivo" name="ativo" checked>
+                            <label class="form-check-label" for="alertaAtivo">
+                                Ativar alerta imediatamente
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Salvar Alerta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Carregar dados do perfil
+    loadProfileData();
+    
+    // Carregar alertas
+    loadAlerts();
+    
+    // Carregar configurações de notificação
+    loadNotificationSettings();
+    
+    // Event listeners
+    setupEventListeners();
+});
+
+function loadProfileData() {
+    fetch('/settings/profile')
+        .then(response => response.json())
+        .then(data => {
+            if (data.nome) {
+                document.getElementById('userName').value = data.nome;
+            }
+            if (data.email) {
+                document.getElementById('userEmail').value = data.email;
+            }
+        })
+        .catch(error => console.error('Erro ao carregar perfil:', error));
+}
+
+function loadAlerts() {
+    fetch('/settings/alerts')
+        .then(response => response.json())
+        .then(data => {
+            const alertsList = document.getElementById('alertsList');
+            
+            if (data.alertas && data.alertas.length > 0) {
+                alertsList.innerHTML = data.alertas.map(alert => `
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="card-title">${alert.produto_nome}</h6>
+                                    <p class="card-text">
+                                        <span class="badge bg-primary">R$ ${alert.preco_alvo.toFixed(2)}</span>
+                                        <span class="badge bg-info">${alert.tipo_alerta.replace('_', ' ')}</span>
+                                        <span class="badge ${alert.ativo ? 'bg-success' : 'bg-secondary'}">
+                                            ${alert.ativo ? 'Ativo' : 'Inativo'}
+                                        </span>
+                                    </p>
+                                </div>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary btn-edit-alert" 
+                                            data-alert='${JSON.stringify(alert)}'>
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-delete-alert" 
+                                            data-alert-id="${alert.id}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                alertsList.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-bell-slash fa-3x text-muted mb-3"></i>
+                        <h6 class="text-muted">Nenhum alerta configurado</h6>
+                        <p class="text-muted">Crie alertas para ser notificado quando os preços mudarem</p>
+                    </div>
+                `;
+            }
+            
+            // Reativar event listeners para os novos botões
+            setupAlertEventListeners();
+        })
+        .catch(error => console.error('Erro ao carregar alertas:', error));
+}
+
+function loadNotificationSettings() {
+    fetch('/settings/notifications')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('emailAlerts').checked = data.email_alerts !== false;
+            document.getElementById('browserNotifications').checked = data.browser_notifications !== false;
+            document.getElementById('dailySummary').checked = data.daily_summary === true;
+        })
+        .catch(error => console.error('Erro ao carregar configurações:', error));
+}
+
+function setupEventListeners() {
+    // Formulário de perfil
+    document.getElementById('profileForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const nome = document.getElementById('userName').value.trim();
+        
+        fetch('/settings/profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome: nome })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                showAlert('success', result.message);
+            } else {
+                showAlert('danger', result.message);
+            }
+        })
+        .catch(error => showAlert('danger', 'Erro ao atualizar perfil'));
+    });
+    
+    // Formulário de senha
+    document.getElementById('passwordForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const senhaAtual = document.getElementById('currentPassword').value;
+        const novaSenha = document.getElementById('newPassword').value;
+        const confirmarSenha = document.getElementById('confirmPassword').value;
+        
+        if (novaSenha !== confirmarSenha) {
+            showAlert('danger', 'As senhas não coincidem');
+            return;
+        }
+        
+        fetch('/settings/profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                senha_atual: senhaAtual, 
+                nova_senha: novaSenha 
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                showAlert('success', result.message);
+                document.getElementById('passwordForm').reset();
+            } else {
+                showAlert('danger', result.message);
+            }
+        })
+        .catch(error => showAlert('danger', 'Erro ao alterar senha'));
+    });
+    
+    // Formulário de variáveis de ambiente
+    document.getElementById('envForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = {};
+        
+        for (let [key, value] of formData.entries()) {
+            if (value.trim()) {
+                data[key] = value.trim();
+            }
+        }
+        
+        fetch('/settings/update-env', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                showAlert('success', result.message);
+            } else {
+                showAlert('danger', result.message);
+            }
+        })
+        .catch(error => showAlert('danger', 'Erro ao atualizar variáveis'));
+    });
+    
+    // Formulário de notificações
+    document.getElementById('notificationForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const data = {
+            email_alerts: document.getElementById('emailAlerts').checked,
+            browser_notifications: document.getElementById('browserNotifications').checked,
+            daily_summary: document.getElementById('dailySummary').checked
+        };
+        
+        fetch('/settings/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                showAlert('success', result.message);
+            } else {
+                showAlert('danger', result.message);
+            }
+        })
+        .catch(error => showAlert('danger', 'Erro ao salvar configurações'));
+    });
+    
+    // Formulário de alerta
+    document.getElementById('alertForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = {
+            produto_nome: formData.get('produto_nome'),
+            preco_alvo: parseFloat(formData.get('preco_alvo')),
+            tipo_alerta: formData.get('tipo_alerta'),
+            ativo: formData.get('ativo') === 'on'
+        };
+        
+        const alertId = formData.get('alert_id');
+        const url = alertId ? `/settings/alerts/${alertId}` : '/settings/alerts';
+        const method = alertId ? 'PUT' : 'POST';
+        
+        fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                showAlert('success', result.message);
+                bootstrap.Modal.getInstance(document.getElementById('alertModal')).hide();
+                loadAlerts();
+            } else {
+                showAlert('danger', result.message);
+            }
+        })
+        .catch(error => showAlert('danger', 'Erro ao salvar alerta'));
+    });
+}
+
+function setupAlertEventListeners() {
+    // Editar alerta
+    document.querySelectorAll('.btn-edit-alert').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const alert = JSON.parse(this.dataset.alert);
+            
+            document.getElementById('alertModalTitle').textContent = 'Editar Alerta';
+            document.getElementById('alertId').value = alert.id;
+            document.getElementById('produtoNome').value = alert.produto_nome;
+            document.getElementById('precoAlvo').value = alert.preco_alvo;
+            document.getElementById('tipoAlerta').value = alert.tipo_alerta;
+            document.getElementById('alertaAtivo').checked = alert.ativo;
+            
+            new bootstrap.Modal(document.getElementById('alertModal')).show();
+        });
+    });
+    
+    // Excluir alerta
+    document.querySelectorAll('.btn-delete-alert').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const alertId = this.dataset.alertId;
+            
+            if (confirm('Tem certeza que deseja excluir este alerta?')) {
+                fetch(`/settings/alerts/${alertId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        showAlert('success', result.message);
+                        loadAlerts();
+                    } else {
+                        showAlert('danger', result.message);
+                    }
+                })
+                .catch(error => showAlert('danger', 'Erro ao excluir alerta'));
+            }
+        });
+    });
+}
+
+// Limpar modal ao fechar
+document.getElementById('alertModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('alertModalTitle').textContent = 'Novo Alerta de Preço';
+    document.getElementById('alertForm').reset();
+    document.getElementById('alertId').value = '';
+});
+</script>
+{% endblock %}

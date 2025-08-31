@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Offer Search App{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-6 fw-bold text-gradient">
+                <i class="fas fa-tachometer-alt me-3"></i>
+                Dashboard
+            </h1>
+            <p class="lead text-muted">Bem-vindo de volta! Aqui está um resumo das suas atividades.</p>
+        </div>
+    </div>
+    
+     Estatísticas 
+    <div class="row g-4 mb-5">
+        <div class="col-lg-3 col-md-6">
+            <div class="card h-100 border-0 shadow-custom">
+                <div class="card-body text-center">
+                    <div class="stat-icon bg-gradient-primary text-white mb-3">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <h3 class="fw-bold">{{ stats.total_searches or 0 }}</h3>
+                    <p class="text-muted mb-0">Buscas Realizadas</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6">
+            <div class="card h-100 border-0 shadow-custom">
+                <div class="card-body text-center">
+                    <div class="stat-icon bg-gradient-success text-white mb-3">
+                        <i class="fas fa-heart"></i>
+                    </div>
+                    <h3 class="fw-bold">{{ stats.total_approved or 0 }}</h3>
+                    <p class="text-muted mb-0">Produtos Aprovados</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6">
+            <div class="card h-100 border-0 shadow-custom">
+                <div class="card-body text-center">
+                    <div class="stat-icon bg-gradient-secondary text-white mb-3">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <h3 class="fw-bold">{{ stats.active_schedules or 0 }}</h3>
+                    <p class="text-muted mb-0">Agendamentos Ativos</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6">
+            <div class="card h-100 border-0 shadow-custom">
+                <div class="card-body text-center">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #ef4444);">
+                        <i class="fas fa-bell text-white"></i>
+                    </div>
+                    <h3 class="fw-bold">{{ stats.active_alerts or 0 }}</h3>
+                    <p class="text-muted mb-0">Alertas Ativos</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+     Ações Rápidas 
+    <div class="row mb-5">
+        <div class="col">
+            <div class="card border-0 shadow-custom">
+                <div class="card-header bg-gradient-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt me-2"></i>
+                        Ações Rápidas
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <a href="/search" class="btn btn-outline-primary w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
+                                <i class="fas fa-search fa-2x mb-2"></i>
+                                <span>Nova Busca</span>
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/schedule" class="btn btn-outline-secondary w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
+                                <i class="fas fa-plus-circle fa-2x mb-2"></i>
+                                <span>Agendar Busca</span>
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/approval" class="btn btn-outline-success w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
+                                <i class="fas fa-heart fa-2x mb-2"></i>
+                                <span>Ver Aprovados</span>
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/settings" class="btn btn-outline-warning w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
+                                <i class="fas fa-cog fa-2x mb-2"></i>
+                                <span>Configurações</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+     Conteúdo Principal 
+    <div class="row g-4">
+         Buscas Recentes 
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-custom h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-history me-2"></i>
+                        Buscas Recentes
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if recent_searches %}
+                        {% for search in recent_searches %}
+                        <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ search.termo_pesquisa }}</h6>
+                                <small class="text-muted">
+                                    {{ search.total_produtos_encontrados }} produtos encontrados
+                                    • {{ search.executado_em|timeago }}
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-primary">{{ search.status }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        <div class="text-center">
+                            <a href="/history" class="btn btn-sm btn-outline-primary">
+                                Ver Todas as Buscas
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">Nenhuma busca realizada ainda.</p>
+                            <a href="/search" class="btn btn-primary">
+                                Fazer Primeira Busca
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+         Produtos Aprovados Recentes 
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-custom h-100">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-heart me-2"></i>
+                        Produtos Aprovados Recentes
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if recent_approved %}
+                        {% for product in recent_approved %}
+                        <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
+                            <img src="{{ product.imagem or '/static/img/no-image.png' }}" 
+                                 alt="{{ product.titulo }}" 
+                                 class="rounded me-3" 
+                                 style="width: 50px; height: 50px; object-fit: cover;">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ product.titulo[:40] }}...</h6>
+                                <small class="text-muted">
+                                    {{ product.preco|currency }} • {{ product.marketplace }}
+                                </small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        <div class="text-center">
+                            <a href="/approval" class="btn btn-sm btn-outline-success">
+                                Ver Todos os Aprovados
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-heart fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">Nenhum produto aprovado ainda.</p>
+                            <a href="/search" class="btn btn-success">
+                                Buscar Produtos
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    font-size: 1.5rem;
+}
+
+.bg-gradient-secondary {
+    background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%) !important;
+}
+
+.bg-gradient-success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+}
+</style>
+{% endblock %}

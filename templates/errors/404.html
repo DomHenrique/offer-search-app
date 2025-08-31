@@ -1,0 +1,22 @@
+1{% extends "base.html" %}
+
+{% block title %}Página Não Encontrada{% endblock %}
+
+{% block content %}
+<div class="container text-center py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <h1 class="display-1 fw-bold text-primary">404</h1>
+            <h2 class="mb-4">Página Não Encontrada</h2>
+            <p class="lead text-muted mb-4">
+                A página que você está procurando não existe ou foi movida.
+                Verifique o endereço ou volte para a página inicial.
+            </p>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg">
+                <i class="fas fa-home me-2"></i>
+                Voltar para o Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

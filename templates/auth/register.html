@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Cadastro - Offer Search App{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="auth-logo">
+                <i class="fas fa-user-plus"></i>
+            </div>
+            <h2 class="auth-title">Criar Conta</h2>
+            <p class="auth-subtitle">Cadastre-se para começar a encontrar as melhores ofertas</p>
+        </div>
+        
+        <form method="POST" class="auth-form" id="registerForm">
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control" id="nome" name="nome" placeholder="Seu nome" required>
+                <label for="nome">
+                    <i class="fas fa-user me-2"></i>Nome completo
+                </label>
+            </div>
+            
+            <div class="form-floating mb-3">
+                <input type="email" class="form-control" id="email" name="email" placeholder="seu@email.com" required>
+                <label for="email">
+                    <i class="fas fa-envelope me-2"></i>Email
+                </label>
+            </div>
+            
+            <div class="form-floating mb-3">
+                <input type="password" class="form-control" id="password" name="password" placeholder="Senha" required>
+                <label for="password">
+                    <i class="fas fa-lock me-2"></i>Senha
+                </label>
+                <div class="password-toggle" onclick="togglePassword('password')">
+                    <i class="fas fa-eye" id="password-eye"></i>
+                </div>
+                <div class="password-strength" id="passwordStrength"></div>
+            </div>
+            
+            <div class="form-floating mb-4">
+                <input type="password" class="form-control" id="confirm_password" name="confirm_password" placeholder="Confirmar senha" required>
+                <label for="confirm_password">
+                    <i class="fas fa-lock me-2"></i>Confirmar senha
+                </label>
+                <div class="password-toggle" onclick="togglePassword('confirm_password')">
+                    <i class="fas fa-eye" id="confirm_password-eye"></i>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-auth w-100 mb-3">
+                <i class="fas fa-user-plus me-2"></i>
+                Criar Conta
+            </button>
+        </form>
+        
+        <div class="auth-footer">
+            <p class="text-center mb-0">
+                Já tem uma conta? 
+                <a href="{{ url_for('auth.login') }}" class="auth-link">
+                    Faça login aqui
+                </a>
+            </p>
+        </div>
+    </div>
+    
+    <!-- Background Animation -->
+    <div class="auth-bg">
+        <div class="floating-shape shape-1"></div>
+        <div class="floating-shape shape-2"></div>
+        <div class="floating-shape shape-3"></div>
+        <div class="floating-shape shape-4"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.getElementById('registerForm').addEventListener('submit', function(e) {
+    const submitBtn = this.querySelector('button[type="submit"]');
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Criando conta...';
+    submitBtn.disabled = true;
+});
+
+function togglePassword(fieldId) {
+    const field = document.getElementById(fieldId);
+    const eye = document.getElementById(fieldId + '-eye');
+    
+    if (field.type === 'password') {
+        field.type = 'text';
+        eye.className = 'fas fa-eye-slash';
+    } else {
+        field.type = 'password';
+        eye.className = 'fas fa-eye';
+    }
+}
+
+// Password strength indicator
+document.getElementById('password').addEventListener('input', function() {
+    const password = this.value;
+    const strengthDiv = document.getElementById('passwordStrength');
+    
+    let strength = 0;
+    let feedback = [];
+    
+    if (password.length >= 6) strength++;
+    else feedback.push('Pelo menos 6 caracteres');
+    
+    if (/[A-Z]/.test(password)) strength++;
+    else feedback.push('Uma letra maiúscula');
+    
+    if (/[a-z]/.test(password)) strength++;
+    else feedback.push('Uma letra minúscula');
+    
+    if (/\d/.test(password)) strength++;
+    else feedback.push('Um número');
+    
+    if (/[^A-Za-z0-9]/.test(password)) strength++;
+    else feedback.push('Um caractere especial');
+    
+    const strengthLevels = ['Muito fraca', 'Fraca', 'Regular', 'Boa', 'Forte'];
+    const strengthColors = ['#dc3545', '#fd7e14', '#ffc107', '#20c997', '#198754'];
+    
+    if (password.length > 0) {
+        strengthDiv.innerHTML = `
+            <div class="password-strength-bar">
+                <div class="password-strength-fill" style="width: ${(strength/5)*100}%; background-color: ${strengthColors[strength-1] || strengthColors[0]}"></div>
+            </div>
+            <small class="text-muted">${strengthLevels[strength-1] || strengthLevels[0]}</small>
+        `;
+    } else {
+        strengthDiv.innerHTML = '';
+    }
+});
+
+// Confirm password validation
+document.getElementById('confirm_password').addEventListener('input', function() {
+    const password = document.getElementById('password').value;
+    const confirmPassword = this.value;
+    
+    if (confirmPassword.length > 0) {
+        if (password === confirmPassword) {
+            this.classList.remove('is-invalid');
+            this.classList.add('is-valid');
+        } else {
+            this.classList.remove('is-valid');
+            this.classList.add('is-invalid');
+        }
+    } else {
+        this.classList.remove('is-valid', 'is-invalid');
+    }
+});
+</script>
+{% endblock %}

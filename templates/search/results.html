@@ -1,0 +1,520 @@
+{% extends "base.html" %}
+
+{% block title %}Resultados da Busca - Offer Search App{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+     Header com Estatísticas 
+    <div class="row mb-4">
+        <div class="col">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h1 class="display-6 fw-bold">
+                        <i class="fas fa-search-plus me-2"></i>
+                        Resultados da Busca
+                    </h1>
+                    <p class="text-muted mb-0">
+                        {{ results|length }} produtos encontrados
+                    </p>
+                </div>
+                <div class="text-end">
+                    <a href="{{ url_for('search.search_page') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-search me-2"></i>
+                        Nova Busca
+                    </a>
+                </div>
+            </div>
+            
+             Estatísticas 
+            {% if stats %}
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon bg-primary">
+                            <i class="fas fa-shopping-cart"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h6>Total</h6>
+                            <span>{{ stats.total_produtos }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon bg-warning">
+                            <i class="fab fa-amazon"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h6>Amazon</h6>
+                            <span>{{ stats.amazon_produtos }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon bg-info">
+                            <i class="fas fa-store"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h6>Mercado Livre</h6>
+                            <span>{{ stats.ml_produtos }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon bg-success">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h6>Preço Médio</h6>
+                            <span>{{ stats.preco_medio|currency }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+     Controles de Seleção 
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="selectAll">
+                                <label class="form-check-label fw-semibold" for="selectAll">
+                                    Selecionar Todos
+                                </label>
+                            </div>
+                            <span class="text-muted" id="selectedCount">0 selecionados</span>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-success" id="approveSelected" disabled>
+                                <i class="fas fa-heart me-2"></i>
+                                Aprovar Selecionados
+                            </button>
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <i class="fas fa-filter me-2"></i>
+                                    Filtros
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#" onclick="filterByMarketplace('all')">Todos</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="filterByMarketplace('Amazon')">Amazon</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="filterByMarketplace('MercadoLivre')">Mercado Livre</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="#" onclick="sortBy('price')">Menor Preço</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="sortBy('rating')">Melhor Avaliação</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+     Resultados 
+    <div class="row g-4" id="resultsContainer">
+        {% for produto in results %}
+        <div class="col-lg-4 col-md-6 product-card" data-marketplace="{{ produto.marketplace }}" data-price="{{ produto.preco_numerico }}" data-rating="{{ produto.avaliacao }}">
+            <div class="card h-100 border-0 shadow-sm product-item" data-product-id="{{ produto.id }}">
+                 
+                <div class="product-select">
+                    <div class="form-check">
+                        <input class="form-check-input product-checkbox" type="checkbox" value="{{ produto.id }}">
+                    </div>
+                </div>
+                
+                 
+                <div class="marketplace-badge">
+                    {% if produto.marketplace == 'Amazon' %}
+                        <span class="badge bg-warning text-dark">
+                            <i class="fab fa-amazon me-1"></i>Amazon
+                        </span>
+                    {% else %}
+                        <span class="badge bg-info">
+                            <i class="fas fa-store me-1"></i>ML
+                        </span>
+                    {% endif %}
+                </div>
+                
+                 
+                <div class="product-image">
+                    <img src="{{ produto.imagem or '/static/img/no-image.png' }}" 
+                         alt="{{ produto.titulo }}" 
+                         class="card-img-top"
+                         onerror="this.src='/static/img/no-image.png'">
+                </div>
+                
+                <div class="card-body d-flex flex-column">
+                     
+                    <h6 class="card-title mb-2 product-title">{{ produto.titulo }}</h6>
+                    
+                     Preço 
+                    <div class="price-section mb-2">
+                        <div class="current-price">{{ produto.preco_numerico|currency }}</div>
+                        {% if produto.preco_antigo and produto.desconto_percent > 0 %}
+                        <div class="old-price">
+                            <small class="text-muted text-decoration-line-through">{{ produto.preco_antigo }}</small>
+                            <span class="badge bg-danger ms-1">-{{ produto.desconto_percent }}%</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                     Avaliação 
+                    {% if produto.avaliacao > 0 %}
+                    <div class="rating mb-2">
+                        <div class="stars">
+                            {% for i in range(5) %}
+                                {% if i < produto.avaliacao %}
+                                    <i class="fas fa-star text-warning"></i>
+                                {% else %}
+                                    <i class="far fa-star text-muted"></i>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted ms-2">
+                            {{ produto.avaliacao }}/5 ({{ produto.avaliacoes }} avaliações)
+                        </small>
+                    </div>
+                    {% endif %}
+                    
+                      
+                    <div class="product-badges mb-3">
+                        {% if produto.prime %}
+                            <span class="badge bg-primary">Prime</span>
+                        {% endif %}
+                        {% if produto.patrocinado %}
+                            <span class="badge bg-secondary">Patrocinado</span>
+                        {% endif %}
+                        {% if produto.categoria_preco %}
+                            <span class="badge bg-light text-dark">{{ produto.categoria_preco }}</span>
+                        {% endif %}
+                    </div>
+                    
+                     
+                    <div class="mt-auto">
+                        <div class="d-grid gap-2">
+                            <a href="{{ produto.url_produto }}" 
+                               target="_blank" 
+                               class="btn btn-primary btn-sm">
+                                <i class="fas fa-external-link-alt me-2"></i>
+                                Ver Produto
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    {% if not results %}
+    <div class="text-center py-5">
+        <i class="fas fa-search fa-4x text-muted mb-3"></i>
+        <h4>Nenhum produto encontrado</h4>
+        <p class="text-muted">Tente uma nova busca com termos diferentes.</p>
+        <a href="{{ url_for('search.search_page') }}" class="btn btn-primary">
+            <i class="fas fa-search me-2"></i>
+            Nova Busca
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+.product-card {
+    transition: all 0.3s ease;
+}
+
+.product-item {
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.product-title {
+    white-space: normal;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    min-height: 3em;
+}
+
+.product-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+}
+
+.product-item.selected {
+    border: 2px solid #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.product-select {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    padding: 5px;
+    backdrop-filter: blur(5px);
+}
+
+.marketplace-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+}
+
+.product-image {
+    height: 200px;
+    overflow: hidden;
+    background: #f8f9fa;
+}
+
+.product-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.product-item:hover .product-image img {
+    transform: scale(1.05);
+}
+
+.current-price {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #059669;
+}
+
+.old-price {
+    font-size: 0.875rem;
+}
+
+.rating .stars {
+    display: inline-block;
+}
+
+.product-badges .badge {
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.25rem;
+}
+
+.stat-info h6 {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.stat-info span {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+</style>
+
+<script>
+let selectedProducts = new Set();
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeProductSelection();
+    initializeFilters();
+});
+
+function initializeProductSelection() {
+    // Selecionar todos
+    document.getElementById('selectAll').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.product-checkbox');
+        const isChecked = this.checked;
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = isChecked;
+            const productId = checkbox.value;
+            const card = checkbox.closest('.product-item');
+            
+            if (isChecked) {
+                selectedProducts.add(productId);
+                card.classList.add('selected');
+            } else {
+                selectedProducts.delete(productId);
+                card.classList.remove('selected');
+            }
+        });
+        updateSelectionUI();
+    });
+    
+    // Seleção individual
+    document.querySelectorAll('.product-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            toggleProductSelection(this);
+        });
+    });
+    
+    // Clique no card para selecionar
+    document.querySelectorAll('.product-item').forEach(card => {
+        card.addEventListener('click', function(e) {
+            if (e.target.closest('.btn') || e.target.closest('.product-select')) {
+                return; // Não seleciona se clicou em botão ou checkbox
+            }
+            
+            const checkbox = this.querySelector('.product-checkbox');
+            checkbox.checked = !checkbox.checked;
+            toggleProductSelection(checkbox);
+        });
+    });
+    
+    // Aprovar selecionados
+    document.getElementById('approveSelected').addEventListener('click', approveSelectedProducts);
+}
+
+function updateSelectAllState() {
+    const totalCheckboxes = document.querySelectorAll('.product-checkbox').length;
+    const checkedCheckboxes = document.querySelectorAll('.product-checkbox:checked').length;
+    const selectAllCheckbox = document.getElementById('selectAll');
+    
+    if (totalCheckboxes > 0) {
+        selectAllCheckbox.checked = checkedCheckboxes === totalCheckboxes;
+        selectAllCheckbox.indeterminate = checkedCheckboxes > 0 && checkedCheckboxes < totalCheckboxes;
+    }
+}
+
+function toggleProductSelection(checkbox) {
+    const productId = checkbox.value;
+    const card = checkbox.closest('.product-item');
+    
+    if (checkbox.checked) {
+        selectedProducts.add(productId);
+        card.classList.add('selected');
+    } else {
+        selectedProducts.delete(productId);
+        card.classList.remove('selected');
+    }
+    
+    updateSelectionUI();
+}
+
+function updateSelectionUI() {
+    const count = selectedProducts.size;
+    const countEl = document.getElementById('selectedCount');
+    const approveBtn = document.getElementById('approveSelected');
+    
+    countEl.textContent = `${count} selecionado${count !== 1 ? 's' : ''}`;
+    approveBtn.disabled = count === 0;
+    
+    // Atualiza estado do "Selecionar Todos"
+    updateSelectAllState();
+}
+
+async function approveSelectedProducts() {
+    if (selectedProducts.size === 0) return;
+    
+    const approveBtn = document.getElementById('approveSelected');
+    const originalText = approveBtn.innerHTML;
+    
+    try {
+        approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Aprovando...';
+        approveBtn.disabled = true;
+        
+        const response = await fetch('/search/approve-products', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                product_ids: Array.from(selectedProducts)
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showNotification(data.message, 'success');
+            
+            // Remove produtos aprovados da seleção
+            selectedProducts.clear();
+            document.querySelectorAll('.product-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            document.querySelectorAll('.product-item').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            updateSelectionUI();
+        } else {
+            throw new Error(data.error || 'Erro ao aprovar produtos');
+        }
+        
+    } catch (error) {
+        showNotification(error.message, 'error');
+    } finally {
+        approveBtn.innerHTML = originalText;
+        approveBtn.disabled = selectedProducts.size === 0;
+    }
+}
+
+function initializeFilters() {
+    // Implementar filtros se necessário
+}
+
+function filterByMarketplace(marketplace) {
+    const cards = document.querySelectorAll('.product-card');
+    
+    cards.forEach(card => {
+        if (marketplace === 'all' || card.dataset.marketplace === marketplace) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+function sortBy(criteria) {
+    const container = document.getElementById('resultsContainer');
+    const cards = Array.from(container.children);
+    
+    cards.sort((a, b) => {
+        if (criteria === 'price') {
+            return parseFloat(a.dataset.price) - parseFloat(b.dataset.price);
+        } else if (criteria === 'rating') {
+            return parseFloat(b.dataset.rating) - parseFloat(a.dataset.rating);
+        }
+        return 0;
+    });
+    
+    cards.forEach(card => container.appendChild(card));
+}
+</script>
+{% endblock %}

@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Histórico - {{ schedule.termo_busca }} - Offer Search{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card glass-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-0">
+                            <i class="fas fa-history me-2"></i>
+                            Histórico de Execuções
+                        </h4>
+                        <small class="text-muted">{{ schedule.termo_busca }}</small>
+                    </div>
+                    <a href="{{ url_for('schedule.schedule_page') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>
+                        Voltar
+                    </a>
+                </div>
+                <div class="card-body">
+                     Informações do Agendamento 
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary bg-opacity-10 border-primary">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-sync-alt fa-2x text-primary mb-2"></i>
+                                    <h6>Intervalo</h6>
+                                    <p class="mb-0">{{ schedule.intervalo_horas }} horas</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success bg-opacity-10 border-success">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-play fa-2x text-success mb-2"></i>
+                                    <h6>Status</h6>
+                                    <p class="mb-0">
+                                        <span class="badge {% if schedule.ativo %}bg-success{% else %}bg-secondary{% endif %}">
+                                            {% if schedule.ativo %}Ativo{% else %}Inativo{% endif %}
+                                        </span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info bg-opacity-10 border-info">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-calendar fa-2x text-info mb-2"></i>
+                                    <h6>Criado em</h6>
+                                    <p class="mb-0">{{ schedule.criado_em.strftime('%d/%m/%Y') }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning bg-opacity-10 border-warning">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-chart-line fa-2x text-warning mb-2"></i>
+                                    <h6>Execuções</h6>
+                                    <p class="mb-0">{{ execucoes|length }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                     Histórico de Execuções 
+                    {% if execucoes %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Data/Hora</th>
+                                        <th>Status</th>
+                                        <th>Produtos Encontrados</th>
+                                        <th>Tempo de Execução</th>
+                                        <th>Observações</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for execucao in execucoes %}
+                                    <tr>
+                                        <td>
+                                            <i class="fas fa-clock me-2 text-muted"></i>
+                                            {{ execucao.executado_em.strftime('%d/%m/%Y %H:%M:%S') }}
+                                        </td>
+                                        <td>
+                                            {% if execucao.status == 'sucesso' %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check me-1"></i>Sucesso
+                                                </span>
+                                            {% elif execucao.status == 'erro' %}
+                                                <span class="badge bg-danger">
+                                                    <i class="fas fa-times me-1"></i>Erro
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-warning">
+                                                    <i class="fas fa-clock me-1"></i>Executando
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary">
+                                                {{ execucao.produtos_encontrados or 0 }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if execucao.tempo_execucao %}
+                                                {{ "%.1f"|format(execucao.tempo_execucao) }}s
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if execucao.observacoes %}
+                                                <small class="text-muted">{{ execucao.observacoes[:50] }}{% if execucao.observacoes|length > 50 %}...{% endif %}</small>
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if execucao.produtos_encontrados and execucao.produtos_encontrados > 0 %}
+                                                <a href="{{ url_for('search.results', busca_id=execucao.busca_id) }}" 
+                                                   class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-eye me-1"></i>Ver Resultados
+                                                </a>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">Nenhuma execução registrada</h5>
+                            <p class="text-muted">Este agendamento ainda não foi executado</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

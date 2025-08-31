@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+
+{% block title %}Buscar Ofertas - Offer Search App{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+             Header 
+            <div class="text-center mb-5">
+                <h1 class="display-5 fw-bold text-gradient mb-3">
+                    <i class="fas fa-search me-3"></i>
+                    Buscar Ofertas
+                </h1>
+                <p class="lead text-muted">
+                    Encontre as melhores ofertas na Amazon e Mercado Livre
+                </p>
+            </div>
+            
+             Formulário de Busca 
+            <div class="card border-0 shadow-lg">
+                <div class="card-header bg-gradient-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-search me-2"></i>
+                        Nova Busca
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <form id="searchForm">
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <div class="form-floating">
+                                    <input type="text" 
+                                           class="form-control form-control-lg" 
+                                           id="termo_pesquisa" 
+                                           name="termo_pesquisa" 
+                                           placeholder="Ex: smartphone, notebook, fone de ouvido..."
+                                           required>
+                                    <label for="termo_pesquisa">
+                                        <i class="fas fa-search me-2"></i>
+                                        O que você está procurando?
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <select class="form-select form-select-lg" id="paginas_ml" name="paginas_ml">
+                                        <option value="1">1 página</option>
+                                        <option value="2">2 páginas</option>
+                                        <option value="3">3 páginas</option>
+                                    </select>
+                                    <label for="paginas_ml">
+                                        <i class="fas fa-list me-2"></i>
+                                        Páginas ML
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-4">
+                            <div class="col">
+                                <button type="submit" class="btn btn-primary btn-lg w-100">
+                                    <i class="fas fa-search me-2"></i>
+                                    Buscar Ofertas
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+             Buscas Recentes 
+            <div class="card border-0 shadow-md mt-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-history me-2"></i>
+                        Buscas Recentes
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2" id="recentSearches">
+                         Será preenchido via JavaScript 
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+ Loading Overlay 
+<div id="searchOverlay" class="search-overlay" style="display: none;">
+    <div class="search-overlay-content">
+        <div class="search-animation">
+            <div class="search-spinner"></div>
+            <div class="search-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+        
+        <h4 class="mt-4 mb-2" id="searchTitle">Buscando ofertas...</h4>
+        <p class="text-muted mb-4" id="searchMessage">Preparando busca...</p>
+        
+        <div class="progress mb-3" style="height: 8px;">
+            <div class="progress-bar bg-gradient-primary" 
+                 role="progressbar" 
+                 id="searchProgress" 
+                 style="width: 0%"></div>
+        </div>
+        
+        <small class="text-muted" id="searchDetails">
+            Isso pode levar alguns minutos...
+        </small>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+.search-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.search-overlay-content {
+    background: white;
+    padding: 3rem;
+    border-radius: 20px;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.search-animation {
+    position: relative;
+    margin: 0 auto 2rem;
+    width: 80px;
+    height: 80px;
+}
+
+.search-spinner {
+    width: 80px;
+    height: 80px;
+    border: 4px solid #e5e7eb;
+    border-top: 4px solid #6366f1;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.search-dots {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+}
+
+.search-dots span {
+    width: 8px;
+    height: 8px;
+    background: #6366f1;
+    border-radius: 50%;
+    animation: bounce 1.4s ease-in-out infinite both;
+}
+
+.search-dots span:nth-child(1) { animation-delay: -0.32s; }
+.search-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes bounce {
+    0%, 80%, 100% {
+        transform: scale(0);
+    }
+    40% {
+        transform: scale(1);
+    }
+}
+
+.recent-search-tag {
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    text-decoration: none;
+    font-size: 0.875rem;
+    transition: all 0.3s ease;
+}
+
+.recent-search-tag:hover {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+</style>
+
+<script>
+let currentSearchId = null;
+let statusCheckInterval = null;
+
+document.getElementById('searchForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const termo_pesquisa = formData.get('termo_pesquisa').trim();
+    const paginas_ml = parseInt(formData.get('paginas_ml'));
+    
+    if (!termo_pesquisa || termo_pesquisa.length < 2) {
+        showNotification('Digite um termo de busca com pelo menos 2 caracteres.', 'warning');
+        return;
+    }
+    
+    try {
+        // Mostra overlay
+        showSearchOverlay();
+        
+        // Inicia busca
+        const response = await fetch('/search/execute', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                termo_pesquisa: termo_pesquisa,
+                paginas_ml: paginas_ml
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Erro na busca');
+        }
+        
+        currentSearchId = data.search_id;
+        
+        // Inicia monitoramento do status
+        statusCheckInterval = setInterval(checkSearchStatus, 2000);
+        
+    } catch (error) {
+        hideSearchOverlay();
+        showNotification(error.message, 'error');
+    }
+});
+
+async function checkSearchStatus() {
+    if (!currentSearchId) return;
+    
+    try {
+        const response = await fetch(`/search/status/${currentSearchId}`);
+        const status = await response.json();
+        
+        // Atualiza interface
+        updateSearchProgress(status);
+        
+        if (status.completed) {
+            clearInterval(statusCheckInterval);
+            
+            if (status.status === 'concluida') {
+                // Redireciona para resultados
+                setTimeout(() => {
+                    window.location.href = `/search/results?search_id=${currentSearchId}`;
+                }, 1000);
+            } else if (status.status === 'erro') {
+                hideSearchOverlay();
+                showNotification(status.error || 'Erro na busca', 'error');
+            }
+        }
+        
+    } catch (error) {
+        clearInterval(statusCheckInterval);
+        hideSearchOverlay();
+        showNotification('Erro ao verificar status da busca', 'error');
+    }
+}
+
+function updateSearchProgress(status) {
+    const progressBar = document.getElementById('searchProgress');
+    const messageEl = document.getElementById('searchMessage');
+    const titleEl = document.getElementById('searchTitle');
+    
+    progressBar.style.width = `${status.progress || 0}%`;
+    messageEl.textContent = status.message || 'Processando...';
+    
+    if (status.status === 'concluida') {
+        titleEl.textContent = 'Busca concluída!';
+        progressBar.style.width = '100%';
+    }
+}
+
+function showSearchOverlay() {
+    document.getElementById('searchOverlay').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function hideSearchOverlay() {
+    document.getElementById('searchOverlay').style.display = 'none';
+    document.body.style.overflow = 'auto';
+    
+    // Reset
+    document.getElementById('searchProgress').style.width = '0%';
+    document.getElementById('searchMessage').textContent = 'Preparando busca...';
+    document.getElementById('searchTitle').textContent = 'Buscando ofertas...';
+}
+
+// Carrega buscas recentes
+async function loadRecentSearches() {
+    try {
+        const response = await fetch('/history');
+        if (response.ok) {
+            // Implementar carregamento de buscas recentes
+            const recentSearches = ['smartphone', 'notebook', 'fone bluetooth', 'mouse gamer'];
+            const container = document.getElementById('recentSearches');
+            
+            container.innerHTML = recentSearches.map(term => 
+                `<a href="#" class="recent-search-tag" onclick="fillSearchTerm('${term}')">${term}</a>`
+            ).join('');
+        }
+    } catch (error) {
+        console.error('Erro ao carregar buscas recentes:', error);
+    }
+}
+
+function fillSearchTerm(term) {
+    document.getElementById('termo_pesquisa').value = term;
+    document.getElementById('termo_pesquisa').focus();
+}
+
+// Carrega buscas recentes ao carregar a página
+document.addEventListener('DOMContentLoaded', loadRecentSearches);
+</script>
+{% endblock %}

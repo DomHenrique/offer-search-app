@@ -1,0 +1,33 @@
+# Web Framework
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Database
+supabase==1.2.0
+psycopg2-binary==2.9.9
+
+# Data Processing
+pandas==2.1.1
+numpy==1.24.3
+
+# Web Scraping
+selenium==4.15.2
+beautifulsoup4==4.12.2
+requests==2.31.0
+
+# Search APIs
+google-search-results==2.4.2
+
+# Environment Management
+python-dotenv==1.0.0
+
+# Security
+cryptography==41.0.7
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2023.3
+
+# Optional: For better performance
+lxml==4.9.3
+html5lib==1.1

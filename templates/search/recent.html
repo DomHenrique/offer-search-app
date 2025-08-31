@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Buscas Recentes - Offer Search App{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-6 fw-bold">
+                <i class="fas fa-history me-2"></i>
+                Buscas Recentes
+            </h1>
+            <p class="text-muted">Visualize e gerencie suas buscas anteriores</p>
+        </div>
+    </div>
+    
+     Filtros 
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body py-3">
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="{{ url_for('search.recent_searches') }}" 
+                           class="btn btn-sm {{ 'btn-primary' if not termo_selecionado else 'btn-outline-primary' }}">
+                            Todas
+                        </a>
+                        {% for termo in termos_unicos[:10] %}
+                        <a href="{{ url_for('search.recent_searches', termo=termo) }}" 
+                           class="btn btn-sm {{ 'btn-primary' if termo_selecionado == termo else 'btn-outline-primary' }}">
+                            {{ termo }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+     Resultados 
+    <div class="row g-4">
+        {% for produto in ofertas %}
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="product-image">
+                    <img src="{{ produto.imagem or '/static/img/no-image.png' }}" 
+                         alt="{{ produto.titulo }}" 
+                         class="card-img-top"
+                         onerror="this.src='/static/img/no-image.png'">
+                </div>
+                
+                <div class="card-body">
+                    <h6 class="card-title product-title">{{ produto.titulo }}</h6>
+                    
+                    <div class="price-section mb-2">
+                        <div class="current-price">{{ produto.preco_numerico|currency }}</div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">{{ produto.criado_em|timeago }}</small>
+                        <span class="badge {{ 'bg-warning text-dark' if produto.marketplace == 'Amazon' else 'bg-info' }}">
+                            {{ produto.marketplace }}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="card-footer bg-transparent">
+                    <div class="d-grid">
+                        <a href="{{ produto.url_produto }}" 
+                           target="_blank" 
+                           class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-external-link-alt me-2"></i>
+                            Ver Produto
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    {% if not ofertas %}
+    <div class="text-center py-5">
+        <i class="fas fa-history fa-4x text-muted mb-3"></i>
+        <h4>Nenhuma busca encontrada</h4>
+        <p class="text-muted">Faça sua primeira busca para ver os resultados aqui.</p>
+        <a href="{{ url_for('search.search_page') }}" class="btn btn-primary">
+            <i class="fas fa-search me-2"></i>
+            Nova Busca
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+.product-image {
+    height: 200px;
+    overflow: hidden;
+    background: #f8f9fa;
+}
+
+.product-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.current-price {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #059669;
+}
+
+.product-title {
+    white-space: normal;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    min-height: 3em;
+}
+</style>
+{% endblock %}

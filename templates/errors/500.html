@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Erro Interno do Servidor{% endblock %}
+
+{% block content %}
+<div class="container text-center py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <h1 class="display-1 fw-bold text-danger">500</h1>
+            <h2 class="mb-4">Opa! Algo deu errado.</h2>
+            <p class="lead text-muted mb-4">
+                Nossa equipe já foi notificada e está trabalhando para consertar o problema. 
+                Por favor, tente novamente mais tarde.
+            </p>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg">
+                <i class="fas fa-home me-2"></i>
+                Voltar para o Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

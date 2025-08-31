@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}Histórico - Offer Search{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card glass-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">
+                        <i class="fas fa-history me-2"></i>
+                        Histórico de Buscas
+                    </h4>
+                    <div class="btn-group">
+                        <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#clearModal">
+                            <i class="fas fa-broom me-2"></i>Limpar Histórico
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if historico %}
+                        <div class="row">
+                            {% for busca in historico %}
+                            <div class="col-md-6 col-lg-4 mb-4">
+                                <div class="card history-card h-100">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <h6 class="card-title text-truncate">{{ busca.termo_busca }}</h6>
+                                            <button class="btn btn-sm btn-outline-danger btn-delete-search" 
+                                                    data-busca-id="{{ busca.id }}" title="Excluir busca">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                        
+                                        <div class="search-info mb-3">
+                                            <p class="mb-2">
+                                                <i class="fas fa-calendar me-2 text-primary"></i>
+                                                {{ busca.criado_em.strftime('%d/%m/%Y %H:%M') }}
+                                            </p>
+                                            <p class="mb-2">
+                                                <i class="fas fa-shopping-cart me-2 text-success"></i>
+                                                {{ busca.total_produtos or 0 }} produtos encontrados
+                                            </p>
+                                            {% if busca.tempo_execucao %}
+                                            <p class="mb-2">
+                                                <i class="fas fa-clock me-2 text-info"></i>
+                                                {{ "%.1f"|format(busca.tempo_execucao) }}s de execução
+                                            </p>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="badge bg-primary">
+                                                {{ busca.status.title() }}
+                                            </span>
+                                            {% if busca.total_produtos and busca.total_produtos > 0 %}
+                                            <a href="{{ url_for('search.results', busca_id=busca.id) }}" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye me-1"></i>Ver Resultados
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                         Paginação 
+                        {% if pagination.pages > 1 %}
+                        <nav aria-label="Navegação do histórico">
+                            <ul class="pagination justify-content-center">
+                                {% if pagination.has_prev %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('history.history_page', page=pagination.prev_num) }}">
+                                        <i class="fas fa-chevron-left"></i>
+                                    </a>
+                                </li>
+                                {% endif %}
+                                
+                                {% for page_num in pagination.iter_pages() %}
+                                    {% if page_num %}
+                                        {% if page_num != pagination.page %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="{{ url_for('history.history_page', page=page_num) }}">{{ page_num }}</a>
+                                        </li>
+                                        {% else %}
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ page_num }}</span>
+                                        </li>
+                                        {% endif %}
+                                    {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">…</span>
+                                    </li>
+                                    {% endif %}
+                                {% endfor %}
+                                
+                                {% if pagination.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('history.history_page', page=pagination.next_num) }}">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                        {% endif %}
+                        
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">Nenhuma busca no histórico</h5>
+                            <p class="text-muted">Suas buscas aparecerão aqui após serem realizadas</p>
+                            <a href="{{ url_for('search.search_page') }}" class="btn btn-primary">
+                                <i class="fas fa-search me-2"></i>Fazer Primeira Busca
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+ Modal Limpar Histórico 
+<div class="modal fade" id="clearModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h5 class="modal-title">Limpar Histórico</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Escolha como deseja limpar o histórico:</p>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="radio" name="clearOption" id="clearAll" value="all" checked>
+                    <label class="form-check-label" for="clearAll">
+                        <strong>Limpar todo o histórico</strong>
+                        <br><small class="text-muted">Remove todas as buscas realizadas</small>
+                    </label>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="radio" name="clearOption" id="clearOld" value="old">
+                    <label class="form-check-label" for="clearOld">
+                        <strong>Manter apenas os últimos</strong>
+                        <br><small class="text-muted">Remove buscas antigas, mantendo as recentes</small>
+                    </label>
+                </div>
+                
+                <div id="keepDaysGroup" class="ms-4" style="display: none;">
+                    <div class="mb-3">
+                        <label for="keepDays" class="form-label">Manter últimos (dias):</label>
+                        <select class="form-select" id="keepDays">
+                            <option value="7">7 dias</option>
+                            <option value="15">15 dias</option>
+                            <option value="30" selected>30 dias</option>
+                            <option value="60">60 dias</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Atenção:</strong> Esta ação não pode ser desfeita.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" id="confirmClear">
+                    <i class="fas fa-broom me-2"></i>Limpar Histórico
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Controlar exibição do campo de dias
+    document.querySelectorAll('input[name="clearOption"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const keepDaysGroup = document.getElementById('keepDaysGroup');
+            if (this.value === 'old') {
+                keepDaysGroup.style.display = 'block';
+            } else {
+                keepDaysGroup.style.display = 'none';
+            }
+        });
+    });
+    
+    // Confirmar limpeza do histórico
+    document.getElementById('confirmClear').addEventListener('click', function() {
+        const clearOption = document.querySelector('input[name="clearOption"]:checked').value;
+        const keepDays = clearOption === 'old' ? parseInt(document.getElementById('keepDays').value) : 0;
+        
+        fetch('/history/clear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keep_days: keepDays })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                showAlert('success', result.message);
+                bootstrap.Modal.getInstance(document.getElementById('clearModal')).hide();
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showAlert('danger', result.message);
+            }
+        })
+        .catch(error => showAlert('danger', 'Erro ao limpar histórico'));
+    });
+    
+    // Excluir busca específica
+    document.querySelectorAll('.btn-delete-search').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const buscaId = this.dataset.buscaId;
+            
+            if (confirm('Tem certeza que deseja excluir esta busca?')) {
+                fetch(`/history/delete/${buscaId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        showAlert('success', result.message);
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showAlert('danger', result.message);
+                    }
+                })
+                .catch(error => showAlert('danger', 'Erro ao excluir busca'));
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
