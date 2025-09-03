@@ -86,6 +86,15 @@ def initialize_database():
             pass
         raise
 
+# Executa a inicialização do banco de dados
+try:
+    initialize_database()
+except Exception as e:
+    logger.error(f"❌ Falha crítica na inicialização do banco de dados: {e}")
+    # Decide se a aplicação deve parar ou continuar
+    # Neste caso, vamos permitir que continue para que o erro seja visível
+    pass
+
 # Inicializa scheduler para agendamentos
 scheduler_manager = SchedulerManager(db_manager)
 
@@ -201,13 +210,6 @@ def start_scheduler():
     scheduler_thread.start()
 
 if __name__ == '__main__':
-    # Inicializa banco de dados
-    try:
-        initialize_database()
-    except Exception as e:
-        logger.error(f"❌ Falha crítica na inicialização do banco de dados: {e}")
-        exit(1)
-    
     # Inicia scheduler em background
     start_scheduler()
     

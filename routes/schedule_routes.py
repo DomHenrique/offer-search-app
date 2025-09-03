@@ -8,7 +8,7 @@ schedule_bp = Blueprint('schedule', __name__)
 db = DatabaseManager()
 scheduler = SchedulerManager(db)
 
-@schedule_bp.route('/schedule')
+@schedule_bp.route('/')
 def schedule_page():
     """Página de agendamentos"""
     if 'user_id' not in session:

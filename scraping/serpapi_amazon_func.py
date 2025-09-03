@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from datetime import datetime
-from serpapi import search
+from serpapi.google_search import GoogleSearch
 from dotenv import load_dotenv
 
 # Carrega variáveis do arquivo .env
@@ -34,62 +34,74 @@ def buscar_produtos_amazon(
     # Configura os parâmetros da busca
     params = {
         "engine": "amazon",
-        "q": query,
+        "k": query,  # Corrigido: SerpApi Amazon espera 'k' para a query
         "api_key": api_key,
         "sort_by": ordenar,
         "device": device,
         "amazon_domain": "amazon.com.br"
     }
     
+    print(f"[DEBUG Amazon] Iniciando busca para: '{query}' com parâmetros: {params}")
     # Realiza a busca
-    search_result = search(params)
-    results = search_result.get_dict()
-    
+    try:
+        search_result = GoogleSearch(params)
+        results = search_result.get_dict()
+    except Exception as e:
+        print(f"[DEBUG Amazon] Erro ao buscar na SerpApi: {e}")
+        return pd.DataFrame()
+
+    print(f"[DEBUG Amazon] Resultado bruto da API: {str(results)[:1000]}...")
+
     # Busca produtos em diferentes seções
     product_ads = results.get("product_ads", {}).get("products", [])
     organic_results = results.get("organic_results", [])
-    
+    print(f"[DEBUG Amazon] Produtos em product_ads: {len(product_ads)} | organic_results: {len(organic_results)}")
+
     # Busca também em featured_products se disponível
     featured_products = []
     if "featured_products" in results:
         for section in results["featured_products"]:
             featured_products.extend(section.get("products", []))
-    
+    print(f"[DEBUG Amazon] Produtos em featured_products: {len(featured_products)}")
+
     produtos = product_ads + organic_results + featured_products
-    
+
     if not produtos:
         print(f"⚠️ Nenhum produto encontrado para '{query}'")
+        print(f"[DEBUG Amazon] Estrutura completa retornada: {results}")
         return pd.DataFrame()
     
     # Extrai dados dos produtos
     data_list = []
     
-    for produto in produtos:
+    for idx, produto in enumerate(produtos):
+        print(f"[DEBUG Amazon Produto bruto {idx+1}] {produto}")
         # Dados básicos
         title = produto.get("title", "")
         price = produto.get("price", "")
         image = produto.get("thumbnail", "")
+        print(f"[DEBUG Amazon Imagem] URL da imagem extraída: {image}")
         link = produto.get("link_clean", produto.get("link", ""))
         asin = produto.get("asin", "")
-        
+
         # Dados de avaliação
         rating = produto.get("rating", None)
         reviews_count = produto.get("reviews", None)
         bought_last_month = produto.get("bought_last_month", "")
-        
+
         # Informações adicionais
         sponsored = produto.get("sponsored", False)
         prime = produto.get("prime", False)
         badges = produto.get("badges", [])
         offers = produto.get("offers", [])
         snap_ebt = produto.get("snap_ebt_eligible", False)
-        
+
         # Preços
         old_price = produto.get("old_price", "")
         extracted_price = produto.get("extracted_price", None)
         price_unit = produto.get("price_unit", "")
-        
-        data_list.append({
+
+        product_data = {
             "TITLE": title,
             "ASIN": asin,
             "PRICE": price,
@@ -109,7 +121,10 @@ def buscar_produtos_amazon(
             "SEARCH_TERM": query,
             "SCRAPY_DATETIME": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             "MARKETPLACE": "Amazon"
-        })
+        }
+
+        print(f"[DEBUG Amazon Produto] Dados do produto extraído: {product_data}")
+        data_list.append(product_data)
     
     df = pd.DataFrame(data_list)
     

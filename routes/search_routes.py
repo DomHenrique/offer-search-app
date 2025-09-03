@@ -124,13 +124,13 @@ def _execute_search_thread(search_id, user_id, termo_pesquisa, paginas_ml):
             
             # Calcula estatísticas
             stats = {
-                'total_produtos': len(results),
-                'amazon_produtos': len([r for r in results if r.get('marketplace') == 'Amazon']),
-                'ml_produtos': len([r for r in results if r.get('marketplace') == 'MercadoLivre']),
-                'preco_medio': sum(r.get('preco_numerico', 0) for r in results) / len(results) if results else 0,
-                'preco_minimo': min(r.get('preco_numerico', 0) for r in results) if results else 0,
-                'preco_maximo': max(r.get('preco_numerico', 0) for r in results) if results else 0,
-                'tempo_execucao': execution_time
+                'total_produtos': int(len(results) or 0),
+                'amazon_produtos': int(len([r for r in results if r.get('marketplace') == 'Amazon']) or 0),
+                'ml_produtos': int(len([r for r in results if r.get('marketplace') == 'MercadoLivre']) or 0),
+                'preco_medio': float(sum(r.get('preco_numerico', 0) or 0 for r in results) / len(results)) if results else 0.0,
+                'preco_minimo': float(min((r.get('preco_numerico', 0) or 0) for r in results)) if results else 0.0,
+                'preco_maximo': float(max((r.get('preco_numerico', 0) or 0) for r in results)) if results else 0.0,
+                'tempo_execucao': int(execution_time or 0)
             }
             print(f"📈 Estatísticas: {stats}")
             

@@ -30,10 +30,10 @@ class TableManager:
         try:
             # Extrai informações de conexão do URL do Supabase
             supabase_url = os.environ.get('SUPABASE_URL')
-            supabase_key = os.environ.get('SUPABASE_KEY')
+            db_password = os.environ.get('DATABASE_PASSWORD')
             
-            if not supabase_url or not supabase_key:
-                raise ValueError("SUPABASE_URL e SUPABASE_KEY são necessários para conexão direta")
+            if not supabase_url or not db_password:
+                raise ValueError("SUPABASE_URL e DATABASE_PASSWORD são necessários para conexão direta")
             
             # Formato do URL do Supabase: https://[project-ref].supabase.co
             # Conexão PostgreSQL: postgresql://postgres:[project-ref]:5432/postgres
@@ -52,7 +52,7 @@ class TableManager:
                 port=db_port,
                 database=db_name,
                 user=db_user,
-                password=supabase_key
+                password=db_password
             )
             
             logger.info("✅ Conexão direta com banco de dados estabelecida")

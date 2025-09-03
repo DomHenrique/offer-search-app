@@ -330,9 +330,9 @@ class DatabaseManager:
     def _create_default_configs(self, user_id: str):
         """Cria configurações padrão para novo usuário"""
         default_configs = [
-            {"chave": "SERPAPI_KEY", "valor": "", "descricao": "Chave da API do SerpAPI para busca na Amazon", "tipo": "password", "obrigatorio": True},
-            {"chave": "SUPABASE_URL", "valor": "", "descricao": "URL do projeto Supabase", "tipo": "string", "obrigatorio": True},
-            {"chave": "SUPABASE_KEY", "valor": "", "descricao": "Chave de serviço do Supabase", "tipo": "password", "obrigatorio": True}
+            {"chave": "SERPAPI_KEY", "valor": os.environ.get("SERPAPI_KEY", ""), "descricao": "Chave da API do SerpAPI para busca na Amazon", "tipo": "password", "obrigatorio": True},
+            {"chave": "SUPABASE_URL", "valor": os.environ.get("SUPABASE_URL", ""), "descricao": "URL do projeto Supabase", "tipo": "string", "obrigatorio": True},
+            {"chave": "SUPABASE_KEY", "valor": os.environ.get("SUPABASE_KEY", ""), "descricao": "Chave de serviço do Supabase", "tipo": "password", "obrigatorio": True}
         ]
         
         for config in default_configs:

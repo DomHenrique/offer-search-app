@@ -4,11 +4,11 @@ Werkzeug==2.3.7
 
 # Database
 supabase==1.2.0
-psycopg2-binary==2.9.9
+psycopg2-binary
 
 # Data Processing
-pandas==2.1.1
-numpy==1.24.3
+pandas
+numpy
 
 # Web Scraping
 selenium==4.15.2
@@ -29,5 +29,5 @@ python-dateutil==2.8.2
 pytz==2023.3
 
 # Optional: For better performance
-lxml==4.9.3
+lxml
 html5lib==1.1
