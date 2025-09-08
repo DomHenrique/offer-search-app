@@ -9,6 +9,7 @@ from typing import Optional, List, Dict, Any
 # Importa as funções dos scrapers
 from scraping.serpapi_amazon_func import buscar_produtos_amazon
 from scraping.web_scrap_mercado_livre import get_mercado_livre_data
+from scraping.web_scrap_mercado_livre_improved import get_mercado_livre_data_improved
 
 
 def limpar_preco_numerico(preco_str: str) -> float:
@@ -80,6 +81,11 @@ def padronizar_colunas_amazon(df: pd.DataFrame) -> pd.DataFrame:
     
     # Cria cópia para não alterar original
     df_padronizado = df.copy()
+    
+    # **CORREÇÃO IMPORTANTE**: Converte colunas categóricas para string para evitar erros
+    for col in df_padronizado.columns:
+        if hasattr(df_padronizado[col], 'dtype') and str(df_padronizado[col].dtype) == 'category':
+            df_padronizado[col] = df_padronizado[col].astype(str)
     
     # Mapeia colunas para padrão unificado (compatível com Supabase)
     column_mapping = {
@@ -158,6 +164,11 @@ def padronizar_colunas_ml(df: pd.DataFrame) -> pd.DataFrame:
     # Cria cópia para não alterar original
     df_padronizado = df.copy()
     
+    # **CORREÇÃO IMPORTANTE**: Converte colunas categóricas para string para evitar erros
+    for col in df_padronizado.columns:
+        if hasattr(df_padronizado[col], 'dtype') and str(df_padronizado[col].dtype) == 'category':
+            df_padronizado[col] = df_padronizado[col].astype(str)
+    
     # Mapeia colunas para padrão unificado (compatível com Supabase)
     column_mapping = {
         'TITLE': 'TITULO',
@@ -213,12 +224,13 @@ def padronizar_colunas_ml(df: pd.DataFrame) -> pd.DataFrame:
     return df_padronizado
 
 
-def filtrar_produtos_validos(df: pd.DataFrame) -> pd.DataFrame:
+def filtrar_produtos_validos(df: pd.DataFrame, min_price: float = 0.0) -> pd.DataFrame:
     """
     Filtra produtos removendo aqueles sem preço válido.
     
     Args:
         df (pd.DataFrame): DataFrame com produtos
+        min_price (float): Preço mínimo para filtrar
         
     Returns:
         pd.DataFrame: DataFrame filtrado
@@ -228,9 +240,14 @@ def filtrar_produtos_validos(df: pd.DataFrame) -> pd.DataFrame:
     
     df_filtrado = df.copy()
     
+    # **CORREÇÃO IMPORTANTE**: Converte colunas categóricas para string para evitar erros
+    for col in df_filtrado.columns:
+        if hasattr(df_filtrado[col], 'dtype') and str(df_filtrado[col].dtype) == 'category':
+            df_filtrado[col] = df_filtrado[col].astype(str)
+    
     # Remove apenas produtos sem preço ou com preço zero/inválido
     df_filtrado = df_filtrado[
-        (df_filtrado['PRECO_NUM'] > 0) &
+        (df_filtrado['PRECO_NUM'] > min_price) &
         (df_filtrado['PRECO_NUM'].notna()) &
         (df_filtrado['TITULO'] != '') &
         (df_filtrado['TITULO'].notna())
@@ -258,11 +275,13 @@ def adicionar_metricas_comparacao(df: pd.DataFrame) -> pd.DataFrame:
     
     # Categoria de preço
     if df_com_metricas['PRECO_NUM'].max() > 0:
-        df_com_metricas['CATEGORIA_PRECO'] = pd.cut(
+        # Converte para string para evitar problemas com categorias
+        categorias = pd.cut(
             df_com_metricas['PRECO_NUM'],
             bins=5,
             labels=['Muito Barato', 'Barato', 'Médio', 'Caro', 'Muito Caro']
         )
+        df_com_metricas['CATEGORIA_PRECO'] = categorias.astype(str)
     else:
         df_com_metricas['CATEGORIA_PRECO'] = 'Indefinido'
     
@@ -427,26 +446,101 @@ def salvar_no_supabase(df: pd.DataFrame, termo_busca: str) -> bool:
         return False
     
     try:
-        # Importa a classe SupabaseDB
-        from supabase_connection import SupabaseDB
+        # Importa a classe DatabaseManager
+        from database.db_manager import DatabaseManager
         
         # Converte para formato Supabase
         df_supabase = converter_para_supabase(df)
         
-        # Salva no Supabase
-        db = SupabaseDB()
-        db.salvar_ofertas(df_supabase)
+        # Salva no Supabase usando DatabaseManager
+        db = DatabaseManager()
+        success = db.salvar_ofertas(df_supabase)
         
-        print(f"💾 {len(df_supabase)} produtos salvos no Supabase com sucesso!")
-        return True
+        if success:
+            print(f"💾 {len(df_supabase)} produtos salvos no Supabase com sucesso!")
+        else:
+            print("❌ Falha ao salvar produtos no Supabase")
+        return success
         
     except ImportError:
-        print("❌ Módulo supabase_connection não encontrado")
+        print("❌ Módulo database.db_manager não encontrado")
         return False
     except Exception as e:
         print(f"❌ Erro ao salvar no Supabase: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
+
+def buscar_ofertas_do_dia(
+    paginas_ml: int = 1,
+    salvar_supabase: bool = True
+) -> pd.DataFrame:
+    """
+    Busca ofertas do dia do Mercado Livre (sem termo específico)
+    
+    Args:
+        paginas_ml (int): Número de páginas do ML para buscar
+        salvar_supabase (bool): Se deve salvar no Supabase
+        
+    Returns:
+        pd.DataFrame: DataFrame com produtos das ofertas do dia
+    """
+    print(f"🛒 Buscando ofertas do dia do Mercado Livre...")
+    print("="*50)
+    
+    min_price = float(os.getenv("MIN_PRICE_FILTER", 1.0))
+
+    # Busca dados do Mercado Livre (ofertas do dia)
+    print("🛒 Buscando ofertas do dia no Mercado Livre...")
+    try:
+        # Usa o scraper melhorado sem termo de busca (busca padrão)
+        df_ml = get_mercado_livre_data_improved("", paginas_ml)
+        if df_ml is not None and not df_ml.empty:
+            print(f"✅ Mercado Livre: {len(df_ml)} ofertas do dia encontradas")
+        else:
+            print("⚠️ Mercado Livre: Nenhuma oferta do dia encontrada")
+            df_ml = pd.DataFrame()
+    except Exception as e:
+        print(f"❌ Erro na busca de ofertas do dia: {e}")
+        df_ml = pd.DataFrame()
+    
+    # Padroniza colunas
+    print("🔧 Padronizando dados...")
+    df_ml_padronizado = padronizar_colunas_ml(df_ml)
+    
+    # Combina DataFrames (só ML neste caso)
+    dfs_validos = [df for df in [df_ml_padronizado] 
+                   if df is not None and not df.empty]
+    
+    if not dfs_validos:
+        print("❌ Nenhuma oferta do dia válida encontrada")
+        return pd.DataFrame()
+    
+    # Combina todos os DataFrames válidos
+    df_final = pd.concat(dfs_validos, ignore_index=True)
+    
+    # Remove duplicatas baseado no título e preço
+    df_final = df_final.drop_duplicates(subset=['titulo', 'preco_numerico'], keep='first')
+    
+    # Filtra por preço mínimo
+    df_final = df_final[df_final['preco_numerico'] >= min_price]
+    
+    # Ordena por preço (menor primeiro)
+    df_final = df_final.sort_values('preco_numerico').reset_index(drop=True)
+    
+    print(f"🎯 Total de ofertas do dia processadas: {len(df_final)}")
+    
+    # Salva no Supabase se solicitado
+    if salvar_supabase and not df_final.empty:
+        print("💾 Salvando ofertas do dia no Supabase...")
+        sucesso = salvar_no_supabase(df_final, "ofertas_do_dia")
+        if sucesso:
+            print("✅ Ofertas do dia salvas com sucesso!")
+        else:
+            print("❌ Erro ao salvar ofertas do dia")
+    
+    return df_final
 
 def unificar_dados_amazon_mercadolivre(
     termo: str,
@@ -467,6 +561,8 @@ def unificar_dados_amazon_mercadolivre(
     print(f"🔍 Iniciando busca unificada para: '{termo}'")
     print("="*50)
     
+    min_price = float(os.getenv("MIN_PRICE_FILTER", 1.0))
+
     # Busca dados do Amazon
     print("🛒 Buscando produtos na Amazon...")
     try:
@@ -480,10 +576,11 @@ def unificar_dados_amazon_mercadolivre(
         print(f"❌ Erro na busca Amazon: {e}")
         df_amazon = pd.DataFrame()
     
-    # Busca dados do Mercado Livre
+    # Busca dados do Mercado Livre (usando versão melhorada)
     print("🛒 Buscando produtos no Mercado Livre...")
     try:
-        df_ml = get_mercado_livre_data(termo, paginas_ml)
+        # Usa o scraper melhorado que suporta busca padrão e com termo
+        df_ml = get_mercado_livre_data_improved(termo, paginas_ml)
         if df_ml is not None and not df_ml.empty:
             print(f"✅ Mercado Livre: {len(df_ml)} produtos encontrados")
         else:
@@ -491,7 +588,17 @@ def unificar_dados_amazon_mercadolivre(
             df_ml = pd.DataFrame()
     except Exception as e:
         print(f"❌ Erro na busca Mercado Livre: {e}")
-        df_ml = pd.DataFrame()
+        # Fallback para o scraper original
+        try:
+            print("🔄 Tentando com scraper original...")
+            df_ml = get_mercado_livre_data(termo, paginas_ml)
+            if df_ml is not None and not df_ml.empty:
+                print(f"✅ Mercado Livre (fallback): {len(df_ml)} produtos encontrados")
+            else:
+                df_ml = pd.DataFrame()
+        except Exception as e2:
+            print(f"❌ Erro no fallback Mercado Livre: {e2}")
+            df_ml = pd.DataFrame()
     
     # Padroniza colunas
     print("🔧 Padronizando dados...")
@@ -510,7 +617,7 @@ def unificar_dados_amazon_mercadolivre(
     
     # Filtra produtos válidos (apenas remove sem preço)
     print("🔍 Filtrando produtos válidos...")
-    df_filtrado = filtrar_produtos_validos(df_unificado)
+    df_filtrado = filtrar_produtos_validos(df_unificado, min_price=min_price)
     
     if df_filtrado.empty:
         print("❌ Nenhum produto válido após filtros")

@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center mb-3">
+        <div class="col-lg-8 d-flex justify-content-end">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#alertModal" aria-haspopup="dialog" aria-expanded="false">
+                <i class="fas fa-plus me-2"></i>
+                Criar Alerta
+            </button>
+        </div>
+    </div>
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card glass-card">
+                <div class="card-body">
+                    {% if alerts and alerts|length > 0 %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Produto</th>
+                                        <th>Preço Alvo</th>
+                                        <th>Tipo</th>
+                                        <th>Telefone</th>
+                                        <th>Ativo</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for alert in alerts %}
+                                        <tr>
+                                            <td>{{ alert.produto_nome }}</td>
+                                            <td>{{ alert.preco_alvo | currency }}</td>
+                                            <td>{{ alert.tipo_alerta }}</td>
+                                            <td>{{ alert.telefone }}</td>
+                                            <td>
+                                                <span class="badge {% if alert.ativo %}bg-success{% else %}bg-secondary{% endif %}">
+                                                    {% if alert.ativo %}Ativo{% else %}Inativo{% endif %}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm">
+                                                    <button class="btn btn-outline-info btn-edit-alert" 
+                                                            data-alert='{{ alert | tojson }}'>
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline-danger btn-delete-alert" 
+                                                            data-alert-id="{{ alert.id }}">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-bell fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">Nenhum alerta criado</h5>
+                            <p class="text-muted">Crie seu primeiro alerta para ser notificado sobre os preços dos produtos</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="alertModal" tabindex="-1" aria-labelledby="alertModalTitle" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h5 class="modal-title" id="alertModalTitle">Novo Alerta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="alertForm">
+                <div class="modal-body">
+                    <input type="hidden" id="alertId" name="alert_id">
+                    
+                    <div class="mb-3">
+                        <label for="produtoNome" class="form-label">Nome do Produto</label>
+                        <input type="text" class="form-control" id="produtoNome" name="produto_nome" 
+                               placeholder="Ex: Smartphone Samsung Galaxy S23" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="precoAlvo" class="form-label">Preço Alvo</label>
+                        <input type="number" class="form-control" id="precoAlvo" name="preco_alvo" 
+                               placeholder="Ex: 3000.00" step="0.01" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="tipoAlerta" class="form-label">Tipo de Alerta</label>
+                        <select class="form-select" id="tipoAlerta" name="tipo_alerta" required>
+                            <option value="">Selecione o tipo</option>
+                            <option value="menor_ou_igual">Menor ou Igual</option>
+                            <option value="maior_ou_igual">Maior ou Igual</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="telefone" class="form-label">Telefone para Notificação</label>
+                        <input type="text" class="form-control" id="telefone" name="telefone" 
+                               placeholder="Ex: 5511999999999">
+                        <div class="form-text">Insira o número de telefone com o código do país e DDD.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="ativo" name="ativo" checked>
+                            <label class="form-check-label" for="ativo">
+                                Ativar alerta imediatamente
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>
+                        Salvar Alerta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const alertForm = document.getElementById('alertForm');
+    const alertModalEl = document.getElementById('alertModal');
+    let alertModal = null;
+    if (window.bootstrap && window.bootstrap.Modal) {
+        alertModal = new bootstrap.Modal(alertModalEl);
+    }
+
+    // Criar/Editar alerta
+    alertForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(alertForm);
+        const data = {
+            produto_nome: formData.get('produto_nome'),
+            preco_alvo: parseFloat(formData.get('preco_alvo')),
+            tipo_alerta: formData.get('tipo_alerta'),
+            telefone: formData.get('telefone'),
+            ativo: formData.get('ativo') === 'on'
+        };
+        const alertId = formData.get('alert_id');
+        const url = alertId ? `/alert/update/${alertId}` : '/alert/create';
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                showNotification(result.message, 'success');
+                if (alertModal) alertModal.hide();
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showNotification(result.message, 'danger');
+            }
+        })
+        .catch(error => {
+            showNotification('Erro ao salvar alerta', 'danger');
+        });
+    });
+
+    // Editar alerta
+    document.querySelectorAll('.btn-edit-alert').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const alert = JSON.parse(this.dataset.alert);
+            document.getElementById('alertModalTitle').textContent = 'Editar Alerta';
+            document.getElementById('alertId').value = alert.id;
+            document.getElementById('produtoNome').value = alert.produto_nome;
+            document.getElementById('precoAlvo').value = alert.preco_alvo;
+            document.getElementById('tipoAlerta').value = alert.tipo_alerta;
+            document.getElementById('telefone').value = alert.telefone;
+            document.getElementById('ativo').checked = alert.ativo;
+            alertModal.show();
+        });
+    });
+
+    // Excluir alerta
+    document.querySelectorAll('.btn-delete-alert').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const alertId = this.dataset.alertId;
+            if (confirm('Tem certeza que deseja excluir este alerta?')) {
+                fetch(`/alert/delete/${alertId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        showNotification(result.message, 'success');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showNotification(result.message, 'danger');
+                    }
+                })
+                .catch(error => {
+                    showNotification('Erro ao excluir alerta', 'danger');
+                });
+            }
+        });
+    });
+
+    // Limpar modal ao fechar
+    alertModalEl.addEventListener('hidden.bs.modal', function() {
+        document.getElementById('alertModalTitle').textContent = 'Novo Alerta';
+        alertForm.reset();
+        document.getElementById('alertId').value = '';
+    });
+});
+</script>
+{% endblock %}

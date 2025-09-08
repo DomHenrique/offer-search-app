@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="container py-4">
-     Header 
+    <!-- Header -->
     <div class="row mb-4">
         <div class="col">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -19,11 +19,11 @@
                 </div>
                 <div class="d-flex gap-2">
                     <div class="dropdown">
-                        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-download me-2"></i>
                             Exportar
                         </button>
-                        <ul class="dropdown-menu">
+                        <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="{{ url_for('approval.export_approved', format='csv') }}">
                                 <i class="fas fa-file-csv me-2"></i>CSV
                             </a></li>
@@ -41,7 +41,7 @@
         </div>
     </div>
     
-     Estatísticas 
+    <!-- Estatísticas -->
     {% if stats.total > 0 %}
     <div class="row g-3 mb-4">
         <div class="col-lg-2 col-md-4 col-6">
@@ -118,49 +118,13 @@
     </div>
     {% endif %}
     
-     Controles de Seleção 
-    {% if products %}
-    <div class="row mb-4">
-        <div class="col">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body py-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="selectAll">
-                                <label class="form-check-label fw-semibold" for="selectAll">
-                                    Selecionar Todos
-                                </label>
-                            </div>
-                            <span class="text-muted" id="selectedCount">0 selecionados</span>
-                        </div>
-                        
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-danger" id="removeSelected" disabled>
-                                <i class="fas fa-trash me-2"></i>
-                                Remover Selecionados
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-    
-     Lista de Produtos 
+    <!-- Lista de Produtos -->
     <div class="row g-4" id="productsContainer">
         {% for produto in products|sort(attribute='imagem', reverse=true) %}
         <div class="col-lg-4 col-md-6 approved-product-card">
             <div class="card h-100 border-0 shadow-sm approved-product-item" data-product-id="{{ produto.id }}">
-                 
-                <div class="product-select">
-                    <div class="form-check">
-                        <input class="form-check-input product-checkbox" type="checkbox" value="{{ produto.id }}">
-                    </div>
-                </div>
                 
-                 
+                <!-- Badge Marketplace -->
                 <div class="marketplace-badge">
                     {% if produto.marketplace == 'Amazon' %}
                         <span class="badge bg-warning text-dark">
@@ -173,14 +137,14 @@
                     {% endif %}
                 </div>
                 
-                  
+                <!-- Botão Remover -->
                 <div class="product-remove">
-                    <button class="btn btn-sm btn-outline-danger ms-4" style="margin-left:38px;" onclick="removeProduct({{ produto.id }})" title="Remover dos aprovados">
-                        <i class="fas fa-heart-broken"></i>
+                    <button class="btn btn-sm btn-danger" onclick="removeProduct({{ produto.id }})" title="Remover dos aprovados">
+                        <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
                 
-                 
+                <!-- Imagem do Produto -->
                 <div class="product-image">
                     <img src="{{ produto.imagem or '/static/img/no-image.png' }}" 
                          alt="{{ produto.titulo }}" 
@@ -189,10 +153,10 @@
                 </div>
                 
                 <div class="card-body d-flex flex-column">
-                     Título 
+                    <!-- Título -->
                     <h6 class="card-title mb-2 product-title">{{ produto.titulo }}</h6>
                     
-                     Preço 
+                    <!-- Preço -->
                     <div class="price-section mb-2">
                         <div class="current-price">{{ produto.preco_numerico|currency }}</div>
                         {% if produto.preco_antigo and produto.desconto_percent > 0 %}
@@ -203,7 +167,7 @@
                         {% endif %}
                     </div>
                     
-                     Avaliação 
+                    <!-- Avaliação -->
                     {% if produto.avaliacao > 0 %}
                     <div class="rating mb-2">
                         <div class="stars">
@@ -221,7 +185,7 @@
                     </div>
                     {% endif %}
                     
-                     Badges Extras 
+                    <!-- Badges Extras -->
                     <div class="product-badges mb-3">
                         {% if produto.prime %}
                             <span class="badge bg-primary">Prime</span>
@@ -234,7 +198,7 @@
                         {% endif %}
                     </div>
                     
-                     Observações 
+                    <!-- Observações -->
                     <div class="product-notes mb-3">
                         <div class="form-floating">
                             <textarea class="form-control form-control-sm product-note" 
@@ -246,7 +210,7 @@
                         </div>
                     </div>
                     
-                     Data de Aprovação 
+                    <!-- Data de Aprovação -->
                     <div class="approval-date mb-3">
                         <small class="text-muted">
                             <i class="fas fa-calendar me-1"></i>
@@ -254,15 +218,23 @@
                         </small>
                     </div>
                     
-                     Ações 
+                    <!-- Ações -->
                     <div class="mt-auto">
                         <div class="d-grid gap-2">
                             <a href="{{ produto.url_produto }}" 
                                target="_blank" 
-                               class="btn btn-primary btn-sm">
+                               class="btn btn-outline-secondary btn-sm">
                                 <i class="fas fa-external-link-alt me-2"></i>
                                 Ver Produto
                             </a>
+                            {% if produto.link_afiliado %}
+                            <a href="{{ produto.link_afiliado }}" 
+                               target="_blank" 
+                               class="btn btn-primary btn-sm">
+                                <i class="fas fa-hand-holding-usd me-2"></i>
+                                Link Afiliado
+                            </a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -293,7 +265,6 @@
 
 .approved-product-item {
     position: relative;
-    cursor: pointer;
     transition: all 0.3s ease;
 }
 
@@ -302,26 +273,10 @@
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
 }
 
-.approved-product-item.selected {
-    border: 2px solid #ef4444;
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
-}
-
-.product-select {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 10;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 50%;
-    padding: 5px;
-    backdrop-filter: blur(5px);
-}
-
 .product-remove {
     position: absolute;
     top: 10px;
-    right: 50px;
+    left: 10px;
     z-index: 10;
 }
 
@@ -440,78 +395,6 @@
 </style>
 
 <script>
-let selectedProducts = new Set();
-
-document.addEventListener('DOMContentLoaded', function() {
-    initializeProductSelection();
-});
-
-function initializeProductSelection() {
-    // Selecionar todos
-    document.getElementById('selectAll')?.addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('.product-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = this.checked;
-            toggleProductSelection(checkbox);
-        });
-    });
-    
-    // Seleção individual
-    document.querySelectorAll('.product-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            toggleProductSelection(this);
-        });
-    });
-    
-    // Clique no card para selecionar
-    document.querySelectorAll('.approved-product-item').forEach(card => {
-        card.addEventListener('click', function(e) {
-            if (e.target.closest('.btn') || e.target.closest('.product-select') || e.target.closest('.product-note')) {
-                return; // Não seleciona se clicou em botão, checkbox ou textarea
-            }
-            
-            const checkbox = this.querySelector('.product-checkbox');
-            checkbox.checked = !checkbox.checked;
-            toggleProductSelection(checkbox);
-        });
-    });
-    
-    // Remover selecionados
-    document.getElementById('removeSelected')?.addEventListener('click', removeSelectedProducts);
-}
-
-function toggleProductSelection(checkbox) {
-    const productId = checkbox.value;
-    const card = checkbox.closest('.approved-product-item');
-    
-    if (checkbox.checked) {
-        selectedProducts.add(productId);
-        card.classList.add('selected');
-    } else {
-        selectedProducts.delete(productId);
-        card.classList.remove('selected');
-    }
-    
-    updateSelectionUI();
-}
-
-function updateSelectionUI() {
-    const count = selectedProducts.size;
-    const countEl = document.getElementById('selectedCount');
-    const removeBtn = document.getElementById('removeSelected');
-    const selectAllCheckbox = document.getElementById('selectAll');
-    
-    if (countEl) countEl.textContent = `${count} selecionado${count !== 1 ? 's' : ''}`;
-    if (removeBtn) removeBtn.disabled = count === 0;
-    
-    // Atualiza estado do "Selecionar Todos"
-    if (selectAllCheckbox) {
-        const totalCheckboxes = document.querySelectorAll('.product-checkbox').length;
-        selectAllCheckbox.indeterminate = count > 0 && count < totalCheckboxes;
-        selectAllCheckbox.checked = count === totalCheckboxes;
-    }
-}
-
 async function removeProduct(productId) {
     if (!confirm('Tem certeza que deseja remover este produto dos aprovados?')) {
         return;
@@ -551,67 +434,6 @@ async function removeProduct(productId) {
         
     } catch (error) {
         showNotification(error.message, 'error');
-    }
-}
-
-async function removeSelectedProducts() {
-    if (selectedProducts.size === 0) return;
-    
-    if (!confirm(`Tem certeza que deseja remover ${selectedProducts.size} produto(s) dos aprovados?`)) {
-        return;
-    }
-    
-    const removeBtn = document.getElementById('removeSelected');
-    const originalText = removeBtn.innerHTML;
-    
-    try {
-        removeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Removendo...';
-        removeBtn.disabled = true;
-        
-        const response = await fetch('/approval/bulk-remove', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                product_ids: Array.from(selectedProducts)
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            showNotification(data.message, 'success');
-            
-            // Remove cards da interface
-            selectedProducts.forEach(productId => {
-                const card = document.querySelector(`[data-product-id="${productId}"]`).closest('.approved-product-card');
-                if (card) {
-                    card.style.animation = 'fadeOut 0.3s ease-out';
-                    setTimeout(() => card.remove(), 300);
-                }
-            });
-            
-            // Reset seleção
-            selectedProducts.clear();
-            updateSelectionUI();
-            
-            // Recarrega se não há mais produtos
-            setTimeout(() => {
-                if (document.querySelectorAll('.approved-product-card').length === 0) {
-                    location.reload();
-                }
-            }, 500);
-            
-        } else {
-            throw new Error(data.error || 'Erro ao remover produtos');
-        }
-        
-    } catch (error) {
-        showNotification(error.message, 'error');
-    } finally {
-        removeBtn.innerHTML = originalText;
-        removeBtn.disabled = selectedProducts.size === 0;
     }
 }
 

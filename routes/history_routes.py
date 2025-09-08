@@ -2,16 +2,15 @@ from flask import Blueprint, render_template, request, jsonify, session, redirec
 from database.db_manager import DatabaseManager
 from datetime import datetime, timedelta
 import math
+from utils.decorators import login_required
 
 history_bp = Blueprint('history', __name__)
 db = DatabaseManager()
 
 @history_bp.route('/')
+@login_required
 def history_page():
     """Página de histórico de buscas"""
-    if 'user_id' not in session:
-        return redirect(url_for('auth.login'))
-    
     user_id = session['user_id']
     page = request.args.get('page', 1, type=int)
     per_page = 15  # Itens por página
@@ -33,11 +32,9 @@ def history_page():
     )
 
 @history_bp.route('/delete/<int:busca_id>', methods=['DELETE'])
+@login_required
 def delete_search(busca_id):
     """Excluir busca específica do histórico"""
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Usuário não autenticado'})
-    
     try:
         user_id = session['user_id']
         
@@ -53,11 +50,9 @@ def delete_search(busca_id):
         return jsonify({'success': False, 'message': f'Erro interno: {str(e)}'})
 
 @history_bp.route('/clear', methods=['POST'])
+@login_required
 def clear_history():
     """Limpar todo o histórico do usuário"""
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Usuário não autenticado'})
-    
     try:
         user_id = session['user_id']
         

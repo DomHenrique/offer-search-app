@@ -13,7 +13,7 @@
                         Histórico de Buscas
                     </h4>
                     <div class="btn-group">
-                        <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#clearModal">
+                        <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#clearModal" aria-haspopup="dialog" aria-expanded="false">
                             <i class="fas fa-broom me-2"></i>Limpar Histórico
                         </button>
                     </div>
@@ -26,7 +26,7 @@
                                 <div class="card history-card h-100">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-start mb-3">
-                                            <h6 class="card-title text-truncate">{{ busca.termo_busca }}</h6>
+                                            <h6 class="card-title text-truncate">{{ busca.termo_pesquisa }}</h6>
                                             <button class="btn btn-sm btn-outline-danger btn-delete-search" 
                                                     data-busca-id="{{ busca.id }}" title="Excluir busca">
                                                 <i class="fas fa-trash"></i>
@@ -36,16 +36,16 @@
                                         <div class="search-info mb-3">
                                             <p class="mb-2">
                                                 <i class="fas fa-calendar me-2 text-primary"></i>
-                                                {{ busca.criado_em.strftime('%d/%m/%Y %H:%M') }}
+                                                {% if busca.executado_em %}{{ busca.executado_em if busca.executado_em.__class__.__name__ == 'datetime' else busca.executado_em }}{% else %}---{% endif %}
                                             </p>
                                             <p class="mb-2">
                                                 <i class="fas fa-shopping-cart me-2 text-success"></i>
-                                                {{ busca.total_produtos or 0 }} produtos encontrados
+                                                {{ busca.total_produtos_encontrados or 0 }} produtos encontrados
                                             </p>
-                                            {% if busca.tempo_execucao %}
+                                            {% if busca.tempo_execucao_segundos %}
                                             <p class="mb-2">
                                                 <i class="fas fa-clock me-2 text-info"></i>
-                                                {{ "%.1f"|format(busca.tempo_execucao) }}s de execução
+                                                {{ "%.1f"|format(busca.tempo_execucao_segundos) }}s de execução
                                             </p>
                                             {% endif %}
                                         </div>
@@ -68,20 +68,20 @@
                         </div>
                         
                          Paginação 
-                        {% if pagination.pages > 1 %}
+                        {% if total_pages > 1 %}
                         <nav aria-label="Navegação do histórico">
                             <ul class="pagination justify-content-center">
-                                {% if pagination.has_prev %}
+                                {% if page > 1 %}
                                 <li class="page-item">
-                                    <a class="page-link" href="{{ url_for('history.history_page', page=pagination.prev_num) }}">
+                                    <a class="page-link" href="{{ url_for('history.history_page', page=page-1) }}">
                                         <i class="fas fa-chevron-left"></i>
                                     </a>
                                 </li>
                                 {% endif %}
                                 
-                                {% for page_num in pagination.iter_pages() %}
+                                {% for page_num in range(1, total_pages + 1) %}
                                     {% if page_num %}
-                                        {% if page_num != pagination.page %}
+                                        {% if page_num != page %}
                                         <li class="page-item">
                                             <a class="page-link" href="{{ url_for('history.history_page', page=page_num) }}">{{ page_num }}</a>
                                         </li>
@@ -97,9 +97,9 @@
                                     {% endif %}
                                 {% endfor %}
                                 
-                                {% if pagination.has_next %}
+                                {% if page < total_pages %}
                                 <li class="page-item">
-                                    <a class="page-link" href="{{ url_for('history.history_page', page=pagination.next_num) }}">
+                                    <a class="page-link" href="{{ url_for('history.history_page', page=page+1) }}">
                                         <i class="fas fa-chevron-right"></i>
                                     </a>
                                 </li>

@@ -52,7 +52,7 @@ function addScrollAnimations() {
 // ===== COMPONENTES PERSONALIZADOS =====
 function initCustomComponents() {
   // Loading states para formulários
-  const forms = document.querySelectorAll("form")
+  const forms = document.querySelectorAll("form:not(.ajax-form)")
   forms.forEach((form) => {
     form.addEventListener("submit", (e) => {
       const submitBtn = form.querySelector('button[type="submit"]')

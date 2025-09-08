@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card glass-card">
+                <div class="card-body text-center py-5">
+                    <div class="mb-4">
+                        <i class="fas fa-magic fa-4x text-primary mb-3"></i>
+                        <h2 class="text-primary">Configuração Inicial</h2>
+                        <p class="text-muted">Vamos configurar seu primeiro agendamento automático</p>
+                    </div>
+                    
+                    <div class="alert alert-info border-0 bg-light mb-4">
+                        <div class="d-flex align-items-center mb-3">
+                            <i class="fas fa-lightbulb text-warning me-2"></i>
+                            <h5 class="mb-0">💡 Recomendação</h5>
+                        </div>
+                        <p class="mb-3">Sugerimos começar com o <strong>agendamento padrão</strong> que busca automaticamente as melhores ofertas do dia do Mercado Livre.</p>
+                        <div class="row text-start">
+                            <div class="col-md-6">
+                                <h6 class="text-success">✅ Vantagens:</h6>
+                                <ul class="list-unstyled">
+                                    <li>• Busca ofertas em tempo real</li>
+                                    <li>• Não precisa definir produtos específicos</li>
+                                    <li>• Encontra as melhores promoções</li>
+                                    <li>• Executa 2 vezes por dia</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-info">ℹ️ Como funciona:</h6>
+                                <ul class="list-unstyled">
+                                    <li>• Acessa a página de ofertas do dia</li>
+                                    <li>• Coleta produtos em promoção</li>
+                                    <li>• Salva no banco de dados</li>
+                                    <li>• Verifica alertas configurados</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-center gap-3 mb-4">
+                        <button type="button" class="btn btn-success btn-lg" id="createDefaultSchedule">
+                            <i class="fas fa-magic me-2"></i>
+                            Criar Agendamento Padrão
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-lg" onclick="window.location.href='/schedule/manage'">
+                            <i class="fas fa-cog me-2"></i>
+                            Configurar Manualmente
+                        </button>
+                    </div>
+                    
+                    <div class="text-muted">
+                        <small>
+                            <i class="fas fa-info-circle me-1"></i>
+                            Você pode alterar ou adicionar mais agendamentos a qualquer momento
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmação -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalLabel">Confirmar Agendamento Padrão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-clock fa-3x text-primary mb-3"></i>
+                    <h5>Agendamento Padrão</h5>
+                </div>
+                <div class="alert alert-light border">
+                    <h6 class="text-primary">📅 Ofertas do Dia</h6>
+                    <p class="mb-2">Busca automática das melhores ofertas do Mercado Livre</p>
+                    <hr>
+                    <h6 class="text-success">⏰ Frequência</h6>
+                    <p class="mb-2">2 vezes por dia (a cada 12 horas)</p>
+                    <hr>
+                    <h6 class="text-info">🔔 Notificações</h6>
+                    <p class="mb-0">Verifica alertas configurados e envia notificações</p>
+                </div>
+                <p class="text-muted text-center">
+                    <small>Este agendamento será criado e ativado automaticamente.</small>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="confirmCreateDefault">
+                    <i class="fas fa-check me-2"></i>
+                    Confirmar e Criar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const createDefaultBtn = document.getElementById('createDefaultSchedule');
+    const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    const confirmBtn = document.getElementById('confirmCreateDefault');
+    
+    // Mostrar modal de confirmação
+    createDefaultBtn.addEventListener('click', function() {
+        confirmModal.show();
+    });
+    
+    // Confirmar criação do agendamento padrão
+    confirmBtn.addEventListener('click', function() {
+        // Mostrar loading
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Criando...';
+        confirmBtn.disabled = true;
+        
+        fetch('/schedule/create-default', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                // Sucesso - mostrar mensagem e redirecionar
+                showNotification(result.message, 'success');
+                confirmModal.hide();
+                
+                // Animação de sucesso
+                setTimeout(() => {
+                    window.location.href = '/schedule/manage';
+                }, 1500);
+            } else {
+                // Erro - mostrar mensagem
+                showNotification(result.message, 'danger');
+                confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Confirmar e Criar';
+                confirmBtn.disabled = false;
+            }
+        })
+        .catch(error => {
+            showNotification('Erro ao criar agendamento padrão', 'danger');
+            confirmBtn.innerHTML = '<i class="fas fa-check me-2"></i>Confirmar e Criar';
+            confirmBtn.disabled = false;
+        });
+    });
+});
+</script>
+{% endblock %}
+
+{% block extra_styles %}
+<style>
+.glass-card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 15px;
+}
+
+.btn-lg {
+    padding: 12px 24px;
+    font-size: 1.1rem;
+}
+
+.alert-light {
+    background-color: rgba(248, 249, 250, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+</style>
+{% endblock %}

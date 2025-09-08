@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.db_manager import DatabaseManager
 from utils.helpers import clean_search_term, safe_int
 from scraping.run_scraper import buscar_e_salvar_ofertas
+from utils.simple_cache import cache
 
 search_bp = Blueprint('search', __name__)
 db_manager = DatabaseManager()
@@ -37,15 +38,27 @@ def execute_search():
     termo_pesquisa = clean_search_term(data.get('termo_pesquisa', ''))
     paginas_ml = safe_int(data.get('paginas_ml', 1), 1)
     
-    if not termo_pesquisa:
-        return jsonify({'error': 'Termo de pesquisa é obrigatório'}), 400
     
-    if len(termo_pesquisa) < 2:
-        return jsonify({'error': 'Termo de pesquisa deve ter pelo menos 2 caracteres'}), 400
     
     user_id = session['user_id']
     search_id = f"{user_id}_{int(time.time())}"
-    
+
+    # Verifica cache antes de iniciar nova busca
+    cache_key = f"search:{user_id}:{termo_pesquisa}"
+    cached = cache.get(cache_key)
+    if cached:
+        # Se houver cache válido, retorna o search_id e marca como concluído
+        search_status[search_id] = {
+            'status': 'concluida',
+            'progress': 100,
+            'message': 'Busca carregada do cache.',
+            'results': cached['results'],
+            'stats': cached['stats'],
+            'error': None,
+            'completed': True
+        }
+        return jsonify({'search_id': search_id})
+
     # Inicializa status da busca
     search_status[search_id] = {
         'status': 'iniciando',
@@ -55,7 +68,7 @@ def execute_search():
         'error': None,
         'completed': False
     }
-    
+
     # Inicia busca em thread separada
     thread = threading.Thread(
         target=_execute_search_thread,
@@ -154,6 +167,9 @@ def _execute_search_thread(search_id, user_id, termo_pesquisa, paginas_ml):
                 'stats': stats,
                 'completed': True
             })
+            # Salva no cache
+            cache_key = f"search:{user_id}:{termo_pesquisa}"
+            cache.set(cache_key, {'results': ofertas, 'stats': stats})
             print(f"🎉 Busca concluída com sucesso: {search_status[search_id]}")
             
         finally:
@@ -244,23 +260,60 @@ def recent_searches():
                          termos_unicos=termos_unicos,
                          termo_selecionado=termo_pesquisa)
 
-@search_bp.route('/approve-products', methods=['POST'])
-def approve_products():
-    """Aprova produtos selecionados"""
+@search_bp.route('/approve-product', methods=['POST'])
+def approve_product():
+    """Aprova um único produto"""
     if 'user_id' not in session:
-        return jsonify({'error': 'Não autenticado'}), 401
-    
-    data = request.get_json()
-    product_ids = data.get('product_ids', [])
-    
-    if not product_ids:
-        return jsonify({'error': 'Nenhum produto selecionado'}), 400
-    
+        flash('Você precisa fazer login para aprovar produtos.', 'warning')
+        return redirect(url_for('auth.login'))
+
     user_id = session['user_id']
-    approved_count = db_manager.approve_products(user_id, product_ids)
     
-    return jsonify({
-        'success': True,
-        'approved_count': approved_count,
-        'message': f'{approved_count} produto(s) aprovado(s) com sucesso!'
-    })
+    try:
+        product_data = {
+            'id': request.form.get('id'),
+            'titulo': request.form.get('titulo'),
+            'preco': request.form.get('preco'),
+            'preco_numerico': float(request.form.get('preco_numerico', 0)),
+            'url_produto': request.form.get('url_produto'),
+            'imagem': request.form.get('imagem'),
+            'marketplace': request.form.get('marketplace'),
+            'termo_pesquisa': request.form.get('termo_pesquisa'),
+            'prime': request.form.get('prime') == 'True',
+            'patrocinado': request.form.get('patrocinado') == 'True',
+            'desconto_percent': int(request.form.get('desconto_percent', 0)),
+            'preco_antigo': request.form.get('preco_antigo'),
+            'avaliacao': float(request.form.get('avaliacao', 0)),
+            'avaliacoes': int(request.form.get('avaliacoes', 0)),
+            'categoria_preco': request.form.get('categoria_preco'),
+            'score_produto': int(request.form.get('score_produto', 0)),
+            'link_afiliado': request.form.get('link_afiliado', '').strip()
+        }
+    except (ValueError, TypeError) as e:
+        flash(f'Erro ao processar dados do produto: {e}', 'error')
+        return redirect(request.referrer or url_for('search.search_page'))
+
+    approved_count = db_manager.approve_products(user_id, [product_data])
+    
+    if approved_count > 0:
+        flash(f'Produto "{product_data["titulo"]}" aprovado com sucesso!', 'success')
+    else:
+        flash('Não foi possível aprovar o produto. Talvez ele já tenha sido aprovado.', 'warning')
+
+    # Invalida caches de busca do usuário
+    _invalidate_user_search_cache(user_id)
+    
+    # Redireciona de volta para a página de onde o usuário veio
+    return redirect(request.referrer or url_for('search.search_page'))
+
+# Função utilitária para invalidar todos os caches de busca do usuário
+def _invalidate_user_search_cache(user_id):
+    from utils.simple_cache import cache
+    prefix = f"search:{user_id}:"
+    keys_to_invalidate = []
+    with cache._lock:
+        for key in list(cache._cache.keys()):
+            if key.startswith(prefix):
+                keys_to_invalidate.append(key)
+        for key in keys_to_invalidate:
+            cache.invalidate(key)

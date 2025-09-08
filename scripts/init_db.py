@@ -10,11 +10,12 @@ def init_db():
     """
     load_dotenv()
 
-    db_connection_string = os.environ.get("SUPABASE_DB_CONNECTION_STRING")
+    # Procura pela string de conexão, com fallback para SUPABASE_URL
+    db_connection_string = os.environ.get("SUPABASE_DB_CONNECTION_STRING") or os.environ.get("SUPABASE_URL")
 
     if not db_connection_string:
-        print("❌ A variável de ambiente SUPABASE_DB_CONNECTION_STRING não está definida.")
-        print("👉 Adicione-a ao seu arquivo .env com a string de conexão do seu banco de dados Supabase.")
+        print("❌ Nenhuma variável de conexão com o banco de dados foi encontrada.")
+        print("👉 Adicione SUPABASE_DB_CONNECTION_STRING ou SUPABASE_URL ao seu arquivo .env.")
         return
 
     print("🚀 Conectando ao banco de dados Supabase...")

@@ -1,5 +1,6 @@
 {
     "recommendations": [
-        "google.gemini-cli-vscode-ide-companion"
+        "google.gemini-cli-vscode-ide-companion",
+        "firefox-devtools.vscode-firefox-debug"
     ]
 }

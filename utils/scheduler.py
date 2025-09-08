@@ -9,6 +9,10 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scraping.run_scraper import buscar_e_salvar_ofertas
+from utils.evolution_api import send_message
+
+# Import moved inside the function to avoid circular imports
+# from routes.search_routes import search_status
 
 class SchedulerManager:
     """Gerenciador de agendamentos automáticos"""
@@ -98,7 +102,17 @@ class SchedulerManager:
             try:
                 # Executa a busca
                 start_time = time.time()
-                results = buscar_e_salvar_ofertas(termo_pesquisa, paginas_ml=1)
+                
+                # Se termo_pesquisa estiver vazio, usa busca padrão (ofertas do dia)
+                if not termo_pesquisa or termo_pesquisa.strip() == "":
+                    print(f"Executando busca padrão (ofertas do dia) para agendamento {schedule_id}")
+                    from scraping.run_scraper import buscar_ofertas_do_dia_ml
+                    results = buscar_ofertas_do_dia_ml(paginas_ml=1)
+                    termo_pesquisa = "ofertas_do_dia"  # Para histórico
+                else:
+                    print(f"Executando busca específica: '{termo_pesquisa}' para agendamento {schedule_id}")
+                    results = buscar_e_salvar_ofertas(termo_pesquisa, paginas_ml=1)
+                
                 execution_time = int(time.time() - start_time)
                 
                 # Calcula estatísticas
@@ -113,15 +127,35 @@ class SchedulerManager:
                 }
                 
                 # Salva no histórico
-                self.db_manager.save_search_history(user_id, termo_pesquisa, stats, schedule_id)
+                search_id = self.db_manager.save_search_history(user_id, termo_pesquisa, stats, schedule_id)
                 
+                # Salva os resultados no cache de status para que possam ser acessados na página de resultados
+                try:
+                    # Import moved inside the function to avoid circular imports
+                    from routes.search_routes import search_status
+                    # Store results in search_status so they can be accessed by the results page
+                    search_status[str(search_id)] = {
+                        'status': 'concluida',
+                        'progress': 100,
+                        'message': f'Busca concluída! {len(results)} produtos encontrados.',
+                        'results': results,
+                        'stats': stats,
+                        'error': None,
+                        'completed': True
+                    }
+                except Exception as e:
+                    print(f"Erro ao salvar resultados no cache de status: {e}")
+                
+                # Verifica alertas
+                self.check_alerts(user_id, results)
+
                 # Atualiza próxima execução
                 proxima_execucao = datetime.now() + timedelta(hours=intervalo_horas)
                 
                 self.db_manager.supabase.table("agendamentos").update({
                     "proxima_execucao": proxima_execucao.isoformat(),
                     "ultima_execucao": datetime.now().isoformat(),
-                    "total_execucoes": schedule['total_execucoes'] + 1
+                    "total_execucoes": schedule.get('total_execucoes', 0) + 1
                 }).eq("id", schedule_id).execute()
                 
                 print(f"Agendamento {schedule_id} executado com sucesso: {len(results)} produtos encontrados")
@@ -148,3 +182,23 @@ class SchedulerManager:
                 }).execute()
             except:
                 pass
+        """Verifica se algum produto atende aos critérios de alerta"""
+        try:
+            alerts = self.db_manager.get_user_alerts(user_id)
+            if not alerts:
+                return
+
+            for alert in alerts:
+                if not alert['ativo']:
+                    continue
+
+                for product in products:
+                    if alert['produto_nome'].lower() in product['titulo'].lower():
+                        if alert['tipo_alerta'] == 'menor_ou_igual' and product['preco_numerico'] <= alert['preco_alvo']:
+                            message = f"Alerta de preço! O produto {product['titulo']} está com preço de {product['preco']}. Link: {product['url_produto']}"
+                            send_message(alert['telefone'], message)
+                        elif alert['tipo_alerta'] == 'maior_ou_igual' and product['preco_numerico'] >= alert['preco_alvo']:
+                            message = f"Alerta de preço! O produto {product['titulo']} está com preço de {product['preco']}. Link: {product['url_produto']}"
+                            send_message(alert['telefone'], message)
+        except Exception as e:
+            print(f"Erro ao verificar alertas: {e}")

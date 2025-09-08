@@ -1,0 +1,1 @@
+# Arquivo vazio para tornar scraping um pacote Python

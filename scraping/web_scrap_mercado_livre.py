@@ -1,593 +1,264 @@
-# Web Scraping Mercado Livre - Versão Melhorada com Filtro
-# Coleta dados estruturados com pareamento correto e ignora seletores específicos
-
+#!/usr/bin/env python3
+"""
+Mercado Livre scraper that handles both search terms and a default offers page.
+"""
+import requests
 from bs4 import BeautifulSoup
+import json
+import re
 import pandas as pd
 from datetime import datetime
-import time
-import random
-import re
 import os
-from typing import List, Dict, Optional, Tuple
-
-try:
-    from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    from selenium.webdriver.firefox.options import Options
-    from selenium.common.exceptions import TimeoutException, NoSuchElementException
-    SELENIUM_AVAILABLE = True
-except ImportError:
-    print("Selenium não está instalado. Por favor, instale com: pip install selenium")
-    SELENIUM_AVAILABLE = False
+from urllib.parse import quote_plus
+from scraping.url_imagem import MercadoLivreThumbnailExtractor
 
 class MercadoLivreScraper:
-    def __init__(self, ignored_selectors: List[str] = None):
-        """
-        Inicializa o scraper do Mercado Livre
-        
-        Args:
-            ignored_selectors (List[str]): Lista de seletores CSS para ignorar durante o scraping
-        """
-        self.driver = None
-        self.base_url = 'https://lista.mercadolivre.com.br/'
-        # Seletores que devem ser ignorados (exemplo: banners, propagandas, etc.)
-        self.ignored_selectors = ignored_selectors or [
-            '.brand-wrapper-desktop-new__container-right',  # Seletor fornecido pelo usuário
-            '.ui-search-sponsored-disclaimer',  # Anúncios patrocinados
-            '.ui-search-advertising',  # Publicidade
-            '.ui-search-banner',  # Banners
-            '.andes-carousel',  # Carrosséis de propaganda
-        ]
-        
-    def setup_driver(self) -> Optional[webdriver.Firefox]:
-        """Configura o driver do Firefox em modo headless"""
+    def __init__(self):
+        """Initialize the scraper"""
+        self.session = requests.Session()
+        self.thumbnail_extractor = MercadoLivreThumbnailExtractor()
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Referer': 'https://www.mercadolivre.com.br/',
+        })
+
+    def _get_preloaded_state(self, url):
+        """Fetches the page and extracts the __PRELOADED_STATE__ JSON data."""
         try:
-            firefox_options = Options()
+            response = self.session.get(url, timeout=30)
+            print(f"✅ Status: {response.status_code} for URL: {url}")
             
-            # Configurações para rodar em segundo plano
-            firefox_options.add_argument("--headless")
-            firefox_options.add_argument("--no-sandbox")
-            firefox_options.add_argument("--disable-dev-shm-usage")
-            firefox_options.add_argument("--disable-gpu")
-            firefox_options.add_argument("--window-size=1920,1080")
-            
-            # User agent realista
-            firefox_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/120.0")
-            
-            self.driver = webdriver.Firefox(options=firefox_options)
-            
-            # Remove propriedades que identificam automação
-            self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            return self.driver
-        except Exception as e:
-            print(f"❌ Erro ao configurar Firefox driver: {e}")
-            return None
-    
-    def is_element_ignored(self, element) -> bool:
-        """
-        Verifica se um elemento deve ser ignorado baseado nos seletores configurados
-        
-        Args:
-            element: Elemento Selenium a ser verificado
-            
-        Returns:
-            bool: True se o elemento deve ser ignorado, False caso contrário
-        """
-        try:
-            # Verifica se o próprio elemento corresponde a algum seletor ignorado
-            for selector in self.ignored_selectors:
-                try:
-                    # Tenta encontrar o seletor dentro do elemento atual
-                    if element.find_elements(By.CSS_SELECTOR, selector):
-                        return True
-                    
-                    # Verifica se o elemento atual corresponde ao seletor
-                    parent = element.find_element(By.XPATH, './..')
-                    if parent.find_elements(By.CSS_SELECTOR, f"{selector}"):
-                        # Verifica se o elemento atual está dentro do seletor ignorado
-                        ignored_elements = parent.find_elements(By.CSS_SELECTOR, selector)
-                        for ignored_elem in ignored_elements:
-                            if element == ignored_elem or self._is_child_of(element, ignored_elem):
-                                return True
-                except:
-                    continue
-            
-            # Verifica se está dentro de um elemento ignorado percorrendo os pais
-            current = element
-            for _ in range(10):  # Limita a busca a 10 níveis acima
-                try:
-                    current = current.find_element(By.XPATH, './..')
-                    class_names = current.get_attribute('class') or ''
-                    
-                    for selector in self.ignored_selectors:
-                        selector_clean = selector.replace('.', '').replace('#', '')
-                        if selector_clean in class_names:
-                            return True
-                except:
-                    break
-                    
-            return False
-        except:
-            return False
-    
-    def _is_child_of(self, child_element, parent_element) -> bool:
-        """Verifica se um elemento é filho de outro"""
-        try:
-            return self.driver.execute_script(
-                "return arguments[0].contains(arguments[1]);", 
-                parent_element, child_element
-            )
-        except:
-            return False
-    
-    def get_page_with_selenium(self, url: str, wait_time: int = 10) -> Optional[str]:
-        """Carrega a página usando Selenium"""
-        if not self.driver:
-            return None
-            
-        try:
-            self.driver.get(url)
-            
-            # Aguarda a página carregar
-            time.sleep(random.uniform(1, 3))
-            
-            # Aguarda elementos específicos aparecerem
-            try:
-                WebDriverWait(self.driver, wait_time).until(
-                    EC.presence_of_element_located((By.TAG_NAME, "body"))
-                )
-            except TimeoutException:
-                pass
-            
-            # Scroll para carregar mais conteúdo
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(0.5)
-            self.driver.execute_script("window.scrollTo(0, 0);")
-            time.sleep(0.5)
-            
-            return self.driver.page_source
-            
-        except Exception as e:
-            print(f"❌ Erro ao carregar página {url}: {e}")
-            return None
-    
-    def extract_product_data(self) -> List[Dict]:
-        """
-        Extrai dados completos de cada produto de forma estruturada,
-        ignorando elementos que correspondem aos seletores configurados
-        
-        Returns:
-            List[Dict]: Lista de dicionários com dados de cada produto
-        """
-        products = []
-        
-        if not self.driver:
-            return products
-        
-        try:
-            # Procura pelos containers de produtos
-            product_containers = self.driver.find_elements(By.CSS_SELECTOR, 
-                "li.ui-search-layout__item")
-            
-            print(f"🔍 Encontrados {len(product_containers)} containers de produtos")
-            
-            filtered_containers = []
-            ignored_count = 0
-            
-            # Filtra containers ignorados
-            for container in product_containers:
-                if self.is_element_ignored(container):
-                    ignored_count += 1
-                    continue
-                filtered_containers.append(container)
-            
-            print(f"🚫 {ignored_count} containers ignorados (propagandas/banners)")
-            print(f"✅ {len(filtered_containers)} containers válidos para processar")
-            
-            for i, container in enumerate(filtered_containers):
-                try:
-                    product_data = {
-                        'title': '',
-                        'price': '',
-                        'price_numeric': 0.0,
-                        'rating': 0,
-                        'review_count': 0,
-                        'image_url': '',
-                        'product_url': '',
-                        'store_name': ''
-                    }
-                    
-                    # 1. TÍTULO
-                    title_selectors = [
-                        "h3.poly-component__title",
-                        "h2.poly-component__title", 
-                        "a.poly-component__title",
-                        ".ui-search-item__title",
-                        "h3", "h2"
-                    ]
-                    
-                    for selector in title_selectors:
-                        try:
-                            title_elem = container.find_element(By.CSS_SELECTOR, selector)
-                            # Verifica se o elemento do título não está em área ignorada
-                            if not self.is_element_ignored(title_elem):
-                                title_text = title_elem.text.strip()
-                                if len(title_text) > 10:  # Título válido
-                                    product_data['title'] = title_text
-                                    break
-                        except:
-                            continue
-                    
-                    # 2. PREÇO
-                    price_selectors = [
-                        ".andes-money-amount__fraction",
-                        ".price-tag-fraction",
-                        ".andes-money-amount",
-                        "span[class*='price']"
-                    ]
-                    
-                    for selector in price_selectors:
-                        try:
-                            price_elem = container.find_element(By.CSS_SELECTOR, selector)
-                            if not self.is_element_ignored(price_elem):
-                                price_text = price_elem.text.strip()
-                                if price_text and re.search(r'\d', price_text):
-                                    product_data['price'] = f"R$ {price_text}"
-                                    # Extrai valor numérico
-                                    numeric_price = re.sub(r'[^\d,.]', '', price_text)
-                                    numeric_price = numeric_price.replace('.', '').replace(',', '.')
-                                    try:
-                                        product_data['price_numeric'] = float(numeric_price)
-                                    except:
-                                        product_data['price_numeric'] = 0.0
-                                    break
-                        except:
-                            continue
-                    
-                    # 3. IMAGEM (melhorado)
-                    image_selectors = [
-                        "img.ui-search-result__image__element",
-                        ".ui-search-result__image .ui-search-result__image__element",
-                        "img.poly-component__picture",
-                        "div.poly-card__portada img",
-                        "img[src*='mlstatic']",
-                        ".ui-search-result__image img",
-                        "img"
-                    ]
-                    image_found = False
-                    for selector in image_selectors:
-                        try:
-                            img_elem = container.find_element(By.CSS_SELECTOR, selector)
-                            if not self.is_element_ignored(img_elem):
-                                # Busca em vários atributos
-                                img_src = (
-                                    img_elem.get_attribute('src') or
-                                    img_elem.get_attribute('data-src') or
-                                    img_elem.get_attribute('data-lazy-src') or
-                                    img_elem.get_attribute('data-original') or
-                                    img_elem.get_attribute('data-original-src')
-                                )
-                                if (img_src and 'mlstatic' in img_src and
-                                    not img_src.startswith('data:') and
-                                    len(img_src) > 20):
-                                    product_data['image_url'] = img_src
-                                    print(f"[DEBUG ML Imagem] URL da imagem extraída: {img_src}")
-                                    image_found = True
-                                    break
-                        except:
-                            continue
-                    # Fallback: busca em elementos filhos se não encontrou imagem
-                    if not image_found:
-                        try:
-                            child_imgs = container.find_elements(By.TAG_NAME, "img")
-                            for img_elem in child_imgs:
-                                if self.is_element_ignored(img_elem):
-                                    continue
-                                img_src = (
-                                    img_elem.get_attribute('src') or
-                                    img_elem.get_attribute('data-src') or
-                                    img_elem.get_attribute('data-lazy-src') or
-                                    img_elem.get_attribute('data-original') or
-                                    img_elem.get_attribute('data-original-src')
-                                )
-                                if (img_src and 'mlstatic' in img_src and
-                                    not img_src.startswith('data:') and
-                                    len(img_src) > 20):
-                                    product_data['image_url'] = img_src
-                                    print(f"[DEBUG ML Imagem Fallback] URL da imagem extraída: {img_src}")
-                                    image_found = True
-                                    break
-                        except Exception as e:
-                            print(f"[DEBUG ML Imagem Fallback] Erro ao buscar imagens em filhos: {e}")
-                    if not image_found:
-                        print(f"[DEBUG ML Imagem] Nenhuma imagem encontrada para produto: {product_data['title']}")
-                    
-                    # 4. LINK DO PRODUTO
-                    try:
-                        link_elem = container.find_element(By.CSS_SELECTOR, "a[href*='produto'], a[href*='item'], a[href*='MLB']")
-                        if not self.is_element_ignored(link_elem):
-                            product_url = link_elem.get_attribute('href')
-                            if product_url and 'mercadolivre' in product_url:
-                                product_data['product_url'] = product_url
-                    except:
-                        pass
-                    
-                    # 5. NOME DA LOJA
-                    store_selectors = [
-                        "span.poly-component__seller",
-                        ".ui-search-item__group__element--stores__name",
-                        "span.ui-search-item__store-name",
-                        "span[class*='seller']",
-                        "div[class*='seller'] span",
-                        ".ui-search-item__store-name a",
-                        "span.ui-search-color--BLACK"
-                    ]
-                    
-                    for selector in store_selectors:
-                        try:
-                            store_elem = container.find_element(By.CSS_SELECTOR, selector)
-                            if not self.is_element_ignored(store_elem):
-                                store_text = store_elem.text.strip()
-                                # Filtra textos que parecem ser nome de loja
-                                if (store_text and 
-                                    len(store_text) > 2 and 
-                                    len(store_text) < 100 and
-                                    not store_text.lower().startswith(('r', 'por', 'de', 'em', 'até')) and
-                                    not store_text.isdigit() and
-                                    'vendido por' not in store_text.lower()):
-                                    # Remove prefixos comuns
-                                    store_text = re.sub(r'^(por\s+|vendido\s+por\s+)', '', store_text, flags=re.IGNORECASE).strip()
-                                    if store_text:
-                                        product_data['store_name'] = store_text
-                                        break
-                        except:
-                            continue
-                    
-                    # 6. AVALIAÇÕES (RATING)
-                    rating_selectors = [
-                        "div.poly-component__reviews",
-                        "span[class*='review']", 
-                        "div[class*='rating']",
-                        ".ui-search-reviews",
-                        "span.ui-search-reviews__rating-number"
-                    ]
-                    
-                    for selector in rating_selectors:
-                        try:
-                            rating_elem = container.find_element(By.CSS_SELECTOR, selector)
-                            if not self.is_element_ignored(rating_elem):
-                                aria_label = rating_elem.get_attribute('aria-label') or ''
-                                text_content = rating_elem.text.strip()
-                                
-                                # Procura por padrões como "4.8 de 5 estrelas" ou "4.5"
-                                rating_match = re.search(r'(\d+\.?\d*)\s*(?:de\s*5|estrelas?)?', aria_label + ' ' + text_content, re.IGNORECASE)
-                                
-                                if rating_match:
-                                    rating_str = rating_match.group(1)
-                                    rating_float = float(rating_str)
-                                    if rating_float > 5:
-                                        product_data['rating'] = 5  # Limita a 5 estrelas máximo
-                                    else:
-                                        product_data['rating'] = round(rating_float)
-                                    break
-                                else:
-                                    # Se não encontrar padrão, tenta extrair número direto
-                                    number_match = re.search(r'\d+', text_content)
-                                    if number_match:
-                                        rating_num = int(number_match.group())
-                                        product_data['rating'] = min(rating_num, 5)
-                                        break
-                        except:
-                            continue
-                    
-                    # 7. NÚMERO DE AVALIAÇÕES (REVIEW COUNT)
-                    review_count_selectors = [
-                        "span.poly-reviews__count",
-                        ".ui-search-reviews__amount",
-                        "span[class*='review-count']",
-                        "span[class*='reviews']"
-                    ]
-                    
-                    for selector in review_count_selectors:
-                        try:
-                            review_elem = container.find_element(By.CSS_SELECTOR, selector)
-                            if not self.is_element_ignored(review_elem):
-                                review_text = review_elem.text.strip()
-                                # Extrai número de avaliações (ex: "(123)" ou "123 avaliações")
-                                number_match = re.search(r'(\d+)', review_text)
-                                if number_match:
-                                    product_data['review_count'] = int(number_match.group(1))
-                                    break
-                        except:
-                            continue
-                    
-                    # Se não encontrou contagem específica, procura em qualquer elemento do container
-                    if product_data['review_count'] == 0:
-                        try:
-                            all_elements = container.find_elements(By.TAG_NAME, "span")
-                            for elem in all_elements:
-                                if not self.is_element_ignored(elem):
-                                    text = elem.text.strip()
-                                    if ('avaliação' in text.lower() or 'opinião' in text.lower()) and re.search(r'\d+', text):
-                                        number_match = re.search(r'(\d+)', text)
-                                        if number_match:
-                                            product_data['review_count'] = int(number_match.group(1))
-                                            break
-                        except:
-                            pass
-                    
-                    # Só adiciona se tem dados mínimos (título e preço)
-                    if product_data['title'] and product_data['price']:
-                        products.append(product_data)
-                        review_info = f"{product_data['rating']}⭐ ({product_data['review_count']} reviews)" if product_data['rating'] > 0 or product_data['review_count'] > 0 else "Sem avaliações"
-                        print(f"✅ Produto {len(products)}: {product_data['title'][:40]}... | {product_data['store_name'] or 'Loja não identificada'} | {review_info}")
-                    
-                except Exception as e:
-                    print(f"❌ Erro ao processar produto {i+1}: {e}")
-                    continue
-        
-        except Exception as e:
-            print(f"❌ Erro ao extrair dados dos produtos: {e}")
-        
-        print(f"🎯 Total de produtos extraídos: {len(products)}")
-        return products
-    
-    def scrape_page(self, url: str) -> Optional[List[Dict]]:
-        """
-        Faz scraping de uma única página
-        
-        Args:
-            url (str): URL da página
-            
-        Returns:
-            Optional[List[Dict]]: Lista com dados dos produtos ou None
-        """
-        if not self.driver:
-            return None
-            
-        page_source = self.get_page_with_selenium(url)
-        if not page_source:
-            return None
-        
-        return self.extract_product_data()
-    
-    def scrape_search(self, search_term: str, n_pages: int = 1, delay_range: Tuple[float, float] = (1, 3)) -> Optional[pd.DataFrame]:
-        """
-        Faz scraping de múltiplas páginas para um termo de pesquisa
-        
-        Args:
-            search_term (str): Termo de pesquisa
-            n_pages (int): Número de páginas para processar
-            delay_range (Tuple[float, float]): Intervalo de delay entre páginas
-            
-        Returns:
-            Optional[pd.DataFrame]: DataFrame com os dados ou None
-        """
-        if not search_term or not search_term.strip():
-            print("❌ Termo de pesquisa inválido")
-            return None
-        
-        if not self.setup_driver():
-            print("❌ Falha ao inicializar o driver")
-            return None
-        
-        try:
-            all_products = []
-            
-            # Formata o termo de pesquisa para URL
-            formatted_term = search_term.replace(' ', '-').lower()
-            search_url = f"{self.base_url}{formatted_term}"
-            
-            for page in range(1, n_pages + 1):
-                try:
-                    # Constrói URL da página
-                    if page == 1:
-                        page_url = search_url
-                    else:
-                        page_url = f"{search_url}_Desde_{((page-1)*50)+1}"
-                    
-                    print(f"📄 Processando página {page}/{n_pages}: {page_url}")
-                    
-                    # Faz scraping da página
-                    page_products = self.scrape_page(page_url)
-                    
-                    if page_products:
-                        all_products.extend(page_products)
-                        print(f"✅ Página {page}: {len(page_products)} produtos coletados")
-                    else:
-                        print(f"⚠️ Página {page}: Nenhum produto encontrado")
-                    
-                    # Delay entre páginas (exceto na última)
-                    if page < n_pages:
-                        delay = random.uniform(delay_range[0], delay_range[1])
-                        print(f"⏳ Aguardando {delay:.1f}s...")
-                        time.sleep(delay)
-                        
-                except Exception as e:
-                    print(f"❌ Erro na página {page}: {e}")
-                    continue
-            
-            if not all_products:
-                print("❌ Nenhum produto foi encontrado")
+            if response.status_code != 200:
+                print(f"❌ Failed to load page: {response.status_code}")
                 return None
             
-            # Converte para DataFrame
-            df_data = []
-            for product in all_products:
-                df_data.append({
-                    'TITLE': product['title'],
-                    'PRICE': product['price'],
-                    'PRICE_NUMERIC': product['price_numeric'],
-                    'RATING': product['rating'],
-                    'REVIEWS': product['review_count'],
-                    'IMAGE_URL': product['image_url'],
-                    'PRODUCT_URL': product['product_url'],
-                    'STORE_NAME': product['store_name'],
-                    'SEARCH_TERM': search_term,
-                    'SCRAPY_DATETIME': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'MARKETPLACE': 'MercadoLivre'
-                })
+            soup = BeautifulSoup(response.content, 'html.parser')
             
-            df = pd.DataFrame(df_data)
+            scripts = soup.find_all('script')
+            preloaded_state_script = None
+            for script in scripts:
+                if script.string and '__PRELOADED_STATE__' in script.string:
+                    preloaded_state_script = script.string
+                    break
             
-            print(f"🎉 Scraping concluído! Total: {len(df)} produtos")
-            return df
+            if not preloaded_state_script:
+                print("❌ Could not find __PRELOADED_STATE__ script")
+                return None
             
-        finally:
-            if self.driver:
-                self.driver.quit()
-    
-    def save_to_csv(self, df: pd.DataFrame, search_term: str = "mercado_livre", filename: Optional[str] = None) -> str:
-        """Salva DataFrame em arquivo CSV"""
-        if not filename:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            search_clean = re.sub(r'[^\w\-_]', '_', search_term)[:30]
-            filename = f"ml_{search_clean}_{timestamp}.csv"
-        
+            match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*?});', preloaded_state_script, re.DOTALL)
+            if not match:
+                print("❌ Could not extract JSON from script")
+                return None
+            
+            json_text = match.group(1)
+            return json.loads(json_text)
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ JSON decode error: {e}")
+            return None
+        except Exception as e:
+            print(f"❌ Error fetching or parsing page: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def scrape_offers_page(self, category="MLB1051", limit=50):
+        """Scrapes the default offers page."""
+        url = f"https://www.mercadolivre.com.br/ofertas?category={category}"
+        print(f"🔄 Loading default offers page: {url}")
+        data = self._get_preloaded_state(url)
+        if not data:
+            return []
+        products = self._extract_products_from_offers_data(data)
+        return products[:limit]
+
+    def scrape_search_page(self, search_term, limit=50):
+        """Scrapes a search results page."""
+        search_url_encoded = quote_plus(search_term)
+        url = f"https://lista.mercadolivre.com.br/{search_url_encoded}"
+        print(f"🔄 Loading search page: {url}")
+        data = self._get_preloaded_state(url)
+        if not data:
+            return []
+        products = self._extract_products_from_search_data(data)
+        return products[:limit]
+
+    def _extract_products_from_offers_data(self, data):
+        """Extracts products from the __PRELOADED_STATE__ of an offers page."""
+        products = []
+        try:
+            items = data.get('data', {}).get('items', [])
+            print(f"🎯 Found {len(items)} items in offers data")
+            for item in items:
+                try:
+                    card = item.get('card', {})
+                    metadata = card.get('metadata', {})
+                    components = card.get('components', [])
+                    
+                    product = {
+                        'title': '', 'price': 0, 'original_price': 0, 'discount': 0,
+                        'brand': '', 'store_name': '', 'image_url': '',
+                        'product_url': metadata.get('url', ''),
+                        'product_id': metadata.get('id', ''),
+                        'position': item.get('position', 0)
+                    }
+                    
+                    for component in components:
+                        component_type = component.get('type', '')
+                        if component_type == 'title':
+                            product['title'] = component.get('title', {}).get('text', '')
+                        elif component_type == 'brand':
+                            product['brand'] = component.get('brand', {}).get('text', '')
+                        elif component_type == 'price':
+                            price_data = component.get('price', {})
+                            product['price'] = price_data.get('current_price', {}).get('value', 0)
+                            product['original_price'] = price_data.get('previous_price', {}).get('value', product['price'])
+                            if product['original_price'] > 0 and product['price'] > 0:
+                                product['discount'] = round(((product['original_price'] - product['price']) / product['original_price']) * 100, 2)
+                        elif component_type == 'seller':
+                            product['store_name'] = component.get('seller', {}).get('text', '')
+                        elif component_type == 'pictures':
+                            pictures = component.get('pictures', {}).get('pictures', [])
+                            if pictures and pictures[0].get('id'):
+                                product['image_url'] = f"https://http2.mlstatic.com/D_NQ_NP_{pictures[0]['id']}-O.webp"
+                    
+                    if not product.get('image_url') and product.get('product_url'):
+                        print(f"🖼️ No image found for {product['title']}. Trying to extract from product page...")
+                        thumbnail = self.thumbnail_extractor.extract_thumbnail(f"https://{product['product_url']}", download=False)
+                        if thumbnail:
+                            product['image_url'] = thumbnail
+                            print(f"✅ Found image: {thumbnail}")
+
+                    if product['title']:
+                        products.append(product)
+                except Exception as e:
+                    print(f"❌ Error processing offer item: {e}")
+            print(f"✅ Successfully extracted {len(products)} products from offers page")
+            return products
+        except Exception as e:
+            print(f"❌ Error extracting products from offers data: {e}")
+            return []
+
+    def _extract_products_from_search_data(self, data):
+        """Extracts products from the __PRELOADED_STATE__ of a search results page."""
+        products = []
+        try:
+            results = data.get('initialState', {}).get('results', [])
+            print(f"🎯 Found {len(results)} items in search data")
+            for item in results:
+                try:
+                    price_info = item.get('price', {}) or {}
+                    original_price_info = item.get('original_price', {}) or {}
+                    
+                    product = {
+                        'title': item.get('title', ''),
+                        'price': price_info.get('amount', 0),
+                        'original_price': original_price_info.get('amount', price_info.get('amount', 0)),
+                        'discount': (item.get('discount') or {}).get('value'),
+                        'brand': item.get('brand', ''),
+                        'store_name': (item.get('seller') or {}).get('nickname', ''),
+                        'image_url': f"https://http2.mlstatic.com/D_NQ_NP_{item.get('thumbnail_id')}-O.webp" if item.get('thumbnail_id') else '',
+                        'product_url': item.get('permalink', ''),
+                        'product_id': item.get('id', ''),
+                        'position': item.get('position', 0)
+                    }
+                    if not product.get('image_url') and product.get('product_url'):
+                        print(f"🖼️ No image found for {product['title']}. Trying to extract from product page...")
+                        thumbnail = self.thumbnail_extractor.extract_thumbnail(f"https://{product['product_url']}", download=False)
+                        if thumbnail:
+                            product['image_url'] = thumbnail
+                            print(f"✅ Found image: {thumbnail}")
+
+                    if product['title']:
+                        products.append(product)
+                except Exception as e:
+                    print(f"❌ Error processing search item: {e}")
+            print(f"✅ Successfully extracted {len(products)} products from search page")
+            return products
+        except Exception as e:
+            print(f"❌ Error extracting products from search data: {e}")
+            return []
+
+    def to_dataframe(self, products, search_term=""):
+        """Converts a list of product dictionaries to a pandas DataFrame."""
+        if not products:
+            return pd.DataFrame()
+        df_data = [{
+            'TITLE': p.get('title', ''),
+            'PRICE': f"R$ {p.get('price', 0):.2f}",
+            'PRICE_NUMERIC': p.get('price', 0),
+            'ORIGINAL_PRICE': f"R$ {p.get('original_price', 0):.2f}",
+            'ORIGINAL_PRICE_NUMERIC': p.get('original_price', 0),
+            'DISCOUNT_PERCENT': p.get('discount', 0),
+            'BRAND': p.get('brand', ''),
+            'STORE_NAME': p.get('store_name', ''),
+            'IMAGE_URL': p.get('image_url', ''),
+            'PRODUCT_URL': p.get('product_url', ''),
+            'PRODUCT_ID': p.get('product_id', ''),
+            'POSITION': p.get('position', 0),
+            'SEARCH_TERM': search_term,
+            'SCRAPY_DATETIME': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'MARKETPLACE': 'MercadoLivre'
+        } for p in products]
+        return pd.DataFrame(df_data)
+
+    def save_to_csv(self, df, search_term="mercado_livre"):
+        """Saves a DataFrame to a CSV file."""
+        if df.empty:
+            return ""
         os.makedirs('scraped_data', exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        search_clean = re.sub(r'[^\w\-_]', '_', search_term)[:30]
+        filename = f"ml_{search_clean}_{timestamp}.csv"
         filepath = os.path.join('scraped_data', filename)
-        
         df.to_csv(filepath, index=False, encoding='utf-8')
-        print(f"💾 Dados salvos em: {filepath}")
+        print(f"💾 Saved {len(df)} products to {filepath}")
         return filepath
 
-def scrape_mercado_livre(search_term: str, n_pages: int = 1, save_csv: bool = False, ignored_selectors: List[str] = None) -> Optional[pd.DataFrame]:
+def scrape_mercado_livre(search_term="", limit=50, save_csv=False):
     """
-    Função principal para scraping do Mercado Livre
-    
-    Args:
-        search_term (str): Termo de pesquisa
-        n_pages (int): Número de páginas para processar
-        save_csv (bool): Se deve salvar em CSV
-        ignored_selectors (List[str]): Seletores CSS adicionais para ignorar
-        
-    Returns:
-        Optional[pd.DataFrame]: DataFrame com os dados ou None
+    Main function to scrape Mercado Livre.
+    If search_term is empty, scrapes the default offers page.
+    Otherwise, scrapes the search results for the given term.
     """
-    scraper = MercadoLivreScraper(ignored_selectors)
+    scraper = MercadoLivreScraper()
     
-    df = scraper.scrape_search(search_term, n_pages)
+    if search_term:
+        products = scraper.scrape_search_page(search_term, limit=limit)
+    else:
+        products = scraper.scrape_offers_page(limit=limit)
     
-    if df is not None and save_csv:
-        scraper.save_to_csv(df, search_term)
-        
+    df = scraper.to_dataframe(products, search_term)
+    
+    if save_csv and not df.empty:
+        scraper.save_to_csv(df, search_term or "ofertas")
+    
     return df
 
-def get_mercado_livre_data(search_term: str, pages: int = 1, ignored_selectors: List[str] = None) -> Optional[pd.DataFrame]:
-    """Função simplificada para importação em outros arquivos"""
-    return scrape_mercado_livre(search_term, pages, save_csv=False, ignored_selectors=ignored_selectors)
+def get_mercado_livre_data(search_term="", pages=1):
+    """
+    Backward compatibility function. Converts pages to a limit and calls the main scraper.
+    """
+    limit = pages * 48
+    return scrape_mercado_livre(search_term, limit=limit, save_csv=False)
 
-# Exemplo de uso:
 if __name__ == "__main__":
-    # Scraping com o seletor ignorado
-    df = scrape_mercado_livre("smartphone", n_pages=2, save_csv=True)
-    
-    # Ou para adicionar mais seletores ignorados:
-    custom_ignored = [
-        '.brand-wrapper-desktop-new__container-right',
-        '.custom-ad-banner',
-        '.promotional-content'
-    ]
-    df = scrape_mercado_livre("notebook", n_pages=1, ignored_selectors=custom_ignored)
+    print("--- 🔍 Scraping Mercado Livre (Default Offers) ---")
+    df_offers = scrape_mercado_livre(limit=5, save_csv=True)
+    if not df_offers.empty:
+        print(f"✅ Successfully scraped {len(df_offers)} products from offers page.")
+        print(df_offers[['TITLE', 'PRICE']].head())
+    else:
+        print("❌ Failed to scrape products from offers page.")
+
+    print("\n--- 🔍 Scraping Mercado Livre (Search: 'celular') ---")
+    df_search = scrape_mercado_livre("celular", limit=5, save_csv=True)
+    if not df_search.empty:
+        print(f"✅ Successfully scraped {len(df_search)} products from search.")
+        print(df_search[['TITLE', 'PRICE']].head())
+    else:
+        print("❌ Failed to scrape products from search.")

@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="container py-4">
-     Header com Estatísticas 
+    <!-- Header com Estatísticas -->
     <div class="row mb-4">
         <div class="col">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -25,7 +25,7 @@
                 </div>
             </div>
             
-             Estatísticas 
+            <!-- Estatísticas -->
             {% if stats %}
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
@@ -35,7 +35,7 @@
                         </div>
                         <div class="stat-info">
                             <h6>Total</h6>
-                            <span>{{ stats.total_produtos }}</span>
+                            <span>{{ stats.total_produtos or 0 }}</span>
                         </div>
                     </div>
                 </div>
@@ -46,7 +46,7 @@
                         </div>
                         <div class="stat-info">
                             <h6>Amazon</h6>
-                            <span>{{ stats.amazon_produtos }}</span>
+                            <span>{{ stats.amazon_produtos or 0 }}</span>
                         </div>
                     </div>
                 </div>
@@ -57,7 +57,7 @@
                         </div>
                         <div class="stat-info">
                             <h6>Mercado Livre</h6>
-                            <span>{{ stats.ml_produtos }}</span>
+                            <span>{{ stats.ml_produtos or 0 }}</span>
                         </div>
                     </div>
                 </div>
@@ -68,7 +68,7 @@
                         </div>
                         <div class="stat-info">
                             <h6>Preço Médio</h6>
-                            <span>{{ stats.preco_medio|currency }}</span>
+                            <span>{{ stats.preco_medio|default(0)|currency }}</span>
                         </div>
                     </div>
                 </div>
@@ -77,41 +77,25 @@
         </div>
     </div>
     
-     Controles de Seleção 
+    <!-- Filtros -->
     <div class="row mb-4">
         <div class="col">
             <div class="card border-0 shadow-sm">
                 <div class="card-body py-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="selectAll">
-                                <label class="form-check-label fw-semibold" for="selectAll">
-                                    Selecionar Todos
-                                </label>
-                            </div>
-                            <span class="text-muted" id="selectedCount">0 selecionados</span>
-                        </div>
-                        
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-success" id="approveSelected" disabled>
-                                <i class="fas fa-heart me-2"></i>
-                                Aprovar Selecionados
+                    <div class="d-flex justify-content-end align-items-center">
+                        <div class="dropdown">
+                            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-filter me-2"></i>
+                                Filtros
                             </button>
-                            <div class="dropdown">
-                                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                    <i class="fas fa-filter me-2"></i>
-                                    Filtros
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" href="#" onclick="filterByMarketplace('all')">Todos</a></li>
-                                    <li><a class="dropdown-item" href="#" onclick="filterByMarketplace('Amazon')">Amazon</a></li>
-                                    <li><a class="dropdown-item" href="#" onclick="filterByMarketplace('MercadoLivre')">Mercado Livre</a></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item" href="#" onclick="sortBy('price')">Menor Preço</a></li>
-                                    <li><a class="dropdown-item" href="#" onclick="sortBy('rating')">Melhor Avaliação</a></li>
-                                </ul>
-                            </div>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="#" onclick="filterByMarketplace('all')">Todos</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="filterByMarketplace('Amazon')">Amazon</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="filterByMarketplace('MercadoLivre')">Mercado Livre</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortBy('price')">Menor Preço</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortBy('rating')">Melhor Avaliação</a></li>
+                            </ul>
                         </div>
                     </div>
                 </div>
@@ -119,19 +103,13 @@
         </div>
     </div>
     
-     Resultados 
+    <!-- Resultados -->
     <div class="row g-4" id="resultsContainer">
         {% for produto in results %}
         <div class="col-lg-4 col-md-6 product-card" data-marketplace="{{ produto.marketplace }}" data-price="{{ produto.preco_numerico }}" data-rating="{{ produto.avaliacao }}">
-            <div class="card h-100 border-0 shadow-sm product-item" data-product-id="{{ produto.id }}">
-                 
-                <div class="product-select">
-                    <div class="form-check">
-                        <input class="form-check-input product-checkbox" type="checkbox" value="{{ produto.id }}">
-                    </div>
-                </div>
+            <div class="card h-100 border-0 shadow-sm product-item">
                 
-                 
+                <!-- Badge do Marketplace -->
                 <div class="marketplace-badge">
                     {% if produto.marketplace == 'Amazon' %}
                         <span class="badge bg-warning text-dark">
@@ -144,19 +122,19 @@
                     {% endif %}
                 </div>
                 
-                 
+                <!-- Imagem do Produto -->
                 <div class="product-image">
                     <img src="{{ produto.imagem or '/static/img/no-image.png' }}" 
                          alt="{{ produto.titulo }}" 
                          class="card-img-top"
-                         onerror="this.src='/static/img/no-image.png'">
+                         onerror="this.src='/static/img/no-image.png'; this.classList.add('image-error');">
                 </div>
                 
                 <div class="card-body d-flex flex-column">
-                     
+                    <!-- Título -->
                     <h6 class="card-title mb-2 product-title">{{ produto.titulo }}</h6>
                     
-                     Preço 
+                    <!-- Preço -->
                     <div class="price-section mb-2">
                         <div class="current-price">{{ produto.preco_numerico|currency }}</div>
                         {% if produto.preco_antigo and produto.desconto_percent > 0 %}
@@ -167,7 +145,7 @@
                         {% endif %}
                     </div>
                     
-                     Avaliação 
+                    <!-- Avaliação -->
                     {% if produto.avaliacao > 0 %}
                     <div class="rating mb-2">
                         <div class="stars">
@@ -185,7 +163,7 @@
                     </div>
                     {% endif %}
                     
-                      
+                    <!-- Badges Extras -->
                     <div class="product-badges mb-3">
                         {% if produto.prime %}
                             <span class="badge bg-primary">Prime</span>
@@ -198,15 +176,39 @@
                         {% endif %}
                     </div>
                     
-                     
+                    <!-- Ações -->
                     <div class="mt-auto">
                         <div class="d-grid gap-2">
                             <a href="{{ produto.url_produto }}" 
                                target="_blank" 
-                               class="btn btn-primary btn-sm">
+                               class="btn btn-outline-secondary btn-sm">
                                 <i class="fas fa-external-link-alt me-2"></i>
                                 Ver Produto
                             </a>
+                            <form action="{{ url_for('search.approve_product') }}" method="POST" class="d-grid approve-form">
+                                <!-- Campos ocultos com todos os dados do produto -->
+                                <input type="hidden" name="id" value="{{ produto.id }}">
+                                <input type="hidden" name="titulo" value="{{ produto.titulo }}">
+                                <input type="hidden" name="preco" value="{{ produto.preco }}">
+                                <input type="hidden" name="preco_numerico" value="{{ produto.preco_numerico }}">
+                                <input type="hidden" name="url_produto" value="{{ produto.url_produto }}">
+                                <input type="hidden" name="imagem" value="{{ produto.imagem }}">
+                                <input type="hidden" name="marketplace" value="{{ produto.marketplace }}">
+                                <input type="hidden" name="termo_pesquisa" value="{{ produto.termo_pesquisa }}">
+                                <input type="hidden" name="prime" value="{{ produto.prime }}">
+                                <input type="hidden" name="patrocinado" value="{{ produto.patrocinado }}">
+                                <input type="hidden" name="desconto_percent" value="{{ produto.desconto_percent }}">
+                                <input type="hidden" name="preco_antigo" value="{{ produto.preco_antigo }}">
+                                <input type="hidden" name="avaliacao" value="{{ produto.avaliacao }}">
+                                <input type="hidden" name="avaliacoes" value="{{ produto.avaliacoes }}">
+                                <input type="hidden" name="categoria_preco" value="{{ produto.categoria_preco }}">
+                                <input type="hidden" name="score_produto" value="{{ produto.score_produto }}">
+                                
+                                <button type="submit" class="btn btn-success btn-sm">
+                                    <i class="fas fa-heart me-2"></i>
+                                    Aprovar
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -227,6 +229,29 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Modal Link de Afiliado -->
+<div class="modal fade" id="affiliateLinkModal" tabindex="-1" aria-labelledby="affiliateLinkModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="affiliateLinkModalLabel">Adicionar Link de Afiliado</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Insira o link de afiliado para este produto. Você pode deixar em branco para não adicionar um link.</p>
+                <div class="form-floating">
+                    <input type="url" class="form-control" id="affiliateLinkInput" placeholder="https://...">
+                    <label for="affiliateLinkInput">Link de Afiliado (Opcional)</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirmApprovalBtn">Confirmar Aprovação</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -237,7 +262,6 @@
 
 .product-item {
     position: relative;
-    cursor: pointer;
     transition: all 0.3s ease;
 }
 
@@ -251,22 +275,6 @@
 .product-item:hover {
     transform: translateY(-5px);
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
-}
-
-.product-item.selected {
-    border: 2px solid #6366f1;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-}
-
-.product-select {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 10;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 50%;
-    padding: 5px;
-    backdrop-filter: blur(5px);
 }
 
 .marketplace-badge {
@@ -286,7 +294,12 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.3s ease;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.product-image img.image-error {
+    opacity: 0.5;
+    filter: grayscale(100%);
 }
 
 .product-item:hover .product-image img {
@@ -345,149 +358,46 @@
     font-weight: 700;
     color: #1f2937;
 }
+
+.dropdown-menu {
+    z-index: 1050; /* Garante que o dropdown fique acima de outros elementos */
+}
 </style>
 
 <script>
-let selectedProducts = new Set();
-
 document.addEventListener('DOMContentLoaded', function() {
-    initializeProductSelection();
-    initializeFilters();
-});
+    const affiliateLinkModal = new bootstrap.Modal(document.getElementById('affiliateLinkModal'));
+    const confirmApprovalBtn = document.getElementById('confirmApprovalBtn');
+    const affiliateLinkInput = document.getElementById('affiliateLinkInput');
+    let currentForm = null;
 
-function initializeProductSelection() {
-    // Selecionar todos
-    document.getElementById('selectAll').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('.product-checkbox');
-        const isChecked = this.checked;
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = isChecked;
-            const productId = checkbox.value;
-            const card = checkbox.closest('.product-item');
-            
-            if (isChecked) {
-                selectedProducts.add(productId);
-                card.classList.add('selected');
-            } else {
-                selectedProducts.delete(productId);
-                card.classList.remove('selected');
-            }
-        });
-        updateSelectionUI();
-    });
-    
-    // Seleção individual
-    document.querySelectorAll('.product-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            toggleProductSelection(this);
+    // Intercepta o envio do formulário de aprovação
+    document.querySelectorAll('.approve-form').forEach(form => {
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+            currentForm = this;
+            affiliateLinkInput.value = ''; // Limpa o campo do modal
+            affiliateLinkModal.show();
         });
     });
-    
-    // Clique no card para selecionar
-    document.querySelectorAll('.product-item').forEach(card => {
-        card.addEventListener('click', function(e) {
-            if (e.target.closest('.btn') || e.target.closest('.product-select')) {
-                return; // Não seleciona se clicou em botão ou checkbox
-            }
+
+    // Lida com o clique no botão de confirmação do modal
+    confirmApprovalBtn.addEventListener('click', function() {
+        if (currentForm) {
+            const affiliateLink = affiliateLinkInput.value.trim();
             
-            const checkbox = this.querySelector('.product-checkbox');
-            checkbox.checked = !checkbox.checked;
-            toggleProductSelection(checkbox);
-        });
-    });
-    
-    // Aprovar selecionados
-    document.getElementById('approveSelected').addEventListener('click', approveSelectedProducts);
-}
-
-function updateSelectAllState() {
-    const totalCheckboxes = document.querySelectorAll('.product-checkbox').length;
-    const checkedCheckboxes = document.querySelectorAll('.product-checkbox:checked').length;
-    const selectAllCheckbox = document.getElementById('selectAll');
-    
-    if (totalCheckboxes > 0) {
-        selectAllCheckbox.checked = checkedCheckboxes === totalCheckboxes;
-        selectAllCheckbox.indeterminate = checkedCheckboxes > 0 && checkedCheckboxes < totalCheckboxes;
-    }
-}
-
-function toggleProductSelection(checkbox) {
-    const productId = checkbox.value;
-    const card = checkbox.closest('.product-item');
-    
-    if (checkbox.checked) {
-        selectedProducts.add(productId);
-        card.classList.add('selected');
-    } else {
-        selectedProducts.delete(productId);
-        card.classList.remove('selected');
-    }
-    
-    updateSelectionUI();
-}
-
-function updateSelectionUI() {
-    const count = selectedProducts.size;
-    const countEl = document.getElementById('selectedCount');
-    const approveBtn = document.getElementById('approveSelected');
-    
-    countEl.textContent = `${count} selecionado${count !== 1 ? 's' : ''}`;
-    approveBtn.disabled = count === 0;
-    
-    // Atualiza estado do "Selecionar Todos"
-    updateSelectAllState();
-}
-
-async function approveSelectedProducts() {
-    if (selectedProducts.size === 0) return;
-    
-    const approveBtn = document.getElementById('approveSelected');
-    const originalText = approveBtn.innerHTML;
-    
-    try {
-        approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Aprovando...';
-        approveBtn.disabled = true;
-        
-        const response = await fetch('/search/approve-products', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                product_ids: Array.from(selectedProducts)
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            showNotification(data.message, 'success');
+            // Cria um campo oculto para o link de afiliado
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = 'link_afiliado';
+            hiddenInput.value = affiliateLink;
             
-            // Remove produtos aprovados da seleção
-            selectedProducts.clear();
-            document.querySelectorAll('.product-checkbox').forEach(checkbox => {
-                checkbox.checked = false;
-            });
-            document.querySelectorAll('.product-item').forEach(card => {
-                card.classList.remove('selected');
-            });
-            
-            updateSelectionUI();
-        } else {
-            throw new Error(data.error || 'Erro ao aprovar produtos');
+            // Adiciona o campo ao formulário e o envia
+            currentForm.appendChild(hiddenInput);
+            currentForm.submit();
         }
-        
-    } catch (error) {
-        showNotification(error.message, 'error');
-    } finally {
-        approveBtn.innerHTML = originalText;
-        approveBtn.disabled = selectedProducts.size === 0;
-    }
-}
-
-function initializeFilters() {
-    // Implementar filtros se necessário
-}
+    });
+});
 
 function filterByMarketplace(marketplace) {
     const cards = document.querySelectorAll('.product-card');

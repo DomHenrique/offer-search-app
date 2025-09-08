@@ -14,37 +14,43 @@
                     </h4>
                 </div>
                 <div class="card-body">
-                     Nav tabs 
+                    
                     <ul class="nav nav-tabs mb-4" id="settingsTabs" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="profile-tab" data-bs-toggle="tab" 
-                                    data-bs-target="#profile" type="button" role="tab">
+                                    data-bs-target="#profile" type="button" role="tab" aria-selected="true" aria-controls="profile">
                                 <i class="fas fa-user me-2"></i>Perfil
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="alerts-tab" data-bs-toggle="tab" 
-                                    data-bs-target="#alerts" type="button" role="tab">
+                                    data-bs-target="#alerts" type="button" role="tab" aria-selected="false" aria-controls="alerts">
                                 <i class="fas fa-bell me-2"></i>Alertas
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="search-settings-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#search-settings" type="button" role="tab" aria-selected="false" aria-controls="search-settings">
+                                <i class="fas fa-search-dollar me-2"></i>Busca
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
                             <button class="nav-link" id="environment-tab" data-bs-toggle="tab" 
-                                    data-bs-target="#environment" type="button" role="tab">
+                                    data-bs-target="#environment" type="button" role="tab" aria-selected="false" aria-controls="environment">
                                 <i class="fas fa-server me-2"></i>Variáveis de Ambiente
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="notifications-tab" data-bs-toggle="tab" 
-                                    data-bs-target="#notifications" type="button" role="tab">
+                                    data-bs-target="#notifications" type="button" role="tab" aria-selected="false" aria-controls="notifications">
                                 <i class="fas fa-envelope me-2"></i>Notificações
                             </button>
                         </li>
                     </ul>
 
-                     Tab panes 
+                     
                     <div class="tab-content" id="settingsTabContent">
-                         Perfil 
+                         
                         <div class="tab-pane fade show active" id="profile" role="tabpanel">
                             <div class="row">
                                 <div class="col-md-6">
@@ -99,11 +105,11 @@
                             </div>
                         </div>
 
-                         Alertas 
+                         
                         <div class="tab-pane fade" id="alerts" role="tabpanel">
                             <div class="d-flex justify-content-between align-items-center mb-4">
                                 <h6 class="mb-0">Alertas de Preço</h6>
-                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#alertModal">
+                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#alertModal" aria-haspopup="dialog" aria-expanded="false">
                                     <i class="fas fa-plus me-2"></i>Novo Alerta
                                 </button>
                             </div>
@@ -113,8 +119,32 @@
                             </div>
                         </div>
 
-                         Variáveis de Ambiente 
-                        <div class="tab-pane fade" id="environment" role="tabpanel">
+                         
+                        <div class="tab-pane fade" id="search-settings" role="tabpanel">
+                            <form id="searchSettingsForm">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Configurações de Busca</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label for="minPriceFilter" class="form-label">
+                                                Preço Mínimo (R$)
+                                                <small class="text-muted d-block">
+                                                    Produtos com preço abaixo deste valor serão ignorados na busca.
+                                                </small>
+                                            </label>
+                                            <input type="number" class="form-control" id="minPriceFilter" 
+                                                   name="MIN_PRICE_FILTER" value="{{ min_price_filter }}" 
+                                                   min="0" step="0.01">
+                                        </div>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-save me-2"></i>Salvar Configurações de Busca
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
                             <div class="alert alert-warning">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
                                 <strong>Atenção:</strong> Altere essas configurações apenas se souber o que está fazendo. 
@@ -161,6 +191,22 @@
                                             <label for="port" class="form-label">Porta</label>
                                             <input type="number" class="form-control" id="port" 
                                                    name="PORT" value="{{ env_vars.PORT }}" min="1000" max="65535">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="evolutionApiInstance" class="form-label">Evolution API Instance</label>
+                                            <input type="text" class="form-control" id="evolutionApiInstance" 
+                                                   name="EVOLUTION_API_INSTANCE" value="{{ env_vars.EVOLUTION_API_INSTANCE }}"
+                                                   placeholder="Nome da instância da Evolution API">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="evolutionApiKey" class="form-label">Evolution API Key</label>
+                                            <input type="password" class="form-control" id="evolutionApiKey" 
+                                                   name="EVOLUTION_API_KEY" value="{{ env_vars.EVOLUTION_API_KEY }}"
+                                                   placeholder="Chave da Evolution API">
                                         </div>
                                     </div>
                                 </div>
@@ -410,23 +456,16 @@ function setupEventListeners() {
         .catch(error => showAlert('danger', 'Erro ao alterar senha'));
     });
     
-    // Formulário de variáveis de ambiente
-    document.getElementById('envForm').addEventListener('submit', function(e) {
+    // Formulário de configurações de busca
+    document.getElementById('searchSettingsForm').addEventListener('submit', function(e) {
         e.preventDefault();
         
-        const formData = new FormData(this);
-        const data = {};
+        const minPrice = document.getElementById('minPriceFilter').value;
         
-        for (let [key, value] of formData.entries()) {
-            if (value.trim()) {
-                data[key] = value.trim();
-            }
-        }
-        
-        fetch('/settings/update-env', {
+        fetch('/settings/update-min-price', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify({ min_price: minPrice })
         })
         .then(response => response.json())
         .then(result => {
@@ -436,7 +475,7 @@ function setupEventListeners() {
                 showAlert('danger', result.message);
             }
         })
-        .catch(error => showAlert('danger', 'Erro ao atualizar variáveis'));
+        .catch(error => showAlert('danger', 'Erro ao atualizar configurações de busca'));
     });
     
     // Formulário de notificações

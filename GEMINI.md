@@ -85,3 +85,7 @@ To build and run this project, you need to have Python and pip installed.
 *   **Coding Style:** The code follows the PEP 8 style guide for Python.
 *   **Testing:** There are no tests in the project.
 *   **Contribution:** There are no contribution guidelines in the project.
+
+## Frontend Development Conventions
+
+*   **Modals, Scripts and Styles:** When creating new templates that use modals, scripts or styles, make sure to place them inside the correct blocks. The modal HTML should be inside the `content` block, the scripts should be inside the `extra_scripts` block, and the styles should be inside the `extra_styles` block. This is important to avoid issues with the modal not appearing or the scripts and styles not being applied correctly.
