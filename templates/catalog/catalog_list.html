@@ -8,7 +8,7 @@
 .catalog-hero {
     background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%);
     border-radius: 20px;
-    padding: 2.5rem;
+    padding: 2.25rem 2.5rem;
     color: white;
     margin-bottom: 2rem;
     position: relative;
@@ -27,88 +27,207 @@
     border-radius: 50%;
 }
 
-/* ─── Formulário ───────────────────────────────────────────── */
+/* ─── Formulário de Nova Busca ─────────────────────────────── */
 .search-box-catalog {
     background: white;
-    border-radius: 18px;
-    padding: 1.75rem;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.04);
     border: 1px solid #e2e8f0;
 }
 
-/* ─── Cards de catálogo ────────────────────────────────────── */
-.catalog-card {
+/* ─── Barra de Filtro e Busca Rápida na Grade ─────────────── */
+.catalog-toolbar {
     background: white;
-    border-radius: 16px;
-    overflow: hidden;
+    border-radius: 14px;
+    padding: 0.85rem 1.25rem;
     border: 1px solid #e2e8f0;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-    height: 100%;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+    margin-bottom: 1.25rem;
+}
+
+.catalog-search-filter {
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    padding: 0.55rem 1rem 0.55rem 2.5rem;
+    font-size: 0.9rem;
+    width: 100%;
+    transition: all 0.2s ease;
+    background: #f8fafc;
+}
+.catalog-search-filter:focus {
+    background: white;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    outline: none;
+}
+
+/* ─── Card de Catálogo SaaS (Alta Densidade & Respiro) ─────── */
+.saas-catalog-card {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
     display: flex;
     flex-direction: column;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
 }
-.catalog-card:hover {
+
+.saas-catalog-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+    box-shadow: 0 12px 25px -4px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
     border-color: #ffd600;
 }
-.catalog-card-img-wrapper {
-    height: 160px;
-    background: #f8fafc;
+
+/* Header do Card (Badge e ID) */
+.saas-card-topbar {
+    padding: 10px 12px 6px 12px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    padding: 12px;
-    border-bottom: 1px solid #f1f5f9;
+    justify-content: space-between;
+    gap: 6px;
 }
-.catalog-card-img-wrapper img {
-    max-height: 136px;
-    max-width: 100%;
-    object-fit: contain;
-    transition: transform 0.3s ease;
-}
-.catalog-card:hover .catalog-card-img-wrapper img {
-    transform: scale(1.05);
-}
-.catalog-card-body {
-    padding: 1.25rem;
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
-}
-.catalog-id-badge {
+
+.catalog-id-chip {
     font-family: 'Courier New', monospace;
-    font-size: 0.8rem;
-    background: #fffbeb;
-    color: #b45309;
-    border: 1px solid #fde68a;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
     border-radius: 6px;
-    padding: 3px 8px;
+    padding: 2px 7px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
     display: inline-flex;
     align-items: center;
     gap: 4px;
 }
-.catalog-id-badge:hover {
-    background: #fef3c7;
-    color: #92400e;
+.catalog-id-chip:hover {
+    background: #ffd600;
+    color: #0f172a;
+    border-color: #eab308;
 }
-.btn-ver-sellers {
-    background: linear-gradient(135deg, #ffd600, #ff7800);
-    color: #1e293b;
-    border: none;
-    border-radius: 10px;
+
+.status-badge-saas {
+    font-size: 0.7rem;
     font-weight: 700;
-    transition: all 0.3s ease;
-    width: 100%;
-    padding: 0.6rem 1rem;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
 }
-.btn-ver-sellers:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(255,120,0,0.35);
+
+/* Moldura da Imagem com Respiro Interno */
+.saas-img-frame {
+    height: 135px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 16px;
+    margin: 0 8px;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+}
+
+.saas-img-frame img {
+    max-height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+    transition: transform 0.25s ease;
+}
+
+.saas-catalog-card:hover .saas-img-frame img {
+    transform: scale(1.06);
+}
+
+/* Corpo do Card (Título & Informações) */
+.saas-card-body {
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.saas-card-title {
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: #0f172a !important;
+    line-height: 1.35;
+    margin-bottom: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.3em;
+}
+
+.saas-card-search-term {
+    font-size: 0.72rem;
+    color: #64748b;
+    margin-bottom: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Rodapé e Ações Rápidas */
+.saas-card-footer {
+    padding: 8px 12px 12px 12px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: auto;
+    border-top: 1px solid #f1f5f9;
+}
+
+.btn-saas-primary {
+    background: linear-gradient(135deg, #ffd600, #ff7800);
+    color: #0f172a;
+    border: none;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.8rem;
+    padding: 0.5rem 0.75rem;
+    flex-grow: 1;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+.btn-saas-primary:hover {
+    box-shadow: 0 4px 12px rgba(255, 120, 0, 0.35);
     color: #000;
+    transform: translateY(-1px);
+}
+
+.btn-saas-icon {
+    background: #f8fafc;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.5rem;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    font-size: 0.8rem;
+}
+.btn-saas-icon:hover {
+    background: #e2e8f0;
+    color: #0f172a;
 }
 
 /* ─── Botão de Sincronização Inteligente ─────────────────────── */
@@ -162,49 +281,23 @@
     to { transform: rotate(360deg); }
 }
 
-/* ─── Seção salva ──────────────────────────────────────────── */
-.section-title {
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: #1e293b;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 2px solid #ffd600;
-    margin-bottom: 1.5rem;
-}
-
-/* ─── Empty state ──────────────────────────────────────────── */
-.empty-state {
-    text-align: center;
-    padding: 4rem 2rem;
-    color: #64748b;
-    background: white;
-    border-radius: 18px;
-    border: 1px dashed #cbd5e1;
-}
-.empty-state-icon {
-    font-size: 4rem;
-    margin-bottom: 1rem;
-    opacity: 0.35;
-}
-
-/* ─── Notification toast ───────────────────────────────────── */
+/* ─── Toast de Notificação ─────────────────────────────────── */
 .copy-toast {
     position: fixed;
     bottom: 2rem;
     right: 2rem;
-    background: #10b981;
-    color: white;
+    background: #0f172a;
+    color: #34d399;
+    border: 1px solid #334155;
     padding: 0.75rem 1.5rem;
     border-radius: 10px;
     font-size: 0.9rem;
+    font-weight: 600;
     z-index: 10000;
     opacity: 0;
     transform: translateY(10px);
     transition: all 0.3s ease;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
 }
 .copy-toast.show {
     opacity: 1;
@@ -238,13 +331,13 @@
         </div>
     </div>
 
-    <!-- Formulário de busca -->
+    <!-- Formulário de busca rápida de novos catálogos -->
     <div class="search-box-catalog mb-4">
         <form id="catalogSearchForm">
             <div class="row g-3 align-items-end">
                 <div class="col-md-7">
                     <label class="form-label fw-semibold text-secondary small">
-                        <i class="fas fa-search me-1 text-primary"></i> BUSCAR NOVOS CATÁLOGOS POR TERMO
+                        <i class="fas fa-search me-1 text-primary"></i> BUSCAR NOVOS CATÁLOGOS NO MERCADO LIVRE
                     </label>
                     <input type="text"
                            id="catalogSearchInput"
@@ -264,8 +357,8 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <button type="submit" class="btn btn-ver-sellers btn-lg w-100" id="catalogSearchBtn">
-                        <i class="fas fa-search me-2"></i> Buscar no Mercado Livre
+                    <button type="submit" class="btn btn-saas-primary btn-lg w-100" id="catalogSearchBtn" style="padding: 0.75rem;">
+                        <i class="fas fa-search me-2"></i> Buscar Novos Catálogos
                     </button>
                 </div>
             </div>
@@ -274,81 +367,128 @@
 
     <!-- Resultados da busca ao vivo -->
     <div id="searchResults" style="display:none;" class="mb-5">
-        <div class="section-title">
-            <i class="fas fa-fire text-warning"></i>
-            Catálogos Encontrados na Busca Atual
-            <span class="badge bg-warning text-dark ms-2" id="resultCount">0</span>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold text-dark mb-0">
+                <i class="fas fa-fire text-warning me-2"></i> Catálogos Encontrados na Busca Atual
+                <span class="badge bg-warning text-dark ms-2" id="resultCount">0</span>
+            </h5>
         </div>
-        <div class="row g-3" id="catalogGrid"></div>
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3" id="catalogGrid"></div>
     </div>
 
-    <!-- Catálogos salvos do usuário -->
+    <!-- Catálogos salvos para monitoramento -->
     {% if saved_catalogs %}
     <div class="mt-4">
-        <div class="d-flex justify-content-between align-items-center section-title">
-            <div>
-                <i class="fas fa-bookmark text-warning"></i>
-                Catálogos Salvos para Monitoramento
-                <span class="badge bg-secondary ms-2" id="savedCountBadge">{{ saved_catalogs|length }}</span>
+        <!-- Toolbar com Filtro em Tempo Real e Contador -->
+        <div class="catalog-toolbar">
+            <div class="row align-items-center g-3">
+                <div class="col-md-4">
+                    <h5 class="fw-bold text-dark mb-0 d-flex align-items-center">
+                        <i class="fas fa-bookmark text-warning me-2"></i>
+                        Catálogos Monitorados
+                        <span class="badge bg-secondary ms-2" id="savedCountBadge">{{ saved_catalogs|length }}</span>
+                    </h5>
+                </div>
+                <div class="col-md-5">
+                    <div class="position-relative">
+                        <i class="fas fa-search text-muted position-absolute" style="left: 12px; top: 12px; font-size: 0.9rem;"></i>
+                        <input type="text"
+                               id="catalogFilterInput"
+                               class="catalog-search-filter"
+                               placeholder="Filtrar por nome do produto ou ID (ex: EcoFlow, MLB...)"
+                               oninput="filterCatalogsLive()">
+                    </div>
+                </div>
+                <div class="col-md-3 text-md-end">
+                    <button class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold" onclick="extractCatalogsFromHistory()">
+                        <i class="fas fa-sync-alt me-1"></i> Sincronizar Histórico
+                    </button>
+                </div>
             </div>
-            <button class="btn btn-sm btn-outline-success rounded-pill" onclick="extractCatalogsFromHistory()">
-                <i class="fas fa-sync-alt me-1"></i> Sincronizar Novas Ofertas
-            </button>
         </div>
-        <div class="row g-3" id="savedCatalogsGrid">
+
+        <!-- Grade Compacta de Alta Densidade (4 a 5 colunas) -->
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3" id="savedCatalogsGrid">
             {% for cat in saved_catalogs %}
-            <div class="col-sm-6 col-md-4 col-lg-3">
-                <div class="catalog-card">
-                    <div class="catalog-card-img-wrapper">
+            <div class="col catalog-item-wrapper"
+                 data-title="{{ (cat.nome or '')|lower }}"
+                 data-id="{{ (cat.catalog_id or '')|lower }}"
+                 data-term="{{ (cat.termo_pesquisa or '')|lower }}">
+                <div class="saas-catalog-card">
+                    <!-- Topbar do Card -->
+                    <div class="saas-card-topbar">
+                        <span class="catalog-id-chip" onclick="copyCatalogId('{{ cat.catalog_id }}')" title="Clique para copiar ID">
+                            <i class="fas fa-copy" style="font-size: 0.65rem;"></i>
+                            {{ cat.catalog_id }}
+                        </span>
+                        <span class="status-badge-saas">
+                            <i class="fas fa-eye me-1"></i> Ativo
+                        </span>
+                    </div>
+
+                    <!-- Imagem com Respiro e Moldura -->
+                    <div class="saas-img-frame">
                         {% if cat.imagem %}
                             <img src="{{ cat.imagem }}" alt="{{ cat.nome }}" loading="lazy"
-                                 onerror="this.src='https://via.placeholder.com/140x140/f8f9fa/94a3b8?text=ML+Catalog'">
+                                 onerror="this.src='https://via.placeholder.com/140x140/ffffff/94a3b8?text=ML+Catalog'">
                         {% else %}
-                            <i class="fas fa-box" style="font-size: 3rem; color: #cbd5e1;"></i>
+                            <i class="fas fa-box" style="font-size: 2.5rem; color: #cbd5e1;"></i>
                         {% endif %}
                     </div>
-                    <div class="catalog-card-body">
-                        <p class="fw-semibold mb-2 text-dark" style="font-size:0.9rem; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" title="{{ cat.nome }}">
+
+                    <!-- Corpo do Card -->
+                    <div class="saas-card-body">
+                        <h6 class="saas-card-title" title="{{ cat.nome }}">
                             {{ cat.nome }}
-                        </p>
-                        <div class="mb-2">
-                            <span class="catalog-id-badge" onclick="copyCatalogId('{{ cat.catalog_id }}')" title="Clique para copiar ID">
-                                <i class="fas fa-copy" style="font-size:0.7rem;"></i>
-                                {{ cat.catalog_id }}
-                            </span>
-                        </div>
+                        </h6>
                         {% if cat.termo_pesquisa %}
-                        <p class="text-muted mb-3" style="font-size:0.75rem;">
-                            <i class="fas fa-tag me-1"></i>{{ cat.termo_pesquisa }}
-                        </p>
-                        {% endif %}
-                        <div class="mt-auto">
-                            <a href="{{ url_for('catalog.catalog_detail', catalog_id=cat.catalog_id) }}"
-                               class="btn btn-ver-sellers">
-                                <i class="fas fa-users me-2"></i>Ver Concorrentes
-                            </a>
+                        <div class="saas-card-search-term" title="Busca: {{ cat.termo_pesquisa }}">
+                            <i class="fas fa-tag me-1 text-primary opacity-75"></i> {{ cat.termo_pesquisa }}
                         </div>
+                        {% else %}
+                        <div class="saas-card-search-term text-muted">
+                            <i class="fas fa-cube me-1"></i> Catálogo ML
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Rodapé e Ações Rápidas -->
+                    <div class="saas-card-footer">
+                        <a href="{{ url_for('catalog.catalog_detail', catalog_id=cat.catalog_id) }}"
+                           class="btn-saas-primary">
+                            <i class="fas fa-users"></i> Concorrentes
+                        </a>
+                        <a href="https://www.mercadolivre.com.br/p/{{ cat.catalog_id }}"
+                           target="_blank"
+                           class="btn-saas-icon"
+                           title="Abrir página oficial do produto no Mercado Livre">
+                            <i class="fas fa-external-link-alt"></i>
+                        </a>
                     </div>
                 </div>
             </div>
             {% endfor %}
         </div>
+
+        <!-- Mensagem de Nenhum resultado no filtro live -->
+        <div id="noFilterResults" style="display:none;" class="text-center py-5">
+            <i class="fas fa-search text-muted opacity-25 fa-3x mb-3"></i>
+            <h6 class="text-muted fw-bold">Nenhum catálogo encontrado para o filtro aplicado</h6>
+            <button class="btn btn-sm btn-outline-secondary mt-2" onclick="clearCatalogFilter()">Limpar Filtro</button>
+        </div>
     </div>
     {% else %}
+    <!-- Empty State -->
     <div class="mt-4">
-        <div class="section-title">
-            <i class="fas fa-bookmark text-warning"></i>
-            Catálogos Monitorados
-        </div>
-        <div class="empty-state">
-            <div class="empty-state-icon">
-                <i class="fas fa-store-slash"></i>
+        <div class="text-center py-5 px-3 bg-white rounded-4 border">
+            <div class="mb-3 text-secondary opacity-35">
+                <i class="fas fa-store-slash" style="font-size: 3.5rem;"></i>
             </div>
             <h5 class="fw-bold mb-2 text-dark">Nenhum catálogo cadastrado ainda</h5>
-            <p class="text-muted mb-4 max-w-md mx-auto">
+            <p class="text-muted mb-4 max-w-md mx-auto small">
                 Você pode buscar novos catálogos pelo formulário acima ou <strong>extrair instantaneamente</strong> todos os catálogos dos produtos que você já buscou no histórico.
             </p>
-            <button class="btn btn-sync-history btn-lg" onclick="extractCatalogsFromHistory()">
+            <button class="btn btn-sync-history" onclick="extractCatalogsFromHistory()">
                 <i class="fas fa-magic me-2"></i> Extrair Catálogos do Histórico Salvo
             </button>
         </div>
@@ -380,6 +520,42 @@
 <script>
 let currentCatalogSearchId = null;
 let catalogStatusInterval = null;
+
+// ─── Filtro em Tempo Real ─────────────────────────────────────────
+function filterCatalogsLive() {
+    const query = document.getElementById('catalogFilterInput').value.trim().toLowerCase();
+    const items = document.querySelectorAll('.catalog-item-wrapper');
+    let visibleCount = 0;
+
+    items.forEach(item => {
+        const title = item.getAttribute('data-title') || '';
+        const id = item.getAttribute('data-id') || '';
+        const term = item.getAttribute('data-term') || '';
+
+        if (!query || title.includes(query) || id.includes(query) || term.includes(query)) {
+            item.style.display = 'block';
+            visibleCount++;
+        } else {
+            item.style.display = 'none';
+        }
+    });
+
+    const badge = document.getElementById('savedCountBadge');
+    if (badge) badge.textContent = visibleCount;
+
+    const noResults = document.getElementById('noFilterResults');
+    if (noResults) {
+        noResults.style.display = (visibleCount === 0 && items.length > 0) ? 'block' : 'none';
+    }
+}
+
+function clearCatalogFilter() {
+    const input = document.getElementById('catalogFilterInput');
+    if (input) {
+        input.value = '';
+        filterCatalogsLive();
+    }
+}
 
 // ─── Extrair Catálogos das Buscas Recentes ────────────────────────
 async function extractCatalogsFromHistory() {
@@ -470,7 +646,7 @@ async function checkCatalogStatus() {
     }
 }
 
-// ─── Renderiza cards de resultado ────────────────────────────────
+// ─── Renderiza cards de resultado ao vivo ─────────────────────────
 function renderCatalogResults(catalogs) {
     const section = document.getElementById('searchResults');
     const grid = document.getElementById('catalogGrid');
@@ -479,7 +655,7 @@ function renderCatalogResults(catalogs) {
     if (!catalogs.length) {
         section.style.display = 'block';
         grid.innerHTML = `
-            <div class="col-12">
+            <div class="col-12 w-100">
                 <div class="text-center py-5 text-muted bg-white rounded-3 border">
                     <i class="fas fa-search fs-1 opacity-25 d-block mb-3"></i>
                     <p class="mb-0">Nenhum catálogo encontrado para este termo.<br>
@@ -492,30 +668,37 @@ function renderCatalogResults(catalogs) {
 
     count.textContent = catalogs.length;
     grid.innerHTML = catalogs.map(cat => `
-        <div class="col-sm-6 col-md-4 col-lg-3">
-            <div class="catalog-card">
-                <div class="catalog-card-img-wrapper">
+        <div class="col">
+            <div class="saas-catalog-card">
+                <div class="saas-card-topbar">
+                    <span class="catalog-id-chip" onclick="copyCatalogId('${cat.catalog_id}')" title="Clique para copiar ID">
+                        <i class="fas fa-copy" style="font-size: 0.65rem;"></i>
+                        ${cat.catalog_id}
+                    </span>
+                    <span class="status-badge-saas"><i class="fas fa-fire text-warning me-1"></i>Novo</span>
+                </div>
+                <div class="saas-img-frame">
                     ${cat.imagem
                         ? `<img src="${cat.imagem}" alt="${escHtml(cat.nome)}" loading="lazy"
-                                onerror="this.src='https://via.placeholder.com/140x140/f8f9fa/94a3b8?text=ML+Catalog'">`
-                        : `<i class="fas fa-box" style="font-size:3rem; color:#cbd5e1;"></i>`
+                                onerror="this.src='https://via.placeholder.com/140x140/ffffff/94a3b8?text=ML+Catalog'">`
+                        : `<i class="fas fa-box" style="font-size:2.5rem; color:#cbd5e1;"></i>`
                     }
                 </div>
-                <div class="catalog-card-body">
-                    <p class="fw-semibold mb-2 text-dark" style="font-size:0.9rem; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" title="${escHtml(cat.nome)}">
+                <div class="saas-card-body">
+                    <h6 class="saas-card-title" title="${escHtml(cat.nome)}">
                         ${escHtml(cat.nome)}
-                    </p>
-                    <div class="mb-2">
-                        <span class="catalog-id-badge" onclick="copyCatalogId('${cat.catalog_id}')" title="Clique para copiar ID">
-                            <i class="fas fa-copy" style="font-size:0.7rem;"></i>
-                            ${cat.catalog_id}
-                        </span>
+                    </h6>
+                    <div class="saas-card-search-term text-muted">
+                        <i class="fas fa-tag me-1"></i> Busca atual
                     </div>
-                    <div class="mt-auto">
-                        <a href="/catalog/${cat.catalog_id}" class="btn btn-ver-sellers">
-                            <i class="fas fa-users me-2"></i>Ver Concorrentes
-                        </a>
-                    </div>
+                </div>
+                <div class="saas-card-footer">
+                    <a href="/catalog/${cat.catalog_id}" class="btn-saas-primary">
+                        <i class="fas fa-users"></i> Concorrentes
+                    </a>
+                    <a href="https://www.mercadolivre.com.br/p/${cat.catalog_id}" target="_blank" class="btn-saas-icon" title="Abrir no ML">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
                 </div>
             </div>
         </div>

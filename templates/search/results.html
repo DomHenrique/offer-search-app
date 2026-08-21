@@ -122,46 +122,48 @@
         </div>
     </div>
     
-     Resultados 
-    <div class="row g-4" id="resultsContainer">
+    <!-- Resultados -->
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3" id="resultsContainer">
         {% for produto in results %}
-        <div class="col-lg-4 col-md-6 product-card" data-marketplace="{{ produto.marketplace }}" data-price="{{ produto.preco_numerico }}" data-rating="{{ produto.avaliacao }}">
-            <div class="card h-100 border-0 shadow-sm product-item" data-product-id="{{ produto.id }}">
-                 
+        <div class="col product-card" data-marketplace="{{ produto.marketplace }}" data-price="{{ produto.preco_numerico }}" data-rating="{{ produto.avaliacao }}">
+            <div class="card h-100 border-0 shadow-sm product-item" data-product-id="{{ produto.id }}" style="border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0 !important;">
+                
                 <div class="product-select">
                     <div class="form-check">
                         <input class="form-check-input product-checkbox" type="checkbox" value="{{ produto.id }}">
                     </div>
                 </div>
                 
-                 
                 <div class="marketplace-badge">
                     {% if produto.marketplace == 'Amazon' %}
-                        <span class="badge bg-warning text-dark">
+                        <span class="badge bg-warning text-dark fw-bold px-2 py-1" style="font-size: 0.72rem;">
                             <i class="fab fa-amazon me-1"></i>Amazon
                         </span>
                     {% else %}
-                        <span class="badge bg-info">
-                            <i class="fas fa-store me-1"></i>ML
+                        <span class="badge bg-primary fw-bold px-2 py-1" style="font-size: 0.72rem;">
+                            <i class="fas fa-store me-1"></i>Mercado Livre
                         </span>
                     {% endif %}
                 </div>
                 
-                 
-                <div class="product-image">
+                <!-- Imagem com Respiro Interno de 16px -->
+                <div class="product-image" style="height: 155px; background: #ffffff; padding: 16px; display: flex; align-items: center; justify-content: center;">
                     <img src="{{ produto.imagem or '/static/img/no-image.png' }}" 
                          alt="{{ produto.titulo }}" 
                          class="card-img-top"
+                         style="max-height: 100%; max-width: 100%; object-fit: contain;"
                          onerror="this.src='/static/img/no-image.png'; this.classList.add('image-error');">
                 </div>
                 
-                <div class="card-body d-flex flex-column">
-                     
-                    <h6 class="card-title mb-2 product-title">{{ produto.titulo }}</h6>
+                <div class="card-body d-flex flex-column p-3">
                     
-                     Preço 
+                    <h6 class="card-title mb-2 product-title" style="font-size: 0.88rem; font-weight: 700; color: #0f172a; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.4em;" title="{{ produto.titulo }}">
+                        {{ produto.titulo }}
+                    </h6>
+                    
+                    <!-- Preço -->
                     <div class="price-section mb-2">
-                        <div class="current-price">{{ produto.preco_numerico|currency }}</div>
+                        <div class="current-price" style="font-size: 1.25rem; font-weight: 800; color: #0f172a;">{{ produto.preco_numerico|currency }}</div>
                         {% if produto.preco_antigo and produto.desconto_percent > 0 %}
                         <div class="old-price">
                             <small class="text-muted text-decoration-line-through">{{ produto.preco_antigo }}</small>
@@ -170,45 +172,45 @@
                         {% endif %}
                     </div>
                     
-                     Avaliação 
+                    <!-- Avaliação -->
                     {% if produto.avaliacao > 0 %}
-                    <div class="rating mb-2">
-                        <div class="stars">
+                    <div class="rating mb-2 small">
+                        <div class="stars d-inline-block">
                             {% for i in range(5) %}
                                 {% if i < produto.avaliacao %}
                                     <i class="fas fa-star text-warning"></i>
                                 {% else %}
-                                    <i class="far fa-star text-muted"></i>
+                                    <i class="far fa-star text-muted opacity-50"></i>
                                 {% endif %}
                             {% endfor %}
                         </div>
-                        <small class="text-muted ms-2">
-                            {{ produto.avaliacao }}/5 ({{ produto.avaliacoes }} avaliações)
+                        <small class="text-muted ms-1">
+                            ({{ produto.avaliacoes }})
                         </small>
                     </div>
                     {% endif %}
                     
-                      
+                    <!-- Badges -->
                     <div class="product-badges mb-3">
                         {% if produto.prime %}
-                            <span class="badge bg-primary">Prime</span>
+                            <span class="badge bg-primary" style="font-size: 0.7rem;">Prime</span>
                         {% endif %}
                         {% if produto.patrocinado %}
-                            <span class="badge bg-secondary">Patrocinado</span>
+                            <span class="badge bg-secondary" style="font-size: 0.7rem;">Patrocinado</span>
                         {% endif %}
                         {% if produto.categoria_preco %}
-                            <span class="badge bg-light text-dark">{{ produto.categoria_preco }}</span>
+                            <span class="badge bg-light text-dark border" style="font-size: 0.7rem;">{{ produto.categoria_preco }}</span>
                         {% endif %}
                     </div>
                     
-                     
                     <div class="mt-auto">
                         <div class="d-grid gap-2">
                             <a href="{{ produto.url_produto }}" 
                                target="_blank" 
-                               class="btn btn-primary btn-sm">
-                                <i class="fas fa-external-link-alt me-2"></i>
-                                Ver Produto
+                               class="btn btn-primary btn-sm fw-bold"
+                               style="border-radius: 8px;">
+                                <i class="fas fa-external-link-alt me-1"></i>
+                                Ver no Marketplace
                             </a>
                         </div>
                     </div>
