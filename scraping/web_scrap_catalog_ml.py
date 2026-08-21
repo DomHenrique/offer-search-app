@@ -414,7 +414,7 @@ class CatalogScraper:
             self.close_driver()
 
     def _extract_sellers_from_elements(self, seller_rows: list) -> List[Dict]:
-        """Extrai dados de sellers a partir dos elementos Selenium."""
+        """Extrai dados detalhados de sellers a partir dos elementos da tabela de opções do ML."""
         sellers = []
 
         for i, row in enumerate(seller_rows):
@@ -424,145 +424,227 @@ class CatalogScraper:
                     'seller_id_ml': '',
                     'preco': 0.0,
                     'preco_str': '',
+                    'parcelamento': '',
                     'frete_gratis': False,
                     'frete_full': False,
+                    'entrega_texto': '',
+                    'retirada_texto': '',
                     'reputacao': '',
-                    'condicao': 'novo',
-                    'is_best_offer': False,
+                    'condicao': 'Novo',
+                    'is_best_offer': i == 0,
                     'posicao': i + 1,
+                    'buy_url': ''
                 }
 
-                row_text = row.text.lower()
+                row_text = row.text
+                row_text_lower = row_text.lower()
 
-                # Nome do vendedor
+                # ── 1. Extração do Vendedor e Reputação ────────────────────────
+                # Procura links ou textos na coluna do vendedor
+                seller_found = False
                 for sel in [
-                    ".ui-pdp-seller__header__title",
+                    "a[href*='/perfil/']",
+                    "a[href*='seller']",
+                    ".ui-pdp-action-modal__link",
+                    "span[class*='seller']",
                     "[class*='seller-name']",
                     "[class*='seller__name']",
-                    "strong", "b"
+                    "button[class*='seller']",
+                    "td:nth-child(4)",
+                    "td:nth-child(3)",
                 ]:
                     try:
                         el = row.find_element(By.CSS_SELECTOR, sel)
-                        name = el.text.strip()
-                        if name and len(name) > 1:
-                            seller['seller_name'] = name
+                        text_val = el.text.strip()
+                        if text_val and len(text_val) > 1 and not re.match(r'^(comprar|novo|r\$|\d)', text_val.lower()):
+                            # Quebra linhas se vier nome + reputação juntos
+                            lines = [l.strip() for l in text_val.split('\n') if l.strip()]
+                            seller['seller_name'] = lines[0]
+                            if len(lines) > 1:
+                                seller['reputacao'] = ' | '.join(lines[1:])
+                            seller_found = True
                             break
                     except Exception:
                         continue
 
-                # Preço
-                for sel in [
-                    ".andes-money-amount__fraction",
-                    "[class*='price-fraction']",
-                    "[class*='money-amount']",
-                    "span[class*='price']"
-                ]:
-                    try:
-                        el = row.find_element(By.CSS_SELECTOR, sel)
-                        price_text = el.text.strip()
-                        if price_text and re.search(r'\d', price_text):
-                            cleaned = re.sub(r'[^\d,.]', '', price_text)
-                            cleaned = cleaned.replace('.', '').replace(',', '.')
-                            seller['preco'] = float(cleaned) if cleaned else 0.0
-                            seller['preco_str'] = f"R$ {price_text}"
-                            break
-                    except Exception:
-                        continue
+                # Se não encontrou pelo seletor específico, busca no texto da linha
+                if not seller_found:
+                    # Tenta capturar padrões de vendas
+                    rep_match = re.search(r'([+\d\s]+(?:mil)?\s*vendas|MercadoLíder[^\n]*)', row_text, re.IGNORECASE)
+                    if rep_match:
+                        seller['reputacao'] = rep_match.group(1).strip()
 
-                # Frete
-                if 'grátis' in row_text or 'gratis' in row_text or 'frete grátis' in row_text:
+                    # Tenta capturar o nome antes das vendas
+                    for line in row_text.split('\n'):
+                        l = line.strip()
+                        if l and len(l) > 2 and not re.search(r'(r\$|chegará|retire|comprar|adicionar|novo|usado|12x|\d+x)', l, re.IGNORECASE):
+                            seller['seller_name'] = l
+                            break
+
+                if not seller['seller_name']:
+                    seller['seller_name'] = f"Vendedor #{i + 1}"
+
+                # ── 2. Extração de Preço Total e Parcelamento ──────────────────
+                # Busca todos os valores monetários na linha
+                money_amounts = re.findall(r'R\$\s*([\d.]+,\d{2}|[\d.]+)', row_text)
+                
+                # Se encontrou valores, o preço total geralmente é o maior ou o primeiro valor destacado
+                prices_floats = []
+                for m in money_amounts:
+                    try:
+                        clean_p = m.replace('.', '').replace(',', '.')
+                        val = float(clean_p)
+                        if val > 0:
+                            prices_floats.append((val, m))
+                    except Exception:
+                        pass
+
+                if prices_floats:
+                    # O preço do produto é o valor total (maior valor ou o primeiro grande)
+                    main_price_val, main_price_str = max(prices_floats, key=lambda x: x[0])
+                    seller['preco'] = main_price_val
+                    seller['preco_str'] = f"R$ {main_price_val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                else:
+                    # Fallback com seletores
+                    try:
+                        p_el = row.find_element(By.CSS_SELECTOR, ".andes-money-amount__fraction")
+                        p_txt = p_el.text.strip()
+                        if p_txt:
+                            clean_p = p_txt.replace('.', '').replace(',', '.')
+                            seller['preco'] = float(clean_p)
+                            seller['preco_str'] = f"R$ {p_txt}"
+                    except Exception:
+                        pass
+
+                # Parcelamento (ex: 12x R$ 264,92 sem juros)
+                install_match = re.search(r'(\d+x\s*R?\$?\s*[\d.,]+(?:\s*sem\s*juros)?)', row_text, re.IGNORECASE)
+                if install_match:
+                    seller['parcelamento'] = install_match.group(1).strip()
+
+                # ── 3. Forma de Entrega e Retirada ────────────────────────────
+                if 'chegará grátis' in row_text_lower or 'chegara gratis' in row_text_lower or 'grátis' in row_text_lower:
                     seller['frete_gratis'] = True
-                if 'full' in row_text or 'mercado envios full' in row_text:
+
+                if 'full' in row_text_lower:
                     seller['frete_full'] = True
 
-                # Reputação
-                try:
-                    rep_el = row.find_element(
-                        By.CSS_SELECTOR,
-                        "[class*='reputation'], [class*='thermometer'], [class*='seller-info']"
-                    )
-                    rep_class = rep_el.get_attribute('class') or ''
-                    rep_text = rep_el.text.lower()
-                    if 'green' in rep_class or 'verde' in rep_class or 'excelente' in rep_text:
-                        seller['reputacao'] = 'verde'
-                    elif 'yellow' in rep_class or 'amarelo' in rep_class or 'bom' in rep_text:
-                        seller['reputacao'] = 'amarelo'
-                    elif 'red' in rep_class or 'vermelho' in rep_class or 'regular' in rep_text:
-                        seller['reputacao'] = 'vermelho'
-                    else:
-                        seller['reputacao'] = rep_text[:20] if rep_text else ''
-                except Exception:
-                    pass
+                # Extrai texto exato da entrega
+                chegara_match = re.search(r'(Chegará\s+(?:grátis\s+)?entre[^\n]+|Chegará\s+[^\n]+)', row_text, re.IGNORECASE)
+                if chegara_match:
+                    seller['entrega_texto'] = chegara_match.group(1).strip()
+                elif seller['frete_gratis']:
+                    seller['entrega_texto'] = "Chegará grátis com envio rápido"
 
-                # Condição
-                if 'usado' in row_text or 'recondicionado' in row_text:
-                    seller['condicao'] = 'usado'
+                retire_match = re.search(r'(Retire\s+(?:grátis\s+)?[^\n]+)', row_text, re.IGNORECASE)
+                if retire_match:
+                    seller['retirada_texto'] = retire_match.group(1).strip()
+
+                # ── 4. Condição ───────────────────────────────────────────────
+                if 'usado' in row_text_lower:
+                    seller['condicao'] = 'Usado'
+                elif 'recondicionado' in row_text_lower:
+                    seller['condicao'] = 'Recondicionado'
                 else:
-                    seller['condicao'] = 'novo'
+                    seller['condicao'] = 'Novo'
 
-                # Melhor oferta / destaque
+                # ── 5. Link de Compra ─────────────────────────────────────────
                 try:
-                    best_el = row.find_element(
-                        By.CSS_SELECTOR,
-                        "[class*='best'], [class*='highlight'], [class*='winner'], [class*='destaque']"
-                    )
-                    if best_el:
-                        seller['is_best_offer'] = True
+                    buy_btn = row.find_element(By.CSS_SELECTOR, "a[href*='checkout'], a[href*='comprar'], a[href*='cart'], a.andes-button")
+                    seller['buy_url'] = buy_btn.get_attribute('href') or ''
                 except Exception:
                     pass
 
-                # Só adiciona se tem seller_name ou preço
-                if seller['seller_name'] or seller['preco'] > 0:
-                    sellers.append(seller)
+                sellers.append(seller)
 
             except Exception as e:
                 print(f"   ⚠️ Erro ao processar seller {i + 1}: {e}")
                 continue
 
+        # Ordena por preço crescente
+        sellers.sort(key=lambda s: s['preco'] if s['preco'] > 0 else 999999)
+        for idx, s in enumerate(sellers):
+            s['posicao'] = idx + 1
+            s['is_best_offer'] = (idx == 0)
+
         return sellers
 
     def _extract_sellers_from_source(self) -> List[Dict]:
-        """Fallback: extrai sellers do page source usando BeautifulSoup."""
+        """Fallback: extrai sellers do page source usando BeautifulSoup com parsing inteligente."""
         try:
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(self.driver.page_source, 'html.parser')
 
             sellers = []
-            # Tenta encontrar qualquer estrutura de tabela de preços/sellers
             rows = (
+                soup.select('tr.andes-table__row') or
                 soup.select('.andes-table__row--body') or
+                soup.select('[class*="buybox__offers"] [class*="item"]') or
                 soup.select('[class*="offers"] [class*="item"]') or
-                soup.select('[class*="seller-list"] li') or
                 soup.select('tr')
             )
 
-            for i, row in enumerate(rows[:20]):  # Limita a 20 resultados
-                text = row.get_text(separator=' ', strip=True)
-                price_match = re.search(r'R?\$?\s*([\d.]+,\d{2})', text)
-                if price_match:
-                    price_str = price_match.group(1)
-                    price_num = float(price_str.replace('.', '').replace(',', '.'))
+            for i, row in enumerate(rows[:30]):
+                text = row.get_text(separator='\n', strip=True)
+                if not text or len(text) < 10:
+                    continue
 
-                    # Tenta extrair nome do vendedor
-                    seller_name = ''
-                    strong_tags = row.find_all(['strong', 'b', 'span'])
-                    for tag in strong_tags:
-                        t = tag.get_text(strip=True)
-                        if t and len(t) > 2 and not re.search(r'[\d,.]', t):
-                            seller_name = t
-                            break
+                lines = [l.strip() for l in text.split('\n') if l.strip()]
+                text_full = ' '.join(lines)
+                text_lower = text_full.lower()
 
-                    sellers.append({
-                        'seller_name': seller_name,
-                        'seller_id_ml': '',
-                        'preco': price_num,
-                        'preco_str': f"R$ {price_str}",
-                        'frete_gratis': 'grátis' in text.lower() or 'gratis' in text.lower(),
-                        'frete_full': 'full' in text.lower(),
-                        'reputacao': '',
-                        'condicao': 'usado' if 'usado' in text.lower() else 'novo',
-                        'is_best_offer': False,
-                        'posicao': i + 1,
+                # Preço
+                money_amounts = re.findall(r'R\$\s*([\d.]+,\d{2}|[\d.]+)', text_full)
+                if not money_amounts:
+                    continue
+
+                prices_floats = []
+                for m in money_amounts:
+                    try:
+                        clean_p = m.replace('.', '').replace(',', '.')
+                        val = float(clean_p)
+                        if val > 0:
+                            prices_floats.append((val, m))
+                    except Exception:
+                        pass
+
+                if not prices_floats:
+                    continue
+
+                main_price_val, main_price_str = max(prices_floats, key=lambda x: x[0])
+
+                # Vendedor
+                seller_name = ''
+                for l in lines:
+                    if len(l) > 2 and not re.search(r'(r\$|chegará|retire|comprar|adicionar|novo|usado|12x|\d+x|\d+ unidades)', l, re.IGNORECASE):
+                        seller_name = l
+                        break
+
+                sellers.append({
+                    'seller_name': seller_name or f"Vendedor #{i + 1}",
+                    'seller_id_ml': '',
+                    'preco': main_price_val,
+                    'preco_str': f"R$ {main_price_val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                    'parcelamento': (re.search(r'(\d+x\s*R?\$?\s*[\d.,]+(?:\s*sem\s*juros)?)', text_full, re.I) or [''])[0],
+                    'frete_gratis': 'grátis' in text_lower or 'gratis' in text_lower,
+                    'frete_full': 'full' in text_lower,
+                    'entrega_texto': (re.search(r'(Chegará\s+[^\n]+)', text_full, re.I) or [''])[0] or ('Chegará grátis' if 'grátis' in text_lower else ''),
+                    'retirada_texto': (re.search(r'(Retire\s+[^\n]+)', text_full, re.I) or [''])[0],
+                    'reputacao': (re.search(r'([+\d\s]+(?:mil)?\s*vendas|MercadoLíder[^\n]*)', text_full, re.I) or [''])[0],
+                    'condicao': 'Usado' if 'usado' in text_lower else 'Novo',
+                    'is_best_offer': i == 0,
+                    'posicao': i + 1,
+                    'buy_url': ''
+                })
+
+            sellers.sort(key=lambda s: s['preco'] if s['preco'] > 0 else 999999)
+            for idx, s in enumerate(sellers):
+                s['posicao'] = idx + 1
+                s['is_best_offer'] = (idx == 0)
+
+            return sellers
+        except Exception as e:
+            print(f"❌ Erro no fallback BeautifulSoup: {e}")
+            return []
                     })
 
             return sellers

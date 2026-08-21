@@ -1,192 +1,261 @@
 {% extends "base.html" %}
 
-{% block title %}Catálogo {{ catalog_id }} - Offer Search App{% endblock %}
+{% block title %}{{ catalog.nome if catalog and catalog.nome else 'Catálogo ' ~ catalog_id }} - Concorrentes ML{% endblock %}
 
 {% block extra_styles %}
 <style>
-/* ─── Hero / Header ─────────────────────────────────────────── */
-.catalog-detail-header {
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-    border-radius: 20px;
-    padding: 2rem;
-    color: white;
-    margin-bottom: 2rem;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 214, 0, 0.2);
+/* ─── Base & Layout ─────────────────────────────────────────── */
+body {
+    background-color: #f1f5f9;
 }
 
-.catalog-img-container {
+/* ─── Barra Superior Estilo ML ─────────────────────────────── */
+.ml-top-banner {
+    background: #ffe600;
+    height: 6px;
+    border-radius: 6px 6px 0 0;
+}
+
+/* ─── Card Principal do Produto (Header) ───────────────────── */
+.product-hero-card {
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    padding: 1.75rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+}
+
+.product-img-box {
     width: 140px;
     height: 140px;
     background: #ffffff;
-    border-radius: 16px;
+    border-radius: 12px;
+    border: 1px solid #f1f5f9;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 10px;
+    padding: 8px;
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
-
-.catalog-img-container img {
+.product-img-box img {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
 }
 
-.catalog-id-pill {
-    font-family: 'Courier New', monospace;
+/* Título em Alto Contraste (Preto Nítido) */
+.product-title-main {
+    color: #0f172a !important;
+    font-size: 1.45rem;
+    font-weight: 700;
+    line-height: 1.3;
+    margin-bottom: 0.5rem;
+}
+
+.product-meta-sub {
     font-size: 0.85rem;
-    background: rgba(255, 214, 0, 0.15);
-    color: #ffd600;
-    border: 1px solid rgba(255, 214, 0, 0.4);
-    border-radius: 8px;
-    padding: 4px 12px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-/* ─── Cards de Estatísticas ────────────────────────────────── */
-.stat-card {
-    background: white;
-    border-radius: 16px;
-    padding: 1.25rem;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-    border: 1px solid #f1f5f9;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-}
-.stat-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.25rem;
-    margin-bottom: 0.75rem;
-}
-.stat-icon.min-price { background: #dcfce7; color: #16a34a; }
-.stat-icon.max-price { background: #fee2e2; color: #dc2626; }
-.stat-icon.sellers-count { background: #e0f2fe; color: #0284c7; }
-.stat-icon.full-count { background: #fef3c7; color: #d97706; }
-
-/* ─── Tabela de Concorrentes ───────────────────────────────── */
-.sellers-table-card {
-    background: white;
-    border-radius: 18px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
-    overflow: hidden;
-}
-
-.table-custom {
-    margin-bottom: 0;
-}
-.table-custom thead {
-    background: #f8fafc;
-    border-bottom: 2px solid #e2e8f0;
-}
-.table-custom thead th {
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
     color: #64748b;
-    font-weight: 700;
-    padding: 1rem 1.25rem;
-}
-.table-custom tbody tr {
-    transition: background-color 0.2s ease;
-    border-bottom: 1px solid #f1f5f9;
-}
-.table-custom tbody tr:hover {
-    background-color: #f8fafc;
-}
-.table-custom tbody tr.best-price-row {
-    background-color: #f0fdf4;
-    border-left: 4px solid #22c55e;
-}
-.table-custom td {
-    padding: 1rem 1.25rem;
-    vertical-align: middle;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
 }
 
-/* ─── Badges ───────────────────────────────────────────────── */
-.badge-full {
-    background: linear-gradient(135deg, #00a650, #008744);
-    color: white;
-    font-weight: 700;
-    font-size: 0.75rem;
-    padding: 4px 8px;
-    border-radius: 6px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-.badge-free-shipping {
-    background: #e6f4ea;
-    color: #137333;
-    font-weight: 600;
-    font-size: 0.75rem;
-    padding: 4px 8px;
-    border-radius: 6px;
-}
-.badge-best-offer {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    color: white;
-    font-weight: 700;
-    font-size: 0.75rem;
-    padding: 4px 8px;
-    border-radius: 6px;
-}
-.badge-condition-novo {
-    background: #f1f5f9;
-    color: #475569;
-    font-weight: 600;
-    font-size: 0.75rem;
-    padding: 3px 8px;
-    border-radius: 6px;
-}
-.badge-condition-usado {
-    background: #fee2e2;
-    color: #991b1b;
-    font-weight: 600;
-    font-size: 0.75rem;
-    padding: 3px 8px;
-    border-radius: 6px;
-}
-
-.reputation-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+.catalog-pill {
+    background: #f8fafc;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 3px 10px;
+    font-family: 'Courier New', monospace;
     font-size: 0.8rem;
     font-weight: 600;
-    padding: 3px 8px;
-    border-radius: 6px;
 }
-.rep-verde { background: #dcfce7; color: #15803d; }
-.rep-amarelo { background: #fef9c3; color: #a16207; }
-.rep-vermelho { background: #fee2e2; color: #b91c1c; }
 
-/* ─── Botão Atualizar / Ações ──────────────────────────────── */
+/* ─── Botão Atualizar Concorrentes ─────────────────────────── */
 .btn-scrape-sync {
     background: linear-gradient(135deg, #ffd600, #ff7800);
-    color: #1e293b;
+    color: #0f172a;
     border: none;
     font-weight: 700;
     padding: 0.65rem 1.25rem;
     border-radius: 12px;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(255, 120, 0, 0.25);
 }
 .btn-scrape-sync:hover {
     transform: translateY(-1px);
     box-shadow: 0 6px 18px rgba(255, 120, 0, 0.35);
     color: #000;
+}
+
+/* ─── Métricas Resumidas ───────────────────────────────────── */
+.metric-box {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    padding: 1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+.metric-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+.metric-val {
+    font-size: 1.35rem;
+    font-weight: 800;
+}
+
+/* ─── Tabela de Vendedores (Idêntica ao Mercado Livre) ─────── */
+.ml-sellers-container {
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+}
+
+.ml-sellers-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-bottom: 0;
+}
+
+.ml-sellers-table thead {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.ml-sellers-table thead th {
+    padding: 1.1rem 1.5rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #475569;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.ml-sellers-table tbody tr {
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s ease;
+}
+
+.ml-sellers-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+.ml-sellers-table tbody tr.best-offer-row {
+    background-color: #f0fdf4;
+}
+
+.ml-sellers-table td {
+    padding: 1.35rem 1.5rem;
+    vertical-align: middle;
+}
+
+/* Coluna de Preço */
+.price-display-main {
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.1;
+}
+.price-installment-green {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #00a650;
+    margin-top: 4px;
+}
+.price-installment-gray {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-top: 4px;
+}
+
+/* Coluna de Entrega */
+.shipping-bullet {
+    font-size: 0.85rem;
+    color: #334155;
+    line-height: 1.4;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+.shipping-green-highlight {
+    color: #00a650;
+    font-weight: 700;
+}
+
+/* Coluna do Vendedor */
+.seller-name-link {
+    color: #3483fa;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: color 0.15s;
+}
+.seller-name-link:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
+}
+.seller-verified-icon {
+    color: #3483fa;
+    font-size: 0.85rem;
+}
+.seller-reputation-text {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 3px;
+}
+
+/* Botões de Ação ML */
+.btn-ml-buy {
+    background: #3483fa;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.85rem;
+    border-radius: 8px;
+    padding: 0.55rem 1.25rem;
+    border: none;
+    display: block;
+    width: 100%;
+    text-align: center;
+    text-decoration: none;
+    transition: background 0.15s;
+}
+.btn-ml-buy:hover {
+    background: #2968c8;
+    color: #ffffff;
+}
+
+.btn-ml-cart {
+    background: rgba(65, 137, 230, 0.12);
+    color: #3483fa;
+    font-weight: 700;
+    font-size: 0.82rem;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    border: none;
+    display: block;
+    width: 100%;
+    text-align: center;
+    text-decoration: none;
+    margin-top: 6px;
+    transition: background 0.15s;
+}
+.btn-ml-cart:hover {
+    background: rgba(65, 137, 230, 0.2);
+    color: #1d4ed8;
 }
 
 /* ─── Overlay de Busca ─────────────────────────────────────── */
@@ -229,54 +298,66 @@
 <div class="container-fluid py-4">
 
     <!-- Navegação Voltar -->
-    <div class="mb-3">
-        <a href="{{ url_for('catalog.catalog_list') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+    <div class="mb-3 d-flex align-items-center justify-content-between">
+        <a href="{{ url_for('catalog.catalog_list') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3 fw-semibold">
             <i class="fas fa-arrow-left me-1"></i> Voltar aos Catálogos
         </a>
+        <div class="d-flex align-items-center gap-2">
+            <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                <i class="fas fa-external-link-alt me-1"></i> Ver no Mercado Livre
+            </a>
+            <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}/s?" target="_blank" class="btn btn-sm btn-outline-warning text-dark rounded-pill px-3 fw-semibold">
+                <i class="fas fa-list-ul me-1"></i> Página de Opções (/s?)
+            </a>
+        </div>
     </div>
 
-    <!-- Header do Catálogo -->
-    <div class="catalog-detail-header">
+    <!-- Card Principal do Produto (Header com Alto Contraste) -->
+    <div class="product-hero-card">
+        <div class="ml-top-banner mb-3"></div>
         <div class="row align-items-center g-3">
             <div class="col-auto">
-                <div class="catalog-img-container">
+                <div class="product-img-box">
                     {% if catalog and catalog.imagem %}
                         <img src="{{ catalog.imagem }}" alt="{{ catalog.nome }}"
                              onerror="this.src='https://via.placeholder.com/140x140/ffffff/94a3b8?text=ML+Catalog'">
                     {% else %}
-                        <i class="fas fa-box" style="font-size: 3rem; color: #cbd5e1;"></i>
+                        <i class="fas fa-box" style="font-size: 3.5rem; color: #cbd5e1;"></i>
                     {% endif %}
                 </div>
             </div>
             <div class="col">
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                    <span class="catalog-id-pill">
-                        <i class="fas fa-fingerprint"></i> ID: {{ catalog_id }}
+                    <span class="catalog-pill">
+                        <i class="fas fa-barcode text-primary me-1"></i> Catálogo: {{ catalog_id }}
                     </span>
-                    <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}" target="_blank" class="btn btn-sm btn-outline-light rounded-pill">
-                        <i class="fas fa-external-link-alt me-1"></i> Ver no Mercado Livre
-                    </a>
-                    <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}/s?" target="_blank" class="btn btn-sm btn-outline-warning rounded-pill">
-                        <i class="fas fa-list-ul me-1"></i> Página de Opções (/s?)
-                    </a>
+                    {% if sellers and sellers|length > 0 %}
+                    <span class="badge bg-success bg-opacity-10 text-success fw-bold px-3 py-1 rounded-pill">
+                        <i class="fas fa-check-circle me-1"></i> {{ sellers|length }} Vendedores Monitorados
+                    </span>
+                    {% endif %}
                 </div>
-                <h2 class="fw-bold fs-4 mb-2 text-white">
+                
+                <!-- Título em Alto Contraste e Fonte Legível -->
+                <h1 class="product-title-main">
                     {% if catalog and catalog.nome %}
                         {{ catalog.nome }}
                     {% else %}
                         Catálogo {{ catalog_id }}
                     {% endif %}
-                </h2>
-                <div class="text-white-50 small">
+                </h1>
+
+                <div class="product-meta-sub">
+                    <span><strong>Quantidade:</strong> 1 unidade</span>
                     {% if catalog and catalog.termo_pesquisa %}
-                        <span class="me-3"><i class="fas fa-search me-1"></i> Termo: <strong>{{ catalog.termo_pesquisa }}</strong></span>
+                        <span><i class="fas fa-search me-1 text-primary"></i> Busca: <strong>{{ catalog.termo_pesquisa }}</strong></span>
                     {% endif %}
                     {% if catalog and catalog.coletado_em %}
-                        <span><i class="fas fa-clock me-1"></i> Última sincronização: <strong>{{ catalog.coletado_em }}</strong></span>
+                        <span><i class="fas fa-history me-1 text-muted"></i> Última sincronização: <strong>{{ catalog.coletado_em }}</strong></span>
                     {% endif %}
                 </div>
             </div>
-            <div class="col-md-auto text-md-end">
+            <div class="col-lg-auto text-lg-end">
                 <button class="btn btn-scrape-sync" id="btnScrapeSellers" onclick="startSellersScrape('{{ catalog_id }}')">
                     <i class="fas fa-sync-alt me-2" id="syncIcon"></i> Atualizar Concorrentes
                 </button>
@@ -284,17 +365,15 @@
         </div>
     </div>
 
-    <!-- Estatísticas / Métricas Resumidas -->
+    <!-- Métricas Resumidas -->
     {% if sellers and sellers|length > 0 %}
     {% set prices = sellers | map(attribute='preco') | select('gt', 0) | list %}
+    {% set full_count = sellers | selectattr('frete_full') | list | length %}
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon min-price">
-                    <i class="fas fa-tag"></i>
-                </div>
-                <div class="text-muted small fw-semibold">Menor Preço (Líder)</div>
-                <div class="fs-4 fw-bold text-success">
+            <div class="metric-box">
+                <div class="metric-label">Menor Preço (Líder)</div>
+                <div class="metric-val text-success">
                     {% if prices|length > 0 %}
                         R$ {{ "%.2f"|format(prices|min) }}
                     {% else %}
@@ -304,12 +383,9 @@
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon max-price">
-                    <i class="fas fa-chart-line"></i>
-                </div>
-                <div class="text-muted small fw-semibold">Maior Preço</div>
-                <div class="fs-4 fw-bold text-danger">
+            <div class="metric-box">
+                <div class="metric-label">Maior Preço</div>
+                <div class="metric-val text-danger">
                     {% if prices|length > 0 %}
                         R$ {{ "%.2f"|format(prices|max) }}
                     {% else %}
@@ -319,172 +395,199 @@
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon sellers-count">
-                    <i class="fas fa-users"></i>
-                </div>
-                <div class="text-muted small fw-semibold">Vendedores Ativos</div>
-                <div class="fs-4 fw-bold text-primary">
+            <div class="metric-box">
+                <div class="metric-label">Vendedores Ativos</div>
+                <div class="metric-val text-primary">
                     {{ sellers|length }}
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon full-count">
-                    <i class="fas fa-bolt"></i>
-                </div>
-                <div class="text-muted small fw-semibold">Com Envio FULL</div>
-                <div class="fs-4 fw-bold text-warning">
-                    {{ sellers | selectattr('frete_full') | list | length }}
+            <div class="metric-box">
+                <div class="metric-label">Com Envio FULL</div>
+                <div class="metric-val text-warning">
+                    {{ full_count }}
                 </div>
             </div>
         </div>
     </div>
     {% endif %}
 
-    <!-- Tabela de Concorrentes -->
-    <div class="sellers-table-card">
-        <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
-            <h5 class="fw-bold mb-0 fs-6 text-slate-800">
-                <i class="fas fa-list-ol me-2 text-warning"></i> Concorrentes no Catálogo (Ranking de Preços)
-            </h5>
-            <span class="badge bg-secondary rounded-pill" id="sellersCountBadge">
-                {{ sellers|length if sellers else 0 }} Vendedores
-            </span>
-        </div>
-
+    <!-- Tabela de Concorrentes Idêntica ao Mercado Livre -->
+    <div class="ml-sellers-container">
+        {% if sellers and sellers|length > 0 %}
         <div class="table-responsive">
-            <table class="table table-custom align-middle" id="sellersTable">
+            <table class="ml-sellers-table">
                 <thead>
                     <tr>
-                        <th style="width: 80px;" class="text-center">Posição</th>
-                        <th>Vendedor</th>
-                        <th>Preço</th>
-                        <th>Frete / Entrega</th>
-                        <th>Reputação</th>
-                        <th>Condição</th>
-                        <th>Destaque</th>
+                        <th style="width: 22%;">Preço</th>
+                        <th style="width: 14%;">Condição</th>
+                        <th style="width: 32%;">Forma de entrega</th>
+                        <th style="width: 20%;">Vendedor</th>
+                        <th style="width: 12%; text-align: center;">Ações</th>
                     </tr>
                 </thead>
-                <tbody id="sellersTableBody">
-                    {% if sellers and sellers|length > 0 %}
-                        {% for s in sellers %}
-                        <tr class="{% if loop.first and s.preco > 0 %}best-price-row{% endif %}">
-                            <td class="text-center">
-                                {% if loop.first %}
-                                    <span class="badge bg-warning text-dark rounded-circle p-2" title="Líder do catálogo">
-                                        <i class="fas fa-crown"></i> 1º
-                                    </span>
-                                {% else %}
-                                    <span class="fw-bold text-muted">{{ loop.index }}º</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="fw-bold text-dark">
-                                    {{ s.seller_name or 'Vendedor Mercado Livre' }}
-                                </div>
-                                {% if s.seller_id_ml %}
-                                    <small class="text-muted">ID: {{ s.seller_id_ml }}</small>
-                                {% endif %}
-                            </td>
-                            <td>
+                <tbody>
+                    {% for s in sellers %}
+                    <tr class="{% if loop.first and s.preco > 0 %}best-offer-row{% endif %}">
+                        <!-- Coluna 1: Preço -->
+                        <td>
+                            <div class="price-display-main">
                                 {% if s.preco and s.preco > 0 %}
-                                    <div class="fw-bold fs-5 text-dark">
-                                        R$ {{ "%.2f"|format(s.preco) }}
+                                    R$ {{ "%.2f"|format(s.preco)|replace('.', ',') }}
+                                {% elif s.preco_str %}
+                                    {{ s.preco_str }}
+                                {% else %}
+                                    <span class="text-muted">A consultar</span>
+                                {% endif %}
+                            </div>
+                            
+                            {% if s.parcelamento %}
+                                <div class="{% if 'sem juros' in s.parcelamento|lower %}price-installment-green{% else %}price-installment-gray{% endif %}">
+                                    {{ s.parcelamento }}
+                                </div>
+                            {% elif s.preco and s.preco > 0 %}
+                                <div class="price-installment-gray">
+                                    12x R$ {{ "%.2f"|format(s.preco / 12)|replace('.', ',') }}
+                                </div>
+                            {% endif %}
+                        </td>
+
+                        <!-- Coluna 2: Condição -->
+                        <td>
+                            <span class="fw-semibold text-secondary">
+                                {{ s.condicao or 'Novo' }}
+                            </span>
+                        </td>
+
+                        <!-- Coluna 3: Forma de Entrega -->
+                        <td>
+                            {% if s.entrega_texto %}
+                                <div class="shipping-bullet">
+                                    <span>•</span>
+                                    <span>
+                                        {% if 'grátis' in s.entrega_texto|lower %}
+                                            <span class="shipping-green-highlight">Chegará grátis</span> {{ s.entrega_texto|replace('Chegará grátis', '')|replace('chegará grátis', '') }}
+                                        {% else %}
+                                            {{ s.entrega_texto }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            {% elif s.frete_gratis %}
+                                <div class="shipping-bullet">
+                                    <span>•</span>
+                                    <span class="shipping-green-highlight">Chegará grátis com envio rápido</span>
+                                </div>
+                            {% else %}
+                                <div class="shipping-bullet text-muted">
+                                    <span>•</span>
+                                    <span>Frete a calcular</span>
+                                </div>
+                            {% endif %}
+
+                            {% if s.retirada_texto %}
+                                <div class="shipping-bullet">
+                                    <span>•</span>
+                                    <span>
+                                        {% if 'grátis' in s.retirada_texto|lower %}
+                                            <span class="shipping-green-highlight">Retire grátis</span> {{ s.retirada_texto|replace('Retire grátis', '')|replace('retire grátis', '') }}
+                                        {% else %}
+                                            {{ s.retirada_texto }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            {% endif %}
+
+                            {% if s.frete_full %}
+                                <div class="mt-1">
+                                    <span class="badge bg-success text-white fw-bold px-2 py-1" style="font-size: 0.72rem; letter-spacing: 0.5px;">
+                                        <i class="fas fa-bolt"></i> FULL
+                                    </span>
+                                </div>
+                            {% endif %}
+                        </td>
+
+                        <!-- Coluna 4: Vendedor -->
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div style="width: 38px; height: 38px; border-radius: 8px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #475569; font-size: 1rem; border: 1px solid #e2e8f0;">
+                                    {{ s.seller_name[:2]|upper }}
+                                </div>
+                                <div>
+                                    <a href="https://www.mercadolivre.com.br/perfil/{{ s.seller_name|replace(' ', '+') }}" target="_blank" class="seller-name-link">
+                                        {{ s.seller_name }}
+                                        <i class="fas fa-check-circle seller-verified-icon" title="Vendedor Identificado"></i>
+                                    </a>
+                                    <div class="seller-reputation-text">
+                                        {{ s.reputacao or 'MercadoLíder | Vendedor Ativo' }}
                                     </div>
-                                {% else %}
-                                    <span class="text-muted">{{ s.preco_str or 'Consulte' }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="d-flex flex-wrap gap-1">
-                                    {% if s.frete_full %}
-                                        <span class="badge-full"><i class="fas fa-bolt"></i> FULL</span>
-                                    {% endif %}
-                                    {% if s.frete_gratis %}
-                                        <span class="badge-free-shipping"><i class="fas fa-truck"></i> Frete Grátis</span>
-                                    {% endif %}
-                                    {% if not s.frete_full and not s.frete_gratis %}
-                                        <span class="text-muted small">Frete a calcular</span>
-                                    {% endif %}
                                 </div>
-                            </td>
-                            <td>
-                                {% if s.reputacao == 'verde' %}
-                                    <span class="reputation-tag rep-verde"><i class="fas fa-circle"></i> Excelente</span>
-                                {% elif s.reputacao == 'amarelo' %}
-                                    <span class="reputation-tag rep-amarelo"><i class="fas fa-circle"></i> Bom</span>
-                                {% elif s.reputacao == 'vermelho' %}
-                                    <span class="reputation-tag rep-vermelho"><i class="fas fa-circle"></i> Regular</span>
-                                {% elif s.reputacao %}
-                                    <span class="badge bg-light text-dark border">{{ s.reputacao }}</span>
-                                {% else %}
-                                    <span class="text-muted small">--</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <span class="badge-condition-{{ s.condicao or 'novo' }}">
-                                    {{ (s.condicao or 'novo')|capitalize }}
-                                </span>
-                            </td>
-                            <td>
-                                {% if s.is_best_offer %}
-                                    <span class="badge-best-offer"><i class="fas fa-star me-1"></i> Melhor Opção</span>
-                                {% elif loop.first %}
-                                    <span class="badge bg-success"><i class="fas fa-trophy me-1"></i> Menor Preço</span>
-                                {% else %}
-                                    <span class="text-muted small">--</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr id="emptySellersRow">
-                            <td colspan="7" class="text-center py-5">
-                                <div class="text-muted">
-                                    <i class="fas fa-users-slash fs-1 opacity-25 mb-3 d-block"></i>
-                                    <h5>Nenhum vendedor coletado para este catálogo</h5>
-                                    <p class="small text-muted mb-3">
-                                        Clique no botão <strong>"Atualizar Concorrentes"</strong> para iniciar o robô de scraping na página do catálogo.
-                                    </p>
-                                    <button class="btn btn-sm btn-primary rounded-pill px-4" onclick="startSellersScrape('{{ catalog_id }}')">
-                                        <i class="fas fa-sync-alt me-2"></i> Coletar Vendedores Agora
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    {% endif %}
+                            </div>
+                        </td>
+
+                        <!-- Coluna 5: Ações / Comprar -->
+                        <td style="text-align: center;">
+                            <a href="{{ s.buy_url or 'https://www.mercadolivre.com.br/p/' ~ catalog_id ~ '/s?' }}" target="_blank" class="btn-ml-buy">
+                                Comprar agora
+                            </a>
+                            <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}/s?" target="_blank" class="btn-ml-cart">
+                                <i class="fas fa-external-link-alt me-1"></i> Ver no ML
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
         </div>
+        {% else %}
+        <!-- Empty State -->
+        <div class="text-center py-5 px-3">
+            <div class="mb-3 text-secondary opacity-50">
+                <i class="fas fa-users-slash" style="font-size: 4rem;"></i>
+            </div>
+            <h4 class="fw-bold text-dark mb-2">Nenhum vendedor coletado para este catálogo</h4>
+            <p class="text-muted mb-4 max-w-md mx-auto">
+                Clique no botão <strong>"Atualizar Concorrentes"</strong> acima para iniciar o robô de raspagem na página de opções de compra deste catálogo no Mercado Livre.
+            </p>
+            <button class="btn btn-scrape-sync btn-lg px-4" onclick="startSellersScrape('{{ catalog_id }}')">
+                <i class="fas fa-sync-alt me-2"></i> Coletar Vendedores Agora
+            </button>
+        </div>
+        {% endif %}
     </div>
 
 </div>
 
-<!-- Overlay de Carregamento de Sellers -->
-<div id="scrapeOverlay" class="search-overlay" style="display:none;">
+<!-- Overlay de busca / progresso -->
+<div id="sellersOverlay" class="search-overlay" style="display:none;">
     <div class="search-overlay-box">
         <div class="spinner-ml"></div>
-        <h5 class="fw-bold mb-2" id="scrapeOverlayTitle">Varrendo Concorrentes...</h5>
-        <p class="text-muted mb-3" id="scrapeOverlayMsg">Acessando a página de opções de compra do Mercado Livre...</p>
+        <h5 class="fw-bold mb-2" id="overlayTitle">Acessando Mercado Livre...</h5>
+        <p class="text-muted mb-3" id="overlayMessage">Iniciando robô headless para extrair vendedores...</p>
         <div class="progress mb-2" style="height:8px; border-radius:10px;">
-            <div class="progress-bar" id="scrapeOverlayProgress"
-                 style="width:0%; background: linear-gradient(90deg, #ffd600, #ff7800); transition: width 0.5s ease;"></div>
+            <div class="progress-bar" id="overlayProgress"
+                 style="width:20%; background: linear-gradient(90deg, #ffd600, #ff7800); transition: width 0.5s ease;"></div>
         </div>
-        <small class="text-muted">O robô Selenium está extraindo todos os vendedores...</small>
+        <small class="text-muted">Aguarde alguns segundos...</small>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-let scrapeCheckInterval = null;
 let currentScrapeId = null;
+let scrapeStatusInterval = null;
 
 async function startSellersScrape(catalogId) {
-    showScrapeOverlay('Iniciando varredura...', 'Conectando ao navegador headless...');
+    const btn = document.getElementById('btnScrapeSellers');
+    const icon = document.getElementById('syncIcon');
     
+    if (btn) btn.disabled = true;
+    if (icon) icon.classList.add('fa-spin');
+    
+    showOverlay('Iniciando varredura...', `Acessando página de sellers do catálogo ${catalogId}...`);
+    document.getElementById('overlayProgress').style.width = '30%';
+
     try {
         const res = await fetch(`/catalog/${catalogId}/scrape-sellers`, {
             method: 'POST',
@@ -493,60 +596,66 @@ async function startSellersScrape(catalogId) {
         const data = await res.json();
 
         if (!res.ok) {
-            throw new Error(data.error || 'Falha ao iniciar scraping');
+            hideOverlay();
+            if (btn) btn.disabled = false;
+            if (icon) icon.classList.remove('fa-spin');
+            alert('Erro: ' + (data.error || 'Falha ao iniciar scraping'));
+            return;
         }
 
         currentScrapeId = data.scrape_id;
-        scrapeCheckInterval = setInterval(checkScrapeStatus, 2500);
+        document.getElementById('overlayProgress').style.width = '60%';
+        scrapeStatusInterval = setInterval(() => checkScrapeStatus(catalogId), 2000);
 
     } catch (err) {
-        hideScrapeOverlay();
-        alert('Erro: ' + err.message);
+        hideOverlay();
+        if (btn) btn.disabled = false;
+        if (icon) icon.classList.remove('fa-spin');
+        alert('Erro ao comunicar com o servidor: ' + err.message);
     }
 }
 
-async function checkScrapeStatus() {
+async function checkScrapeStatus(catalogId) {
     if (!currentScrapeId) return;
-
     try {
-        const res = await fetch(`/catalog/sellers-status/${currentScrapeId}`);
+        const res = await fetch(`/catalog/sellers/status/${currentScrapeId}`);
         const status = await res.json();
 
-        document.getElementById('scrapeOverlayProgress').style.width = (status.progress || 0) + '%';
-        document.getElementById('scrapeOverlayMsg').textContent = status.message || 'Processando sellers...';
+        document.getElementById('overlayProgress').style.width = (status.progress || 60) + '%';
+        document.getElementById('overlayMessage').textContent = status.message || 'Processando sellers...';
 
         if (status.completed) {
-            clearInterval(scrapeCheckInterval);
-            hideScrapeOverlay();
+            clearInterval(scrapeStatusInterval);
+            hideOverlay();
 
             if (status.status === 'concluida') {
-                // Atualiza a página para exibir os novos dados do Supabase ou renderiza diretamente
+                // Recarrega a página para exibir os novos sellers renderizados
                 window.location.reload();
             } else {
-                if (status.login_required) {
-                    alert('⚠️ ' + (status.error || 'Sessão do Mercado Livre requer login.'));
-                } else {
-                    alert('Erro no scraping: ' + (status.error || 'Erro desconhecido'));
-                }
+                const btn = document.getElementById('btnScrapeSellers');
+                const icon = document.getElementById('syncIcon');
+                if (btn) btn.disabled = false;
+                if (icon) icon.classList.remove('fa-spin');
+                
+                alert('Aviso: ' + (status.error || 'Não foi possível coletar os vendedores.'));
             }
         }
     } catch (err) {
-        clearInterval(scrapeCheckInterval);
-        hideScrapeOverlay();
-        console.error('Erro no polling de sellers:', err);
+        clearInterval(scrapeStatusInterval);
+        hideOverlay();
+        console.error('Erro no polling:', err);
     }
 }
 
-function showScrapeOverlay(title, msg) {
-    document.getElementById('scrapeOverlayTitle').textContent = title;
-    document.getElementById('scrapeOverlayMsg').textContent = msg;
-    document.getElementById('scrapeOverlayProgress').style.width = '0%';
-    document.getElementById('scrapeOverlay').style.display = 'flex';
+function showOverlay(title, message) {
+    document.getElementById('overlayTitle').textContent = title;
+    document.getElementById('overlayMessage').textContent = message;
+    document.getElementById('sellersOverlay').style.display = 'flex';
     document.body.style.overflow = 'hidden';
 }
 
-function hideScrapeOverlay() {
-    document.getElementById('scrapeOverlay').style.display = 'none';
+function hideOverlay() {
+    document.getElementById('sellersOverlay').style.display = 'none';
     document.body.style.overflow = 'auto';
 }
 </script>
