@@ -3,6 +3,7 @@ from database.db_manager import DatabaseManager
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import json
+from dateutil.parser import isoparse
 
 settings_bp = Blueprint('settings', __name__)
 db = DatabaseManager()
@@ -16,7 +17,7 @@ def settings_page():
     user_id = session['user_id']
     
     # Buscar configurações do usuário
-    user_configs = db.get_user_configurations(user_id)
+    user_configs = db.get_user_configs(user_id)
     alertas = db.get_user_alerts(user_id)
     
     # Variáveis de ambiente disponíveis (mascaradas)
@@ -26,7 +27,9 @@ def settings_page():
         'SERPAPI_KEY': '***' if os.environ.get('SERPAPI_KEY') else '',
         'SECRET_KEY': '***' if os.environ.get('SECRET_KEY') else '',
         'FLASK_DEBUG': os.environ.get('FLASK_DEBUG', 'False'),
-        'PORT': os.environ.get('PORT', '5000')
+        'PORT': os.environ.get('PORT', '5000'),
+        'EVOLUTION_API_INSTANCE': os.environ.get('EVOLUTION_API_INSTANCE', ''),
+        'EVOLUTION_API_KEY': '***' if os.environ.get('EVOLUTION_API_KEY') else ''
     }
     
     return render_template('settings/settings.html', 
@@ -44,7 +47,7 @@ def update_environment():
         data = request.get_json()
         
         # Validar dados recebidos
-        allowed_vars = ['SUPABASE_URL', 'SUPABASE_KEY', 'SERPAPI_KEY', 'SECRET_KEY', 'FLASK_DEBUG', 'PORT']
+        allowed_vars = ['SUPABASE_URL', 'SUPABASE_KEY', 'SERPAPI_KEY', 'SECRET_KEY', 'FLASK_DEBUG', 'PORT', 'EVOLUTION_API_INSTANCE', 'EVOLUTION_API_KEY']
         
         updated_vars = []
         for var_name, var_value in data.items():
@@ -207,7 +210,7 @@ def profile_settings():
         return jsonify({
             'nome': user['nome'],
             'email': user['email'],
-            'criado_em': user['criado_em'].isoformat() if user['criado_em'] else None
+            'criado_em': isoparse(user['criado_em']).isoformat() if user['criado_em'] else None
         })
     else:
         return jsonify({'success': False, 'message': 'Usuário não encontrado'})

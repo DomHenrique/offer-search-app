@@ -246,30 +246,63 @@ class MercadoLivreScraper:
                         except:
                             continue
                     
-                    # 3. IMAGEM
+                    # 3. IMAGEM (melhorado)
                     image_selectors = [
+                        "img.ui-search-result__image__element",
+                        ".ui-search-result__image .ui-search-result__image__element",
                         "img.poly-component__picture",
                         "div.poly-card__portada img",
                         "img[src*='mlstatic']",
                         ".ui-search-result__image img",
                         "img"
                     ]
-                    
+                    image_found = False
                     for selector in image_selectors:
                         try:
                             img_elem = container.find_element(By.CSS_SELECTOR, selector)
                             if not self.is_element_ignored(img_elem):
-                                img_src = (img_elem.get_attribute('src') or 
-                                         img_elem.get_attribute('data-src') or
-                                         img_elem.get_attribute('data-lazy-src'))
-                                
-                                if (img_src and 'mlstatic' in img_src and 
+                                # Busca em vários atributos
+                                img_src = (
+                                    img_elem.get_attribute('src') or
+                                    img_elem.get_attribute('data-src') or
+                                    img_elem.get_attribute('data-lazy-src') or
+                                    img_elem.get_attribute('data-original') or
+                                    img_elem.get_attribute('data-original-src')
+                                )
+                                if (img_src and 'mlstatic' in img_src and
                                     not img_src.startswith('data:') and
                                     len(img_src) > 20):
                                     product_data['image_url'] = img_src
+                                    print(f"[DEBUG ML Imagem] URL da imagem extraída: {img_src}")
+                                    image_found = True
                                     break
                         except:
                             continue
+                    # Fallback: busca em elementos filhos se não encontrou imagem
+                    if not image_found:
+                        try:
+                            child_imgs = container.find_elements(By.TAG_NAME, "img")
+                            for img_elem in child_imgs:
+                                if self.is_element_ignored(img_elem):
+                                    continue
+                                img_src = (
+                                    img_elem.get_attribute('src') or
+                                    img_elem.get_attribute('data-src') or
+                                    img_elem.get_attribute('data-lazy-src') or
+                                    img_elem.get_attribute('data-original') or
+                                    img_elem.get_attribute('data-original-src')
+                                )
+                                if (img_src and 'mlstatic' in img_src and
+                                    not img_src.startswith('data:') and
+                                    len(img_src) > 20):
+                                    product_data['image_url'] = img_src
+                                    print(f"[DEBUG ML Imagem Fallback] URL da imagem extraída: {img_src}")
+                                    image_found = True
+                                    break
+                        except Exception as e:
+                            print(f"[DEBUG ML Imagem Fallback] Erro ao buscar imagens em filhos: {e}")
+                    if not image_found:
+                        print(f"[DEBUG ML Imagem] Nenhuma imagem encontrada para produto: {product_data['title']}")
                     
                     # 4. LINK DO PRODUTO
                     try:

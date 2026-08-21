@@ -1,0 +1,263 @@
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
+import threading
+import time
+from datetime import datetime
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from database.db_manager import DatabaseManager
+from scraping.web_scrap_catalog_ml import get_catalog_list, get_catalog_sellers
+
+catalog_bp = Blueprint('catalog', __name__)
+db_manager = DatabaseManager()
+
+# Armazena status das buscas em andamento (em memória)
+catalog_search_status = {}
+catalog_sellers_status = {}
+
+
+# ─── Páginas ──────────────────────────────────────────────────────────────────
+
+@catalog_bp.route('/')
+def catalog_list():
+    """Página principal de catálogos — listagem e busca."""
+    if 'user_id' not in session:
+        flash('Você precisa fazer login para acessar esta página.', 'warning')
+        return redirect(url_for('auth.login'))
+
+    user_id = session['user_id']
+
+    # Catálogos já salvos do usuário
+    saved_catalogs = db_manager.get_user_catalogs(user_id, limit=50)
+
+    return render_template('catalog/catalog_list.html',
+                           saved_catalogs=saved_catalogs)
+
+
+@catalog_bp.route('/<catalog_id>')
+def catalog_detail(catalog_id):
+    """Página de detalhe de um catálogo — sellers e comparativo."""
+    if 'user_id' not in session:
+        flash('Você precisa fazer login para acessar esta página.', 'warning')
+        return redirect(url_for('auth.login'))
+
+    # Valida o formato do catalog_id
+    import re
+    if not re.match(r'^MLB\d+$', catalog_id):
+        flash('ID de catálogo inválido.', 'error')
+        return redirect(url_for('catalog.catalog_list'))
+
+    # Busca dados do catálogo no banco
+    catalog = db_manager.get_catalog_by_id(catalog_id)
+
+    # Busca sellers já coletados (última coleta)
+    sellers = db_manager.get_catalog_sellers(catalog_id)
+
+    return render_template('catalog/catalog_detail.html',
+                           catalog_id=catalog_id,
+                           catalog=catalog,
+                           sellers=sellers)
+
+
+# ─── API — Busca de catálogos (assíncrona) ───────────────────────────────────
+
+@catalog_bp.route('/search', methods=['POST'])
+def search_catalogs():
+    """Inicia busca de catálogos por termo em thread de background."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+
+    data = request.get_json()
+    search_term = (data.get('termo_pesquisa') or '').strip()
+    n_pages = max(1, min(int(data.get('n_pages', 1) or 1), 3))
+
+    if not search_term or len(search_term) < 2:
+        return jsonify({'error': 'Termo de pesquisa deve ter pelo menos 2 caracteres'}), 400
+
+    user_id = session['user_id']
+    search_id = f"cat_{user_id}_{int(time.time())}"
+
+    catalog_search_status[search_id] = {
+        'status': 'iniciando',
+        'progress': 0,
+        'message': 'Preparando busca de catálogos...',
+        'results': [],
+        'error': None,
+        'completed': False,
+    }
+
+    thread = threading.Thread(
+        target=_search_catalogs_thread,
+        args=(search_id, user_id, search_term, n_pages),
+        daemon=True
+    )
+    thread.start()
+
+    return jsonify({'search_id': search_id})
+
+
+def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pages: int):
+    """Thread de busca de catálogos."""
+    try:
+        catalog_search_status[search_id].update({
+            'status': 'buscando',
+            'progress': 20,
+            'message': f'Buscando catálogos para "{search_term}" no Mercado Livre...'
+        })
+
+        result = get_catalog_list(search_term, n_pages)
+
+        if not result['success']:
+            catalog_search_status[search_id].update({
+                'status': 'erro',
+                'error': result.get('error', 'Erro desconhecido'),
+                'completed': True,
+            })
+            return
+
+        catalogs = result['catalogs']
+
+        catalog_search_status[search_id].update({
+            'progress': 70,
+            'message': f'Salvando {len(catalogs)} catálogos...'
+        })
+
+        # Persiste catálogos no Supabase
+        for cat in catalogs:
+            db_manager.save_catalog({
+                'catalog_id': cat['catalog_id'],
+                'nome': cat['nome'],
+                'imagem': cat['imagem'],
+                'termo_pesquisa': search_term,
+                'user_id': user_id,
+            })
+
+        catalog_search_status[search_id].update({
+            'status': 'concluida',
+            'progress': 100,
+            'message': f'{len(catalogs)} catálogo(s) encontrado(s).',
+            'results': catalogs,
+            'completed': True,
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        catalog_search_status[search_id].update({
+            'status': 'erro',
+            'error': str(e),
+            'completed': True,
+        })
+
+
+@catalog_bp.route('/status/<search_id>')
+def search_status(search_id):
+    """Endpoint de polling — status da busca de catálogos."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+
+    status = catalog_search_status.get(search_id, {
+        'status': 'nao_encontrada',
+        'error': 'Busca não encontrada',
+        'completed': True,
+    })
+    return jsonify(status)
+
+
+# ─── API — Scraping de sellers (assíncrona) ───────────────────────────────────
+
+@catalog_bp.route('/<catalog_id>/scrape-sellers', methods=['POST'])
+def scrape_sellers(catalog_id):
+    """Inicia scraping de sellers de um catálogo específico."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+
+    import re
+    if not re.match(r'^MLB\d+$', catalog_id):
+        return jsonify({'error': 'ID de catálogo inválido'}), 400
+
+    user_id = session['user_id']
+    scrape_id = f"sellers_{catalog_id}_{int(time.time())}"
+
+    catalog_sellers_status[scrape_id] = {
+        'status': 'iniciando',
+        'progress': 0,
+        'message': f'Iniciando scraping de sellers do catálogo {catalog_id}...',
+        'sellers': [],
+        'error': None,
+        'login_required': False,
+        'completed': False,
+    }
+
+    thread = threading.Thread(
+        target=_scrape_sellers_thread,
+        args=(scrape_id, user_id, catalog_id),
+        daemon=True
+    )
+    thread.start()
+
+    return jsonify({'scrape_id': scrape_id})
+
+
+def _scrape_sellers_thread(scrape_id: str, user_id: str, catalog_id: str):
+    """Thread de scraping de sellers."""
+    try:
+        catalog_sellers_status[scrape_id].update({
+            'status': 'buscando',
+            'progress': 25,
+            'message': f'Acessando página de sellers do catálogo {catalog_id}...'
+        })
+
+        result = get_catalog_sellers(catalog_id)
+
+        if not result['success']:
+            catalog_sellers_status[scrape_id].update({
+                'status': 'erro',
+                'error': result.get('error', 'Erro desconhecido'),
+                'login_required': result.get('login_required', False),
+                'completed': True,
+            })
+            return
+
+        sellers = result['sellers']
+
+        catalog_sellers_status[scrape_id].update({
+            'progress': 75,
+            'message': f'Salvando {len(sellers)} sellers...'
+        })
+
+        # Persiste sellers no Supabase
+        saved_count = db_manager.save_catalog_sellers(catalog_id, sellers)
+
+        catalog_sellers_status[scrape_id].update({
+            'status': 'concluida',
+            'progress': 100,
+            'message': f'{len(sellers)} vendedor(es) encontrado(s).',
+            'sellers': sellers,
+            'completed': True,
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        catalog_sellers_status[scrape_id].update({
+            'status': 'erro',
+            'error': str(e),
+            'completed': True,
+        })
+
+
+@catalog_bp.route('/sellers-status/<scrape_id>')
+def sellers_scrape_status(scrape_id):
+    """Endpoint de polling — status do scraping de sellers."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+
+    status = catalog_sellers_status.get(scrape_id, {
+        'status': 'nao_encontrada',
+        'error': 'Scraping não encontrado',
+        'completed': True,
+    })
+    return jsonify(status)

@@ -45,7 +45,7 @@
                     <img src="{{ produto.imagem or '/static/img/no-image.png' }}" 
                          alt="{{ produto.titulo }}" 
                          class="card-img-top"
-                         onerror="this.src='/static/img/no-image.png'">
+                         onerror="this.src='/static/img/no-image.png'; this.classList.add('image-error');">
                 </div>
                 
                 <div class="card-body">
@@ -104,6 +104,13 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: opacity 0.3s ease;
+}
+
+.product-image img.image-error {
+    opacity: 0.5;
+    filter: grayscale(100%);
+    animation: none; /* Remove animações problemáticas */
 }
 
 .current-price {

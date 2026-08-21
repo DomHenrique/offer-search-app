@@ -148,3 +148,12 @@ yarn-error.log*
 # TypeScript (mantido do original)
 *.tsbuildinfo
 next-env.d.ts
+
+# Agent & OpenSpec
+.agent/
+.agents/
+openspec/
+scratch/
+test_db.py
+thumbnails/
+static/reports/

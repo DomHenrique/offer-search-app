@@ -9,6 +9,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scraping.run_scraper import buscar_e_salvar_ofertas
+from utils.evolution_api import send_message
 
 class SchedulerManager:
     """Gerenciador de agendamentos automáticos"""
@@ -85,8 +86,7 @@ class SchedulerManager:
             
             # Verifica se tem as configurações necessárias
             if not config_dict.get('SERPAPI_KEY'):
-                print(f"SERPAPI_KEY não configurada para usuário {user_id}")
-                return
+                print(f"⚠️ SERPAPI_KEY não configurada para usuário {user_id} (Fallback desativado)")
             
             # Configura variáveis de ambiente temporariamente
             original_env = {}
@@ -115,13 +115,16 @@ class SchedulerManager:
                 # Salva no histórico
                 self.db_manager.save_search_history(user_id, termo_pesquisa, stats, schedule_id)
                 
+                # Verifica alertas
+                self.check_alerts(user_id, results)
+
                 # Atualiza próxima execução
                 proxima_execucao = datetime.now() + timedelta(hours=intervalo_horas)
                 
                 self.db_manager.supabase.table("agendamentos").update({
                     "proxima_execucao": proxima_execucao.isoformat(),
                     "ultima_execucao": datetime.now().isoformat(),
-                    "total_execucoes": schedule['total_execucoes'] + 1
+                    "total_execucoes": schedule.get('total_execucoes', 0) + 1
                 }).eq("id", schedule_id).execute()
                 
                 print(f"Agendamento {schedule_id} executado com sucesso: {len(results)} produtos encontrados")
@@ -148,3 +151,25 @@ class SchedulerManager:
                 }).execute()
             except:
                 pass
+
+    def check_alerts(self, user_id, products):
+        """Verifica se algum produto atende aos critérios de alerta"""
+        try:
+            alerts = self.db_manager.get_user_alerts(user_id)
+            if not alerts:
+                return
+
+            for alert in alerts:
+                if not alert['ativo']:
+                    continue
+
+                for product in products:
+                    if alert['produto_nome'].lower() in product['titulo'].lower():
+                        if alert['tipo_alerta'] == 'menor_ou_igual' and product['preco_numerico'] <= alert['preco_alvo']:
+                            message = f"Alerta de preço! O produto {product['titulo']} está com preço de {product['preco']}. Link: {product['url_produto']}"
+                            send_message(alert['telefone'], message)
+                        elif alert['tipo_alerta'] == 'maior_ou_igual' and product['preco_numerico'] >= alert['preco_alvo']:
+                            message = f"Alerta de preço! O produto {product['titulo']} está com preço de {product['preco']}. Link: {product['url_produto']}"
+                            send_message(alert['telefone'], message)
+        except Exception as e:
+            print(f"Erro ao verificar alertas: {e}")

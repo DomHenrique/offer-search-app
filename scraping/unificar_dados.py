@@ -9,6 +9,7 @@ from typing import Optional, List, Dict, Any
 # Importa as funções dos scrapers
 from scraping.serpapi_amazon_func import buscar_produtos_amazon
 from scraping.web_scrap_mercado_livre import get_mercado_livre_data
+from scraping.web_scrap_amazon import get_amazon_direct_data
 
 
 def limpar_preco_numerico(preco_str: str) -> float:
@@ -468,17 +469,33 @@ def unificar_dados_amazon_mercadolivre(
     print("="*50)
     
     # Busca dados do Amazon
-    print("🛒 Buscando produtos na Amazon...")
+    print("🛒 Buscando produtos na Amazon (Tentativa Scraping Direto)...")
     try:
-        df_amazon = buscar_produtos_amazon(termo)
+        df_amazon = get_amazon_direct_data(termo)
+        
+        if df_amazon is None or df_amazon.empty:
+            print("⚠️ Scraping direto retornou vazio ou foi bloqueado. Tentando via SerpApi (Fallback)...")
+            df_amazon = buscar_produtos_amazon(termo)
+            
         if df_amazon is not None and not df_amazon.empty:
             print(f"✅ Amazon: {len(df_amazon)} produtos encontrados")
         else:
             print("⚠️ Amazon: Nenhum produto encontrado")
             df_amazon = pd.DataFrame()
+            
     except Exception as e:
-        print(f"❌ Erro na busca Amazon: {e}")
-        df_amazon = pd.DataFrame()
+        print(f"❌ Erro na busca Amazon Direta: {e}")
+        print("⚠️ Tentando via SerpApi (Fallback)...")
+        try:
+            df_amazon = buscar_produtos_amazon(termo)
+            if df_amazon is not None and not df_amazon.empty:
+                print(f"✅ Amazon (Fallback): {len(df_amazon)} produtos encontrados")
+            else:
+                print("⚠️ Amazon: Nenhum produto encontrado (nem no fallback)")
+                df_amazon = pd.DataFrame()
+        except Exception as e2:
+            print(f"❌ Erro no Fallback Amazon: {e2}")
+            df_amazon = pd.DataFrame()
     
     # Busca dados do Mercado Livre
     print("🛒 Buscando produtos no Mercado Livre...")

@@ -1,6 +1,8 @@
+
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
 from database.db_manager import DatabaseManager
 from utils.helpers import safe_int
+from utils.simple_cache import cache
 
 approval_bp = Blueprint('approval', __name__)
 db_manager = DatabaseManager()
@@ -41,7 +43,8 @@ def remove_approved_product():
     
     user_id = session['user_id']
     success = db_manager.remove_approved_product(user_id, product_id)
-    
+    # Invalida todos os caches de busca do usuário
+    _invalidate_user_search_cache(user_id)
     if success:
         return jsonify({
             'success': True,
@@ -64,16 +67,28 @@ def bulk_remove_approved():
     
     user_id = session['user_id']
     removed_count = 0
-    
     for product_id in product_ids:
         if db_manager.remove_approved_product(user_id, safe_int(product_id)):
             removed_count += 1
-    
+    # Invalida todos os caches de busca do usuário
+    _invalidate_user_search_cache(user_id)
     return jsonify({
         'success': True,
         'removed_count': removed_count,
         'message': f'{removed_count} produto(s) removido(s) da lista de aprovados!'
     })
+
+# Função utilitária para invalidar todos os caches de busca do usuário
+def _invalidate_user_search_cache(user_id):
+    # Percorre todas as chaves do cache e remove as que pertencem ao usuário
+    prefix = f"search:{user_id}:"
+    keys_to_invalidate = []
+    with cache._lock:
+        for key in list(cache._cache.keys()):
+            if key.startswith(prefix):
+                keys_to_invalidate.append(key)
+        for key in keys_to_invalidate:
+            cache.invalidate(key)
 
 @approval_bp.route('/add-note', methods=['POST'])
 def add_product_note():

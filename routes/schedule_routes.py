@@ -1,64 +1,101 @@
-from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, flash
 from database.db_manager import DatabaseManager
 from utils.scheduler import SchedulerManager
 from datetime import datetime, timedelta
 import json
+from utils.decorators import login_required
+from utils.simple_cache import cache
 
 schedule_bp = Blueprint('schedule', __name__)
 db = DatabaseManager()
 scheduler = SchedulerManager(db)
 
-@schedule_bp.route('/schedule')
+@schedule_bp.route('/')
+@login_required
 def schedule_page():
     """Página de agendamentos"""
-    if 'user_id' not in session:
-        return redirect(url_for('auth.login'))
-    
     user_id = session['user_id']
-    agendamentos = db.get_user_schedules(user_id)
-    
-    return render_template('schedule/schedule.html', agendamentos=agendamentos)
+    agendamentos = db.get_active_schedules(user_id)
 
-@schedule_bp.route('/schedule/create', methods=['POST'])
+    # Converter datas string para datetime
+    from datetime import datetime
+    def parse_dt(val):
+        if isinstance(val, str):
+            try:
+                # Tenta formatos ISO e outros comuns
+                return datetime.fromisoformat(val.replace('Z', '+00:00'))
+            except Exception:
+                return val
+        return val
+
+    agendamentos_json = []
+    for ag in agendamentos:
+        if 'criado_em' in ag:
+            ag['criado_em'] = parse_dt(ag['criado_em'])
+        if 'ultima_execucao' in ag and ag['ultima_execucao']:
+            ag['ultima_execucao'] = parse_dt(ag['ultima_execucao'])
+        if 'proxima_execucao' in ag and ag['proxima_execucao']:
+            ag['proxima_execucao'] = parse_dt(ag['proxima_execucao'])
+        # Mapeia termo_pesquisa para termo_busca para o template
+        if 'termo_pesquisa' in ag:
+            ag['termo_busca'] = ag['termo_pesquisa']
+        elif 'termo_busca' not in ag:
+            ag['termo_busca'] = ''
+
+        agendamentos_json.append({
+            'id': ag['id'],
+            'termo_busca': ag['termo_busca'],
+            'intervalo_horas': ag['intervalo_horas'],
+            'ativo': ag['ativo']
+        })
+
+    return render_template('schedule/schedule.html', agendamentos=agendamentos, agendamentos_json=json.dumps(agendamentos_json))
+
+@schedule_bp.route('/refresh')
+@login_required
+def refresh_schedules():
+    """Limpa o cache e atualiza os dados da página de agendamentos."""
+    user_id = session['user_id']
+    cache_key = f"active_schedules_{user_id}"
+    cache.invalidate(cache_key)
+    flash('Os dados dos agendamentos foram atualizados.', 'success')
+    return redirect(url_for('schedule.schedule_page'))
+
+@schedule_bp.route('/create', methods=['POST'])
+@login_required
 def create_schedule():
     """Criar novo agendamento"""
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Usuário não autenticado'})
-    
     try:
         data = request.get_json()
         user_id = session['user_id']
-        
+
         # Validar dados
         termo_busca = data.get('termo_busca', '').strip()
         intervalo = data.get('intervalo')
         ativo = data.get('ativo', True)
-        
+
         if not termo_busca:
             return jsonify({'success': False, 'message': 'Termo de busca é obrigatório'})
-        
+
         if intervalo not in [6, 12]:
             return jsonify({'success': False, 'message': 'Intervalo deve ser 6 ou 12 horas'})
-        
+
         # Criar agendamento
-        schedule_id = db.create_schedule(user_id, termo_busca, intervalo, ativo)
-        
+        schedule_id = db.create_schedule(user_id, termo_busca, intervalo)
+
         if schedule_id:
-            # Agendar tarefa
-            scheduler.schedule_search(schedule_id, termo_busca, intervalo)
+            # O agendamento será executado pelo scheduler em background
             return jsonify({'success': True, 'message': 'Agendamento criado com sucesso'})
         else:
             return jsonify({'success': False, 'message': 'Erro ao criar agendamento'})
-            
+
     except Exception as e:
         return jsonify({'success': False, 'message': f'Erro interno: {str(e)}'})
 
-@schedule_bp.route('/schedule/update/<int:schedule_id>', methods=['POST'])
+@schedule_bp.route('/update/<int:schedule_id>', methods=['POST'])
+@login_required
 def update_schedule(schedule_id):
     """Atualizar agendamento existente"""
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Usuário não autenticado'})
-    
     try:
         data = request.get_json()
         user_id = session['user_id']
@@ -80,11 +117,9 @@ def update_schedule(schedule_id):
             return jsonify({'success': False, 'message': 'Intervalo deve ser 6 ou 12 horas'})
         
         # Atualizar agendamento
-        success = db.update_schedule(schedule_id, termo_busca, intervalo, ativo)
+        success = db.update_schedule(user_id, schedule_id, termo_busca, intervalo)
         
         if success:
-            # Reagendar tarefa
-            scheduler.reschedule_search(schedule_id, termo_busca, intervalo, ativo)
             return jsonify({'success': True, 'message': 'Agendamento atualizado com sucesso'})
         else:
             return jsonify({'success': False, 'message': 'Erro ao atualizar agendamento'})
@@ -92,12 +127,10 @@ def update_schedule(schedule_id):
     except Exception as e:
         return jsonify({'success': False, 'message': f'Erro interno: {str(e)}'})
 
-@schedule_bp.route('/schedule/delete/<int:schedule_id>', methods=['DELETE'])
+@schedule_bp.route('/delete/<int:schedule_id>', methods=['DELETE'])
+@login_required
 def delete_schedule(schedule_id):
     """Excluir agendamento"""
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Usuário não autenticado'})
-    
     try:
         user_id = session['user_id']
         
@@ -107,11 +140,9 @@ def delete_schedule(schedule_id):
             return jsonify({'success': False, 'message': 'Agendamento não encontrado'})
         
         # Excluir agendamento
-        success = db.delete_schedule(schedule_id)
+        success = db.delete_schedule(user_id, schedule_id)
         
         if success:
-            # Cancelar tarefa agendada
-            scheduler.cancel_search(schedule_id)
             return jsonify({'success': True, 'message': 'Agendamento excluído com sucesso'})
         else:
             return jsonify({'success': False, 'message': 'Erro ao excluir agendamento'})
@@ -119,12 +150,10 @@ def delete_schedule(schedule_id):
     except Exception as e:
         return jsonify({'success': False, 'message': f'Erro interno: {str(e)}'})
 
-@schedule_bp.route('/schedule/toggle/<int:schedule_id>', methods=['POST'])
+@schedule_bp.route('/toggle/<int:schedule_id>', methods=['POST'])
+@login_required
 def toggle_schedule(schedule_id):
     """Ativar/desativar agendamento"""
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Usuário não autenticado'})
-    
     try:
         user_id = session['user_id']
         
@@ -138,12 +167,6 @@ def toggle_schedule(schedule_id):
         success = db.toggle_schedule_status(schedule_id, new_status)
         
         if success:
-            # Reagendar ou cancelar tarefa
-            if new_status:
-                scheduler.schedule_search(schedule_id, schedule['termo_busca'], schedule['intervalo_horas'])
-            else:
-                scheduler.cancel_search(schedule_id)
-                
             return jsonify({'success': True, 'ativo': new_status})
         else:
             return jsonify({'success': False, 'message': 'Erro ao alterar status'})
@@ -151,12 +174,10 @@ def toggle_schedule(schedule_id):
     except Exception as e:
         return jsonify({'success': False, 'message': f'Erro interno: {str(e)}'})
 
-@schedule_bp.route('/schedule/history/<int:schedule_id>')
+@schedule_bp.route('/history/<int:schedule_id>')
+@login_required
 def schedule_history(schedule_id):
     """Histórico de execuções de um agendamento"""
-    if 'user_id' not in session:
-        return redirect(url_for('auth.login'))
-    
     user_id = session['user_id']
     
     # Verificar se o agendamento pertence ao usuário

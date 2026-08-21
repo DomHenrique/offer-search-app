@@ -1,0 +1,489 @@
+{% extends "base.html" %}
+
+{% block title %}Catálogos ML - Offer Search App{% endblock %}
+
+{% block extra_styles %}
+<style>
+/* ─── Hero Section ─────────────────────────────────────────── */
+.catalog-hero {
+    background: linear-gradient(135deg, #FFD600 0%, #FF7800 50%, #FF3D00 100%);
+    border-radius: 20px;
+    padding: 2.5rem;
+    color: white;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+}
+.catalog-hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 300px;
+    height: 300px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 50%;
+}
+.catalog-hero::after {
+    content: '';
+    position: absolute;
+    bottom: -40%;
+    right: 10%;
+    width: 200px;
+    height: 200px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 50%;
+}
+
+/* ─── Formulário ───────────────────────────────────────────── */
+.search-box-catalog {
+    background: white;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    border: 1px solid rgba(255,216,0,0.3);
+}
+
+/* ─── Cards de catálogo ────────────────────────────────────── */
+.catalog-card {
+    background: white;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid #eee;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    height: 100%;
+}
+.catalog-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+    border-color: #FFD600;
+}
+.catalog-card-img-wrapper {
+    height: 160px;
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+.catalog-card-img-wrapper img {
+    max-height: 140px;
+    max-width: 90%;
+    object-fit: contain;
+    transition: transform 0.3s ease;
+}
+.catalog-card:hover .catalog-card-img-wrapper img {
+    transform: scale(1.05);
+}
+.catalog-card-body {
+    padding: 1rem;
+}
+.catalog-id-badge {
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffc107;
+    border-radius: 6px;
+    padding: 2px 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.catalog-id-badge:hover {
+    background: #ffc107;
+    color: #000;
+}
+.btn-ver-sellers {
+    background: linear-gradient(135deg, #FFD600, #FF7800);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    width: 100%;
+}
+.btn-ver-sellers:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(255,120,0,0.4);
+    color: white;
+}
+
+/* ─── Overlay de busca ─────────────────────────────────────── */
+.search-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.search-overlay-box {
+    background: white;
+    border-radius: 24px;
+    padding: 3rem;
+    max-width: 420px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+}
+.spinner-ml {
+    width: 64px;
+    height: 64px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #FFD600;
+    border-right: 5px solid #FF7800;
+    border-radius: 50%;
+    animation: spinml 0.8s linear infinite;
+    margin: 0 auto 1.5rem;
+}
+@keyframes spinml {
+    to { transform: rotate(360deg); }
+}
+
+/* ─── Seção salva ──────────────────────────────────────────── */
+.section-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #343a40;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #FFD600;
+    margin-bottom: 1.5rem;
+}
+
+/* ─── Empty state ──────────────────────────────────────────── */
+.empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #6c757d;
+}
+.empty-state-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.4;
+}
+
+/* ─── Notification toast ───────────────────────────────────── */
+.copy-toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: #198754;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s ease;
+}
+.copy-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+
+    <!-- Hero -->
+    <div class="catalog-hero">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1 class="fw-bold mb-2 fs-3">
+                    <i class="fas fa-store me-2"></i> Catálogos Mercado Livre
+                </h1>
+                <p class="mb-0 opacity-90">
+                    Monitore quem está competindo nos catálogos do ML. Veja preços, fretes e reputação dos concorrentes em tempo real.
+                </p>
+            </div>
+            <div class="col-md-4 text-end d-none d-md-block">
+                <i class="fas fa-trophy" style="font-size: 5rem; opacity: 0.2;"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulário de busca -->
+    <div class="search-box-catalog mb-4">
+        <form id="catalogSearchForm">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-7">
+                    <label class="form-label fw-semibold text-muted small">
+                        <i class="fas fa-search me-1"></i> TERMO DE BUSCA
+                    </label>
+                    <input type="text"
+                           id="catalogSearchInput"
+                           class="form-control form-control-lg"
+                           placeholder="Ex: EcoFlow River 3, iPhone 14, AirPods..."
+                           required
+                           minlength="2">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-semibold text-muted small">
+                        <i class="fas fa-file me-1"></i> PÁGINAS
+                    </label>
+                    <select class="form-select form-select-lg" id="catalogNPages">
+                        <option value="1">1 página</option>
+                        <option value="2">2 páginas</option>
+                        <option value="3">3 páginas</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-ver-sellers btn-lg" id="catalogSearchBtn">
+                        <i class="fas fa-search me-2"></i> Buscar Catálogos
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Resultados da busca atual -->
+    <div id="searchResults" style="display:none;">
+        <div class="section-title">
+            <i class="fas fa-fire text-warning"></i>
+            Catálogos Encontrados
+            <span class="badge bg-warning text-dark ms-2" id="resultCount">0</span>
+        </div>
+        <div class="row g-3" id="catalogGrid"></div>
+    </div>
+
+    <!-- Catálogos salvos do usuário -->
+    {% if saved_catalogs %}
+    <div class="mt-4">
+        <div class="section-title">
+            <i class="fas fa-bookmark text-warning"></i>
+            Seus Catálogos
+            <span class="badge bg-secondary ms-2">{{ saved_catalogs|length }}</span>
+        </div>
+        <div class="row g-3">
+            {% for cat in saved_catalogs %}
+            <div class="col-sm-6 col-md-4 col-lg-3">
+                <div class="catalog-card">
+                    <div class="catalog-card-img-wrapper">
+                        {% if cat.imagem %}
+                            <img src="{{ cat.imagem }}" alt="{{ cat.nome }}" loading="lazy"
+                                 onerror="this.src='https://via.placeholder.com/140x140/f8f9fa/adb5bd?text=ML'">
+                        {% else %}
+                            <i class="fas fa-box" style="font-size: 3rem; color: #dee2e6;"></i>
+                        {% endif %}
+                    </div>
+                    <div class="catalog-card-body">
+                        <p class="fw-semibold mb-2 text-dark" style="font-size:0.9rem; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">
+                            {{ cat.nome }}
+                        </p>
+                        <div class="mb-2">
+                            <span class="catalog-id-badge" onclick="copyCatalogId('{{ cat.catalog_id }}')">
+                                <i class="fas fa-copy" style="font-size:0.65rem;"></i>
+                                {{ cat.catalog_id }}
+                            </span>
+                        </div>
+                        {% if cat.termo_pesquisa %}
+                        <p class="text-muted mb-2" style="font-size:0.75rem;">
+                            <i class="fas fa-tag me-1"></i>{{ cat.termo_pesquisa }}
+                        </p>
+                        {% endif %}
+                        <a href="{{ url_for('catalog.catalog_detail', catalog_id=cat.catalog_id) }}"
+                           class="btn btn-ver-sellers mt-1">
+                            <i class="fas fa-users me-2"></i>Ver Concorrentes
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="mt-4">
+        <div class="section-title">
+            <i class="fas fa-bookmark text-warning"></i>
+            Seus Catálogos
+        </div>
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="fas fa-store-slash"></i>
+            </div>
+            <h5 class="fw-semibold mb-2">Nenhum catálogo ainda</h5>
+            <p class="text-muted">Use o campo acima para buscar catálogos do Mercado Livre por termo de pesquisa.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Overlay de busca -->
+<div id="catalogOverlay" class="search-overlay" style="display:none;">
+    <div class="search-overlay-box">
+        <div class="spinner-ml"></div>
+        <h5 class="fw-bold mb-2" id="overlayTitle">Buscando catálogos...</h5>
+        <p class="text-muted mb-3" id="overlayMessage">Preparando busca...</p>
+        <div class="progress mb-2" style="height:8px; border-radius:10px;">
+            <div class="progress-bar" id="overlayProgress"
+                 style="width:0%; background: linear-gradient(90deg, #FFD600, #FF7800); transition: width 0.5s ease;"></div>
+        </div>
+        <small class="text-muted">Isso pode levar 1-2 minutos...</small>
+    </div>
+</div>
+
+<!-- Toast de cópia -->
+<div class="copy-toast" id="copyToast">
+    <i class="fas fa-check-circle me-2"></i> ID copiado!
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentCatalogSearchId = null;
+let catalogStatusInterval = null;
+
+// ─── Formulário de busca ──────────────────────────────────────────
+document.getElementById('catalogSearchForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const termo = document.getElementById('catalogSearchInput').value.trim();
+    const nPages = parseInt(document.getElementById('catalogNPages').value);
+
+    if (!termo || termo.length < 2) {
+        alert('Digite um termo com pelo menos 2 caracteres.');
+        return;
+    }
+
+    showOverlay('Buscando catálogos...', 'Iniciando o robô de busca no Mercado Livre...');
+
+    try {
+        const res = await fetch('/catalog/search', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({termo_pesquisa: termo, n_pages: nPages})
+        });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error || 'Erro ao iniciar busca');
+
+        currentCatalogSearchId = data.search_id;
+        catalogStatusInterval = setInterval(checkCatalogStatus, 2500);
+
+    } catch (err) {
+        hideOverlay();
+        alert('Erro: ' + err.message);
+    }
+});
+
+// ─── Polling de status ────────────────────────────────────────────
+async function checkCatalogStatus() {
+    if (!currentCatalogSearchId) return;
+    try {
+        const res = await fetch(`/catalog/status/${currentCatalogSearchId}`);
+        const status = await res.json();
+
+        document.getElementById('overlayProgress').style.width = (status.progress || 0) + '%';
+        document.getElementById('overlayMessage').textContent = status.message || 'Processando...';
+
+        if (status.completed) {
+            clearInterval(catalogStatusInterval);
+
+            if (status.status === 'concluida') {
+                hideOverlay();
+                renderCatalogResults(status.results || []);
+            } else {
+                hideOverlay();
+                alert('Erro: ' + (status.error || 'Erro desconhecido'));
+            }
+        }
+    } catch (err) {
+        clearInterval(catalogStatusInterval);
+        hideOverlay();
+        console.error('Erro no polling:', err);
+    }
+}
+
+// ─── Renderiza cards de resultado ────────────────────────────────
+function renderCatalogResults(catalogs) {
+    const section = document.getElementById('searchResults');
+    const grid = document.getElementById('catalogGrid');
+    const count = document.getElementById('resultCount');
+
+    if (!catalogs.length) {
+        section.style.display = 'block';
+        grid.innerHTML = `
+            <div class="col-12">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-search" style="font-size:3rem; opacity:0.3;"></i>
+                    <p class="mt-3">Nenhum catálogo encontrado para este termo.<br>
+                    <small>Tente outro produto ou mais páginas.</small></p>
+                </div>
+            </div>`;
+        count.textContent = '0';
+        return;
+    }
+
+    count.textContent = catalogs.length;
+    grid.innerHTML = catalogs.map(cat => `
+        <div class="col-sm-6 col-md-4 col-lg-3">
+            <div class="catalog-card">
+                <div class="catalog-card-img-wrapper">
+                    ${cat.imagem
+                        ? `<img src="${cat.imagem}" alt="${escHtml(cat.nome)}" loading="lazy"
+                                onerror="this.src='https://via.placeholder.com/140x140/f8f9fa/adb5bd?text=ML'">`
+                        : `<i class="fas fa-box" style="font-size:3rem; color:#dee2e6;"></i>`
+                    }
+                </div>
+                <div class="catalog-card-body">
+                    <p class="fw-semibold mb-2 text-dark" style="font-size:0.9rem; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">
+                        ${escHtml(cat.nome)}
+                    </p>
+                    <div class="mb-2">
+                        <span class="catalog-id-badge" onclick="copyCatalogId('${cat.catalog_id}')">
+                            <i class="fas fa-copy" style="font-size:0.65rem;"></i>
+                            ${cat.catalog_id}
+                        </span>
+                    </div>
+                    <a href="/catalog/${cat.catalog_id}" class="btn btn-ver-sellers mt-1">
+                        <i class="fas fa-users me-2"></i>Ver Concorrentes
+                    </a>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    section.style.display = 'block';
+    section.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+// ─── Utilitários ─────────────────────────────────────────────────
+function showOverlay(title, message) {
+    document.getElementById('overlayTitle').textContent = title;
+    document.getElementById('overlayMessage').textContent = message;
+    document.getElementById('overlayProgress').style.width = '0%';
+    document.getElementById('catalogOverlay').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function hideOverlay() {
+    document.getElementById('catalogOverlay').style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+function copyCatalogId(id) {
+    navigator.clipboard.writeText(id).then(() => {
+        const toast = document.getElementById('copyToast');
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2000);
+    });
+}
+
+function escHtml(str) {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(str));
+    return d.innerHTML;
+}
+</script>
+{% endblock %}

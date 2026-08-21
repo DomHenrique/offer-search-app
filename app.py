@@ -24,8 +24,11 @@ from routes.approval_routes import approval_bp
 from routes.schedule_routes import schedule_bp
 from routes.settings_routes import settings_bp
 from routes.history_routes import history_bp
+from routes.alert_routes import alert_bp
+from routes.catalog_routes import catalog_bp
 from utils.scheduler import SchedulerManager
 from utils.helpers import format_currency, time_ago
+from utils.decorators import login_required
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -43,6 +46,8 @@ app.register_blueprint(approval_bp, url_prefix='/approval')
 app.register_blueprint(schedule_bp, url_prefix='/schedule')
 app.register_blueprint(settings_bp, url_prefix='/settings')
 app.register_blueprint(history_bp, url_prefix='/history')
+app.register_blueprint(alert_bp, url_prefix='/alert')
+app.register_blueprint(catalog_bp, url_prefix='/catalog')
 
 # Inicializa gerenciador de banco de dados
 db_manager = DatabaseManager()
@@ -86,6 +91,15 @@ def initialize_database():
             pass
         raise
 
+# Executa a inicialização do banco de dados
+try:
+    initialize_database()
+except Exception as e:
+    logger.error(f"❌ Falha crítica na inicialização do banco de dados: {e}")
+    # Decide se a aplicação deve parar ou continuar
+    # Neste caso, vamos permitir que continue para que o erro seja visível
+    pass
+
 # Inicializa scheduler para agendamentos
 scheduler_manager = SchedulerManager(db_manager)
 
@@ -98,15 +112,7 @@ def currency_filter(value):
 def timeago_filter(value):
     return time_ago(value)
 
-# Decorator para verificar autenticação
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Você precisa fazer login para acessar esta página.', 'warning')
-            return redirect(url_for('auth.login'))
-        return f(*args, **kwargs)
-    return decorated_function
+
 
 # Rota principal - Dashboard
 @app.route('/')
@@ -201,13 +207,6 @@ def start_scheduler():
     scheduler_thread.start()
 
 if __name__ == '__main__':
-    # Inicializa banco de dados
-    try:
-        initialize_database()
-    except Exception as e:
-        logger.error(f"❌ Falha crítica na inicialização do banco de dados: {e}")
-        exit(1)
-    
     # Inicia scheduler em background
     start_scheduler()
     

@@ -33,6 +33,8 @@ def init_db():
 
     # Lista de tabelas na ordem inversa de dependência para exclusão
     tables_to_drop = [
+        "lote_itens",
+        "lotes_busca",
         "configuracoes",
         "alertas",
         "historico_buscas",

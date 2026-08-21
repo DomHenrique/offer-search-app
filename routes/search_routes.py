@@ -11,6 +11,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.db_manager import DatabaseManager
 from utils.helpers import clean_search_term, safe_int
 from scraping.run_scraper import buscar_e_salvar_ofertas
+from utils.simple_cache import cache
+from utils.bulk_processor import BulkProcessor
 
 search_bp = Blueprint('search', __name__)
 db_manager = DatabaseManager()
@@ -45,7 +47,23 @@ def execute_search():
     
     user_id = session['user_id']
     search_id = f"{user_id}_{int(time.time())}"
-    
+
+    # Verifica cache antes de iniciar nova busca
+    cache_key = f"search:{user_id}:{termo_pesquisa}"
+    cached = cache.get(cache_key)
+    if cached:
+        # Se houver cache válido, retorna o search_id e marca como concluído
+        search_status[search_id] = {
+            'status': 'concluida',
+            'progress': 100,
+            'message': 'Busca carregada do cache.',
+            'results': cached['results'],
+            'stats': cached['stats'],
+            'error': None,
+            'completed': True
+        }
+        return jsonify({'search_id': search_id})
+
     # Inicializa status da busca
     search_status[search_id] = {
         'status': 'iniciando',
@@ -55,7 +73,7 @@ def execute_search():
         'error': None,
         'completed': False
     }
-    
+
     # Inicia busca em thread separada
     thread = threading.Thread(
         target=_execute_search_thread,
@@ -84,15 +102,9 @@ def _execute_search_thread(search_id, user_id, termo_pesquisa, paginas_ml):
         config_dict = {config['chave']: config['valor'] for config in configs}
         print(f"⚙️ Configurações do usuário: {config_dict}")
         
-        # Verifica configurações necessárias
+        # Verifica configurações (SerpApi agora é opcional/fallback)
         if not config_dict.get('SERPAPI_KEY'):
-            print("❌ SERPAPI_KEY não configurada")
-            search_status[search_id].update({
-                'status': 'erro',
-                'error': 'SERPAPI_KEY não configurada. Acesse Configurações para definir.',
-                'completed': True
-            })
-            return
+            print("⚠️ SERPAPI_KEY não configurada (Fallback desativado para esta busca)")
         
         # Configura variáveis de ambiente temporariamente
         original_env = {}
@@ -124,13 +136,13 @@ def _execute_search_thread(search_id, user_id, termo_pesquisa, paginas_ml):
             
             # Calcula estatísticas
             stats = {
-                'total_produtos': len(results),
-                'amazon_produtos': len([r for r in results if r.get('marketplace') == 'Amazon']),
-                'ml_produtos': len([r for r in results if r.get('marketplace') == 'MercadoLivre']),
-                'preco_medio': sum(r.get('preco_numerico', 0) for r in results) / len(results) if results else 0,
-                'preco_minimo': min(r.get('preco_numerico', 0) for r in results) if results else 0,
-                'preco_maximo': max(r.get('preco_numerico', 0) for r in results) if results else 0,
-                'tempo_execucao': execution_time
+                'total_produtos': int(len(results) or 0),
+                'amazon_produtos': int(len([r for r in results if r.get('marketplace') == 'Amazon']) or 0),
+                'ml_produtos': int(len([r for r in results if r.get('marketplace') == 'MercadoLivre']) or 0),
+                'preco_medio': float(sum(r.get('preco_numerico', 0) or 0 for r in results) / len(results)) if results else 0.0,
+                'preco_minimo': float(min((r.get('preco_numerico', 0) or 0) for r in results)) if results else 0.0,
+                'preco_maximo': float(max((r.get('preco_numerico', 0) or 0) for r in results)) if results else 0.0,
+                'tempo_execucao': int(execution_time or 0)
             }
             print(f"📈 Estatísticas: {stats}")
             
@@ -154,6 +166,9 @@ def _execute_search_thread(search_id, user_id, termo_pesquisa, paginas_ml):
                 'stats': stats,
                 'completed': True
             })
+            # Salva no cache
+            cache_key = f"search:{user_id}:{termo_pesquisa}"
+            cache.set(cache_key, {'results': ofertas, 'stats': stats})
             print(f"🎉 Busca concluída com sucesso: {search_status[search_id]}")
             
         finally:
@@ -258,9 +273,111 @@ def approve_products():
     
     user_id = session['user_id']
     approved_count = db_manager.approve_products(user_id, product_ids)
-    
+    # Invalida todos os caches de busca do usuário
+    _invalidate_user_search_cache(user_id)
     return jsonify({
         'success': True,
         'approved_count': approved_count,
         'message': f'{approved_count} produto(s) aprovado(s) com sucesso!'
     })
+
+# Função utilitária para invalidar todos os caches de busca do usuário
+def _invalidate_user_search_cache(user_id):
+    from utils.simple_cache import cache
+    prefix = f"search:{user_id}:"
+    keys_to_invalidate = []
+    with cache._lock:
+        for key in list(cache._cache.keys()):
+            if key.startswith(prefix):
+                keys_to_invalidate.append(key)
+        for key in keys_to_invalidate:
+            cache.invalidate(key)
+
+@search_bp.route('/bulk', methods=['POST'])
+def execute_bulk_search():
+    """Inicia busca em lote"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+    
+    user_id = session['user_id']
+    termos = []
+    
+    # Processa textarea
+    if 'termos_texto' in request.form and request.form['termos_texto'].strip():
+        termos_brutos = request.form['termos_texto'].split('\n')
+        termos.extend([t.strip() for t in termos_brutos if t.strip()])
+    
+    # Processa arquivo CSV/TXT
+    if 'arquivo_csv' in request.files:
+        file = request.files['arquivo_csv']
+        if file.filename:
+            content = file.read().decode('utf-8').splitlines()
+            for line in content:
+                # Se for CSV, pode ter múltiplas colunas, pegaremos a primeira
+                term = line.split(',')[0].strip()
+                if term:
+                    termos.append(term)
+                    
+    # Remove duplicatas
+    termos = list(dict.fromkeys(termos))
+    
+    if not termos:
+        return jsonify({'error': 'Nenhum termo de busca fornecido'}), 400
+        
+    try:
+        # Cria lote
+        lote_response = db_manager.supabase.table("lotes_busca").insert({
+            "user_id": user_id,
+            "status": "pendente",
+            "total_itens": len(termos)
+        }).execute()
+        
+        lote_id = lote_response.data[0]['id']
+        
+        # Cria itens do lote
+        itens_data = [{"lote_id": lote_id, "termo": t} for t in termos]
+        db_manager.supabase.table("lote_itens").insert(itens_data).execute()
+        
+        # Inicia processador
+        processor = BulkProcessor(db_manager)
+        processor.start_bulk_search(lote_id, user_id)
+        
+        return jsonify({
+            'success': True,
+            'lote_id': lote_id,
+            'total_itens': len(termos)
+        })
+        
+    except Exception as e:
+        print(f"Erro ao iniciar busca em lote: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@search_bp.route('/bulk/<lote_id>/status', methods=['GET'])
+def bulk_status(lote_id):
+    """Retorna o status de um lote de busca"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+        
+    try:
+        response = db_manager.supabase.table("lotes_busca").select("*").eq("id", lote_id).execute()
+        if not response.data:
+            return jsonify({'error': 'Lote não encontrado'}), 404
+            
+        lote = response.data[0]
+        # Garante que itens_processados não seja None
+        processados = lote.get('itens_processados') or 0
+        total = lote.get('total_itens') or 1
+        
+        progress = int((processados / total) * 100) if total > 0 else 0
+        
+        return jsonify({
+            'status': lote['status'],
+            'total_itens': total,
+            'itens_processados': processados,
+            'progress': progress,
+            'arquivo_resultado_url': lote.get('arquivo_resultado_url'),
+            'erro_mensagem': lote.get('erro_mensagem')
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
