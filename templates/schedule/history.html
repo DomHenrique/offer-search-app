@@ -122,7 +122,7 @@
                                         </td>
                                         <td>
                                             {% if execucao.produtos_encontrados and execucao.produtos_encontrados > 0 %}
-                                                <a href="{{ url_for('search.results', busca_id=execucao.busca_id) }}" 
+                                                <a href="{{ url_for('search.results_page') }}?search_id={{ execucao.id }}" 
                                                    class="btn btn-sm btn-outline-primary">
                                                     <i class="fas fa-eye me-1"></i>Ver Resultados
                                                 </a>

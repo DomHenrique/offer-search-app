@@ -30,6 +30,11 @@ def buscar_produtos_amazon(
     """
     if not api_key:
         raise ValueError("❌ SERPAPI_KEY não encontrada no .env")
+
+    is_default_search = False
+    if not query or not query.strip():
+        query = "ofertas do dia"
+        is_default_search = True
     
     # Configura os parâmetros da busca
     params = {
@@ -131,6 +136,12 @@ def buscar_produtos_amazon(
     if df.empty:
         return df
     
+    # Filtro pós-scrap para a busca padrão
+    if query == "ofertas do dia":
+        print("[DEBUG Amazon] Aplicando filtro 'smartphone' para a busca 'ofertas do dia'.")
+        df = df[df['TITLE'].str.contains('smartphone', case=False, na=False)].copy()
+        print(f"[DEBUG Amazon] {len(df)} produtos restantes após o filtro.")
+
     # Processa preço numérico
     df["PRICE_NUMERIC"] = df.apply(_extract_price_numeric, axis=1)
     
@@ -172,12 +183,14 @@ def _clean_price_string(price_str):
     price_str = str(price_str)
     
     # Remove símbolos de moeda e espaços
-    cleaned = (price_str
-               .replace("R$", "")
-               .replace("$", "")
-               .replace(",", "")
-               .replace(" ", "")
-               .strip())
+    cleaned = (
+        price_str
+        .replace("R$", "")
+        .replace("$", "")
+        .replace(",", "")
+        .replace(" ", "")
+        .strip()
+    )
     
     # Extrai apenas números e ponto decimal
     import re
@@ -197,7 +210,7 @@ def _calculate_discount(row):
         row["OLD_PRICE_NUMERIC"] > 0 and 
         row["PRICE_NUMERIC"] > 0):
         
-        discount = ((row["OLD_PRICE_NUMERIC"] - row["PRICE_NUMERIC"]) / 
+        discount = ((row["OLD_PRICE_NUMERIC"] - row["PRICE_NUMERIC"]) /
                    row["OLD_PRICE_NUMERIC"] * 100)
         return round(discount, 2)
     

@@ -17,7 +17,7 @@
                 </p>
             </div>
             
-             Formulário de Busca 
+             
             <div class="card border-0 shadow-lg">
                 <div class="card-header bg-gradient-primary text-white p-0">
                     <ul class="nav nav-tabs nav-fill border-0" id="searchTabs" role="tablist">
@@ -44,8 +44,7 @@
                                            class="form-control form-control-lg" 
                                            id="termo_pesquisa" 
                                            name="termo_pesquisa" 
-                                           placeholder="Ex: smartphone, notebook, fone de ouvido..."
-                                           required>
+                                           placeholder="Ex: smartphone, notebook, fone de ouvido...">
                                     <label for="termo_pesquisa">
                                         <i class="fas fa-search me-2"></i>
                                         O que você está procurando?
@@ -267,10 +266,7 @@ document.getElementById('searchForm').addEventListener('submit', async function(
     const termo_pesquisa = formData.get('termo_pesquisa').trim();
     const paginas_ml = parseInt(formData.get('paginas_ml'));
     
-    if (!termo_pesquisa || termo_pesquisa.length < 2) {
-        showNotification('Digite um termo de busca com pelo menos 2 caracteres.', 'warning');
-        return;
-    }
+    
     
     try {
         // Mostra overlay

@@ -204,12 +204,18 @@ class SupabaseDB:
                     serie = dataframe[name]
                     # Converte colunas categóricas para string para evitar erros
                     if hasattr(serie, 'dtype') and str(serie.dtype) == 'category':
-                        serie = serie.astype(str)
+                        # Converte para string e trata valores NaN
+                        serie = serie.astype(str).replace('nan', default_value)
                     return serie.fillna(default_value)
              
             return pd.Series([default_value] * len(dataframe))
         
         # Mapeia colunas obrigatórias e opcionais com múltiplos nomes possíveis
+        # Primeiro, vamos garantir que não há colunas categóricas no DataFrame original
+        for col in df.columns:
+            if hasattr(df[col], 'dtype') and str(df[col].dtype) == 'category':
+                df[col] = df[col].astype(str).replace('nan', '')
+        
         df_supabase = pd.DataFrame({
             # Colunas obrigatórias
             "termo_pesquisa": get_column(df, ["termo_pesquisa", "TERMO_BUSCA"], ""),
@@ -247,6 +253,9 @@ class SupabaseDB:
          df_supabase["imagem"] = df_supabase["imagem"].astype(str).str.strip()
         for coluna_supabase, possiveis_nomes in colunas_opcionais_mapeamento.items():
             valor_coluna = get_column(df, possiveis_nomes, "")
+            # Tratamento especial para colunas categóricas
+            if hasattr(valor_coluna, 'dtype') and str(valor_coluna.dtype) == 'category':
+                valor_coluna = valor_coluna.astype(str).replace('nan', '')
             df_supabase[coluna_supabase] = valor_coluna
 
         # **CORREÇÃO DEFINITIVA**: Converte tipos explicitamente e com segurança
@@ -256,12 +265,17 @@ class SupabaseDB:
                 converted = pd.to_numeric(series, errors='coerce').fillna(0)
                 if dtype == 'int':
                     return converted.astype('int64')
+                # Limita valores para evitar erro de precisão no Supabase (precisão 5, escala 2)
+                # Isso significa que o valor máximo absoluto deve ser menor que 10^3 = 1000
+                max_value = 999.99
+                min_value = -999.99
+                converted = converted.clip(lower=min_value, upper=max_value)
                 return converted
             except Exception as e:
                 print(f"⚠️ Erro na conversão numérica: {e}")
                 if dtype == 'int':
                     return pd.Series([0] * len(series), dtype='int64')
-                return converted.astype('float64')
+                return pd.Series([0.0] * len(series), dtype='float64')
         
         def safe_convert_to_bool(series):
             """Converte série para booleano com tratamento seguro"""
@@ -291,6 +305,7 @@ class SupabaseDB:
         # Limpa espaços em branco das URLs de imagem (reforço)
         if "imagem" in df_supabase.columns:
             df_supabase["imagem"] = df_supabase["imagem"].astype(str).str.strip()
+            
         # Mostra exemplo do que será salvo (com tipos corretos)
         print(f"🔍 Exemplo do que será salvo no Supabase:")
         if len(df_supabase) > 0:
@@ -299,6 +314,11 @@ class SupabaseDB:
                 print(f"   {key}: {value} ({type(value).__name__})")
 
         # Converte para registros (dicionários)
+        # Antes de converter para registros, vamos garantir que não há colunas categóricas
+        for col in df_supabase.columns:
+            if hasattr(df_supabase[col], 'dtype') and str(df_supabase[col].dtype) == 'category':
+                df_supabase[col] = df_supabase[col].astype(str)
+        
         registros = df_supabase.to_dict(orient="records")
 
         # Inserir em lotes

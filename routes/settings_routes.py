@@ -20,6 +20,9 @@ def settings_page():
     user_configs = db.get_user_configs(user_id)
     alertas = db.get_user_alerts(user_id)
     
+    # Adiciona o MIN_PRICE_FILTER
+    min_price_filter = next((item['valor'] for item in user_configs if item['chave'] == 'MIN_PRICE_FILTER'), 400)
+
     # Variáveis de ambiente disponíveis (mascaradas)
     env_vars = {
         'SUPABASE_URL': '***' if os.environ.get('SUPABASE_URL') else '',
@@ -35,7 +38,29 @@ def settings_page():
     return render_template('settings/settings.html', 
                          user_configs=user_configs,
                          alertas=alertas,
-                         env_vars=env_vars)
+                         env_vars=env_vars,
+                         min_price_filter=min_price_filter)
+
+@settings_bp.route('/update-min-price', methods=['POST'])
+def update_min_price():
+    """Atualizar o filtro de preço mínimo"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Usuário não autenticado'})
+    
+    try:
+        data = request.get_json()
+        min_price = data.get('min_price')
+        
+        if not min_price or float(min_price) < 0:
+            return jsonify({'success': False, 'message': 'Preço mínimo inválido'})
+            
+        user_id = session['user_id']
+        db.save_user_config(user_id, 'MIN_PRICE_FILTER', str(min_price))
+        
+        return jsonify({'success': True, 'message': 'Filtro de preço mínimo atualizado com sucesso'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Erro ao atualizar filtro de preço: {str(e)}'})
 
 @settings_bp.route('/update-env', methods=['POST'])
 def update_environment():
