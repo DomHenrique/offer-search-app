@@ -645,13 +645,6 @@ class CatalogScraper:
         except Exception as e:
             print(f"❌ Erro no fallback BeautifulSoup: {e}")
             return []
-                    })
-
-            return sellers
-
-        except Exception as e:
-            print(f"   ❌ Fallback BeautifulSoup falhou: {e}")
-            return []
 
 
 # ─── Funções de conveniência ──────────────────────────────────────────────────
