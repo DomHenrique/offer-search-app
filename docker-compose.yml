@@ -1,36 +1,22 @@
 version: '3.8'
 
 services:
-  app:
-    build: .
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: offer-search-app
+    restart: unless-stopped
     ports:
       - "5000:5000"
-    environment:
-      - SECRET_KEY=${SECRET_KEY}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - SERPAPI_KEY=${SERPAPI_KEY}
-      - FLASK_ENV=production
     env_file:
       - .env
-    depends_on:
-      - chrome
-    volumes:
-      - ./scraped_data:/app/scraped_data
-    networks:
-      - offer-network
-
-  chrome:
-    image: selenium/standalone-chrome-debug:3.141.59-20210607
-    ports:
-      - "4444:4444"
-      - "5900:5900"
     environment:
-      - VNC_NO_PASSWORD=1
-    networks:
-      - offer-network
+      - FLASK_ENV=development
+      - FLASK_DEBUG=true
+      - PORT=5000
+    volumes:
+      - .:/app
+      - /app/.venv
+      - /app/__pycache__
     shm_size: 2gb
-
-networks:
-  offer-network:
-    driver: bridge

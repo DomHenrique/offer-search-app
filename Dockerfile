@@ -1,1 +1,52 @@
-# Dockerfile para Offer Search App\nFROM python:3.9-slim\n\n# Definir diretório de trabalho\nWORKDIR /app\n\n# Definir variáveis de ambiente\nENV PYTHONDONTWRITEBYTECODE=1 \\\n    PYTHONUNBUFFERED=1 \\\n    FLASK_APP=app.py \\\n    FLASK_ENV=production\n\n# Instalar dependências do sistema necessárias para web scraping\nRUN apt-get update && \\\n    apt-get install -y --no-install-recommends \\\n    wget \\\n    gnupg \\\n    unzip \\\n    xvfb \\\n    libxi6 \\\n    libgconf-2-4 \\\n    libnss3 \\\n    libxss1 \\\n    libappindicator1 \\\n    fonts-liberation \\\n    libasound2 \\\n    libatk-bridge2.0-0 \\\n    libgtk-3-0 && \\\n    rm -rf /var/lib/apt/lists/*\n\n# Instalar Chrome para web scraping\nRUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \\\n    echo \"deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main\" >> /etc/apt/sources.list.d/google-chrome.list && \\\n    apt-get update && \\\n    apt-get install -y --no-install-recommends google-chrome-stable && \\\n    rm -rf /var/lib/apt/lists/*\n\n# Copiar requirements e instalar dependências Python\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\n\n# Copiar código da aplicação\nCOPY . .\n\n# Expor porta\nEXPOSE 5000\n\n# Comando para iniciar a aplicação\nCMD [\"gunicorn\", \"--bind\", \"0.0.0.0:5000\", \"--workers\", \"4\", \"app:app\"]
+# Dockerfile para Offer Search App
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Variáveis de ambiente
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    FLASK_APP=app.py \
+    PORT=5000 \
+    GECKODRIVER_VERSION=v0.34.0
+
+# Instala dependências do sistema, Firefox e utilitários
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    firefox-esr \
+    wget \
+    curl \
+    tar \
+    bzip2 \
+    ca-certificates \
+    libgtk-3-0 \
+    libasound2 \
+    libdbus-glib-1-2 \
+    libx11-xcb1 \
+    libxtst6 \
+    fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+
+# Baixa e instala o geckodriver para o Selenium
+RUN ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then GECKO_ARCH="linux64"; \
+    elif [ "$ARCH" = "arm64" ]; then GECKO_ARCH="linux-aarch64"; \
+    else GECKO_ARCH="linux64"; fi && \
+    wget -q https://github.com/mozilla/geckodriver/releases/download/${GECKODRIVER_VERSION}/geckodriver-${GECKODRIVER_VERSION}-${GECKO_ARCH}.tar.gz -O /tmp/geckodriver.tar.gz && \
+    tar -xzf /tmp/geckodriver.tar.gz -C /usr/local/bin/ && \
+    chmod +x /usr/local/bin/geckodriver && \
+    rm -f /tmp/geckodriver.tar.gz
+
+# Instala dependências Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir gunicorn
+
+# Copia o código da aplicação
+COPY . .
+
+# Expor porta
+EXPOSE 5000
+
+# Executar aplicação
+CMD ["python", "app.py"]
