@@ -636,3 +636,118 @@ class DatabaseManager:
         except Exception as e:
             print(f"Erro ao buscar catálogo {catalog_id}: {e}")
             return None
+
+    def get_offers_by_search(self, busca_id: Optional[int] = None, termo: Optional[str] = None, limit: int = 200) -> Dict:
+        """
+        Recupera ofertas persistidas no Supabase a partir de um busca_id (histórico) ou termo de busca.
+        Calcula estatísticas (preço médio, menor preço, contagem por marketplace).
+        """
+        try:
+            busca_info = None
+            termo_pesquisa = termo
+
+            if busca_id:
+                resp_busca = self.supabase.table("historico_buscas").select("*").eq("id", busca_id).limit(1).execute()
+                if resp_busca.data:
+                    busca_info = resp_busca.data[0]
+                    termo_pesquisa = busca_info.get("termo_pesquisa")
+
+            if not termo_pesquisa:
+                return {'results': [], 'stats': {}, 'busca_info': None}
+
+            # Busca ofertas salvas para esse termo (suporta busca exata ou parcial com ilike)
+            query = self.supabase.table("ofertas").select("*")
+            if busca_id:
+                query = query.eq("termo_pesquisa", termo_pesquisa)
+            else:
+                query = query.ilike("termo_pesquisa", f"%{termo_pesquisa}%")
+
+            resp_ofertas = query.order("criado_em", desc=True).limit(limit).execute()
+            results = resp_ofertas.data or []
+
+            # Se não vieram estatísticas salvas do histórico, calcula dinamicamente
+            precos = [float(r.get('preco_numerico') or 0) for r in results if float(r.get('preco_numerico') or 0) > 0]
+            stats = {
+                'total_produtos': len(results),
+                'amazon_produtos': len([r for r in results if str(r.get('marketplace', '')).lower() == 'amazon']),
+                'ml_produtos': len([r for r in results if 'mercado' in str(r.get('marketplace', '')).lower()]),
+                'preco_medio': round(sum(precos) / len(precos), 2) if precos else (busca_info.get('preco_medio') if busca_info else 0),
+                'preco_minimo': min(precos) if precos else (busca_info.get('preco_minimo') if busca_info else 0),
+                'preco_maximo': max(precos) if precos else (busca_info.get('preco_maximo') if busca_info else 0),
+                'tempo_execucao': busca_info.get('tempo_execucao_segundos', 0) if busca_info else 0,
+                'termo_pesquisa': termo_pesquisa
+            }
+
+            return {
+                'results': results,
+                'stats': stats,
+                'busca_info': busca_info,
+                'termo_pesquisa': termo_pesquisa
+            }
+        except Exception as e:
+            print(f"Erro ao buscar ofertas por busca_id/termo: {e}")
+            return {'results': [], 'stats': {}, 'busca_info': None, 'error': str(e)}
+
+    def get_recent_search_terms(self, user_id: str, limit: int = 8) -> List[str]:
+        """
+        Retorna os termos de busca únicos mais recentes do usuário.
+        """
+        try:
+            resp = (
+                self.supabase.table("historico_buscas")
+                .select("termo_pesquisa, executado_em")
+                .eq("user_id", user_id)
+                .order("executado_em", desc=True)
+                .limit(50)
+                .execute()
+            )
+            termos = []
+            seen = set()
+            for row in (resp.data or []):
+                t = (row.get('termo_pesquisa') or '').strip()
+                if t and t.lower() not in seen:
+                    seen.add(t.lower())
+                    termos.append(t)
+                    if len(termos) >= limit:
+                        break
+            return termos
+        except Exception as e:
+            print(f"Erro ao buscar termos recentes: {e}")
+            return []
+
+    def extract_and_save_catalogs_from_offers(self, user_id: Optional[str] = None) -> List[Dict]:
+        """
+        Analisa as ofertas salvas do Mercado Livre na tabela 'ofertas',
+        extrai links com padrão de catálogo (/p/MLB...) e salva na tabela 'catalogos'.
+        """
+        try:
+            from scraping.web_scrap_catalog_ml import extract_catalog_id_from_url
+
+            query = self.supabase.table("ofertas").select("titulo, imagem, url_produto, termo_pesquisa, criado_em")
+            resp = query.order("criado_em", desc=True).limit(300).execute()
+            ofertas = resp.data or []
+
+            catalogs_found = []
+            seen_ids = set()
+
+            for item in ofertas:
+                url = item.get("url_produto") or ""
+                cat_id = extract_catalog_id_from_url(url)
+                if cat_id and cat_id not in seen_ids:
+                    seen_ids.add(cat_id)
+                    catalog_data = {
+                        "catalog_id": cat_id,
+                        "nome": item.get("titulo") or f"Catálogo {cat_id}",
+                        "imagem": item.get("imagem") or "",
+                        "termo_pesquisa": item.get("termo_pesquisa") or "",
+                        "user_id": user_id
+                    }
+                    self.save_catalog(catalog_data)
+                    catalogs_found.append(catalog_data)
+
+            print(f"✅ {len(catalogs_found)} catálogos extraídos e sincronizados das ofertas existentes")
+            return catalogs_found
+        except Exception as e:
+            print(f"Erro ao extrair catálogos das ofertas: {e}")
+            return []
+

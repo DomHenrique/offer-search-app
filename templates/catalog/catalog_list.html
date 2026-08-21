@@ -6,13 +6,15 @@
 <style>
 /* ─── Hero Section ─────────────────────────────────────────── */
 .catalog-hero {
-    background: linear-gradient(135deg, #FFD600 0%, #FF7800 50%, #FF3D00 100%);
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%);
     border-radius: 20px;
     padding: 2.5rem;
     color: white;
     margin-bottom: 2rem;
     position: relative;
     overflow: hidden;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 214, 0, 0.3);
 }
 .catalog-hero::before {
     content: '';
@@ -21,27 +23,17 @@
     right: -20%;
     width: 300px;
     height: 300px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 50%;
-}
-.catalog-hero::after {
-    content: '';
-    position: absolute;
-    bottom: -40%;
-    right: 10%;
-    width: 200px;
-    height: 200px;
-    background: rgba(255,255,255,0.07);
+    background: radial-gradient(circle, rgba(255, 214, 0, 0.15) 0%, rgba(255, 255, 255, 0) 70%);
     border-radius: 50%;
 }
 
 /* ─── Formulário ───────────────────────────────────────────── */
 .search-box-catalog {
     background: white;
-    border-radius: 16px;
-    padding: 1.5rem;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
-    border: 1px solid rgba(255,216,0,0.3);
+    border-radius: 18px;
+    padding: 1.75rem;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+    border: 1px solid #e2e8f0;
 }
 
 /* ─── Cards de catálogo ────────────────────────────────────── */
@@ -49,27 +41,30 @@
     background: white;
     border-radius: 16px;
     overflow: hidden;
-    border: 1px solid #eee;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid #e2e8f0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
     height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 .catalog-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 30px rgba(0,0,0,0.15);
-    border-color: #FFD600;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+    border-color: #ffd600;
 }
 .catalog-card-img-wrapper {
     height: 160px;
-    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    background: #f8fafc;
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
+    padding: 12px;
+    border-bottom: 1px solid #f1f5f9;
 }
 .catalog-card-img-wrapper img {
-    max-height: 140px;
-    max-width: 90%;
+    max-height: 136px;
+    max-width: 100%;
     object-fit: contain;
     transition: transform 0.3s ease;
 }
@@ -77,16 +72,19 @@
     transform: scale(1.05);
 }
 .catalog-card-body {
-    padding: 1rem;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
 }
 .catalog-id-badge {
     font-family: 'Courier New', monospace;
-    font-size: 0.75rem;
-    background: #fff3cd;
-    color: #856404;
-    border: 1px solid #ffc107;
+    font-size: 0.8rem;
+    background: #fffbeb;
+    color: #b45309;
+    border: 1px solid #fde68a;
     border-radius: 6px;
-    padding: 2px 8px;
+    padding: 3px 8px;
     cursor: pointer;
     transition: all 0.2s;
     display: inline-flex;
@@ -94,21 +92,39 @@
     gap: 4px;
 }
 .catalog-id-badge:hover {
-    background: #ffc107;
-    color: #000;
+    background: #fef3c7;
+    color: #92400e;
 }
 .btn-ver-sellers {
-    background: linear-gradient(135deg, #FFD600, #FF7800);
-    color: white;
+    background: linear-gradient(135deg, #ffd600, #ff7800);
+    color: #1e293b;
     border: none;
     border-radius: 10px;
-    font-weight: 600;
+    font-weight: 700;
     transition: all 0.3s ease;
     width: 100%;
+    padding: 0.6rem 1rem;
 }
 .btn-ver-sellers:hover {
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(255,120,0,0.4);
+    box-shadow: 0 6px 16px rgba(255,120,0,0.35);
+    color: #000;
+}
+
+/* ─── Botão de Sincronização Inteligente ─────────────────────── */
+.btn-sync-history {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-weight: 700;
+    padding: 0.65rem 1.25rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+.btn-sync-history:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
     color: white;
 }
 
@@ -116,8 +132,8 @@
 .search-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.8);
-    backdrop-filter: blur(10px);
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -127,17 +143,17 @@
     background: white;
     border-radius: 24px;
     padding: 3rem;
-    max-width: 420px;
+    max-width: 440px;
     width: 90%;
     text-align: center;
-    box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 .spinner-ml {
-    width: 64px;
-    height: 64px;
-    border: 5px solid #f3f3f3;
-    border-top: 5px solid #FFD600;
-    border-right: 5px solid #FF7800;
+    width: 60px;
+    height: 60px;
+    border: 5px solid #e2e8f0;
+    border-top: 5px solid #ffd600;
+    border-right: 5px solid #ff7800;
     border-radius: 50%;
     animation: spinml 0.8s linear infinite;
     margin: 0 auto 1.5rem;
@@ -148,27 +164,30 @@
 
 /* ─── Seção salva ──────────────────────────────────────────── */
 .section-title {
-    font-size: 1.1rem;
+    font-size: 1.15rem;
     font-weight: 700;
-    color: #343a40;
+    color: #1e293b;
     display: flex;
     align-items: center;
     gap: 0.5rem;
     padding-bottom: 0.75rem;
-    border-bottom: 2px solid #FFD600;
+    border-bottom: 2px solid #ffd600;
     margin-bottom: 1.5rem;
 }
 
 /* ─── Empty state ──────────────────────────────────────────── */
 .empty-state {
     text-align: center;
-    padding: 3rem 2rem;
-    color: #6c757d;
+    padding: 4rem 2rem;
+    color: #64748b;
+    background: white;
+    border-radius: 18px;
+    border: 1px dashed #cbd5e1;
 }
 .empty-state-icon {
     font-size: 4rem;
     margin-bottom: 1rem;
-    opacity: 0.4;
+    opacity: 0.35;
 }
 
 /* ─── Notification toast ───────────────────────────────────── */
@@ -176,7 +195,7 @@
     position: fixed;
     bottom: 2rem;
     right: 2rem;
-    background: #198754;
+    background: #10b981;
     color: white;
     padding: 0.75rem 1.5rem;
     border-radius: 10px;
@@ -185,6 +204,7 @@
     opacity: 0;
     transform: translateY(10px);
     transition: all 0.3s ease;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
 }
 .copy-toast.show {
     opacity: 1;
@@ -198,17 +218,22 @@
 
     <!-- Hero -->
     <div class="catalog-hero">
-        <div class="row align-items-center">
-            <div class="col-md-8">
+        <div class="row align-items-center g-3">
+            <div class="col-lg-8">
+                <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill bg-white bg-opacity-10 text-warning small fw-bold mb-2">
+                    <i class="fas fa-bolt"></i> Monitoramento de Concorrentes ML
+                </div>
                 <h1 class="fw-bold mb-2 fs-3">
-                    <i class="fas fa-store me-2"></i> Catálogos Mercado Livre
+                    <i class="fas fa-store me-2 text-warning"></i> Catálogos do Mercado Livre
                 </h1>
-                <p class="mb-0 opacity-90">
-                    Monitore quem está competindo nos catálogos do ML. Veja preços, fretes e reputação dos concorrentes em tempo real.
+                <p class="mb-0 text-white-50">
+                    Descubra quem está competindo em cada catálogo, monitore o menor preço, taxas de envio FULL e acompanhe a reputação dos vendedores em tempo real.
                 </p>
             </div>
-            <div class="col-md-4 text-end d-none d-md-block">
-                <i class="fas fa-trophy" style="font-size: 5rem; opacity: 0.2;"></i>
+            <div class="col-lg-4 text-lg-end">
+                <button class="btn btn-sync-history" id="btnSyncHistory" onclick="extractCatalogsFromHistory()">
+                    <i class="fas fa-magic me-2"></i> Extrair do Histórico de Buscas
+                </button>
             </div>
         </div>
     </div>
@@ -218,40 +243,40 @@
         <form id="catalogSearchForm">
             <div class="row g-3 align-items-end">
                 <div class="col-md-7">
-                    <label class="form-label fw-semibold text-muted small">
-                        <i class="fas fa-search me-1"></i> TERMO DE BUSCA
+                    <label class="form-label fw-semibold text-secondary small">
+                        <i class="fas fa-search me-1 text-primary"></i> BUSCAR NOVOS CATÁLOGOS POR TERMO
                     </label>
                     <input type="text"
                            id="catalogSearchInput"
                            class="form-control form-control-lg"
-                           placeholder="Ex: EcoFlow River 3, iPhone 14, AirPods..."
+                           placeholder="Ex: EcoFlow River 3, iPhone 14, Fone Bluetooth..."
                            required
                            minlength="2">
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label fw-semibold text-muted small">
-                        <i class="fas fa-file me-1"></i> PÁGINAS
+                    <label class="form-label fw-semibold text-secondary small">
+                        <i class="fas fa-layer-group me-1 text-primary"></i> PÁGINAS ML
                     </label>
                     <select class="form-select form-select-lg" id="catalogNPages">
-                        <option value="1">1 página</option>
-                        <option value="2">2 páginas</option>
-                        <option value="3">3 páginas</option>
+                        <option value="1">1 página (~50 produtos)</option>
+                        <option value="2">2 páginas (~100 produtos)</option>
+                        <option value="3">3 páginas (~150 produtos)</option>
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <button type="submit" class="btn btn-ver-sellers btn-lg" id="catalogSearchBtn">
-                        <i class="fas fa-search me-2"></i> Buscar Catálogos
+                    <button type="submit" class="btn btn-ver-sellers btn-lg w-100" id="catalogSearchBtn">
+                        <i class="fas fa-search me-2"></i> Buscar no Mercado Livre
                     </button>
                 </div>
             </div>
         </form>
     </div>
 
-    <!-- Resultados da busca atual -->
-    <div id="searchResults" style="display:none;">
+    <!-- Resultados da busca ao vivo -->
+    <div id="searchResults" style="display:none;" class="mb-5">
         <div class="section-title">
             <i class="fas fa-fire text-warning"></i>
-            Catálogos Encontrados
+            Catálogos Encontrados na Busca Atual
             <span class="badge bg-warning text-dark ms-2" id="resultCount">0</span>
         </div>
         <div class="row g-3" id="catalogGrid"></div>
@@ -260,42 +285,49 @@
     <!-- Catálogos salvos do usuário -->
     {% if saved_catalogs %}
     <div class="mt-4">
-        <div class="section-title">
-            <i class="fas fa-bookmark text-warning"></i>
-            Seus Catálogos
-            <span class="badge bg-secondary ms-2">{{ saved_catalogs|length }}</span>
+        <div class="d-flex justify-content-between align-items-center section-title">
+            <div>
+                <i class="fas fa-bookmark text-warning"></i>
+                Catálogos Salvos para Monitoramento
+                <span class="badge bg-secondary ms-2" id="savedCountBadge">{{ saved_catalogs|length }}</span>
+            </div>
+            <button class="btn btn-sm btn-outline-success rounded-pill" onclick="extractCatalogsFromHistory()">
+                <i class="fas fa-sync-alt me-1"></i> Sincronizar Novas Ofertas
+            </button>
         </div>
-        <div class="row g-3">
+        <div class="row g-3" id="savedCatalogsGrid">
             {% for cat in saved_catalogs %}
             <div class="col-sm-6 col-md-4 col-lg-3">
                 <div class="catalog-card">
                     <div class="catalog-card-img-wrapper">
                         {% if cat.imagem %}
                             <img src="{{ cat.imagem }}" alt="{{ cat.nome }}" loading="lazy"
-                                 onerror="this.src='https://via.placeholder.com/140x140/f8f9fa/adb5bd?text=ML'">
+                                 onerror="this.src='https://via.placeholder.com/140x140/f8f9fa/94a3b8?text=ML+Catalog'">
                         {% else %}
-                            <i class="fas fa-box" style="font-size: 3rem; color: #dee2e6;"></i>
+                            <i class="fas fa-box" style="font-size: 3rem; color: #cbd5e1;"></i>
                         {% endif %}
                     </div>
                     <div class="catalog-card-body">
-                        <p class="fw-semibold mb-2 text-dark" style="font-size:0.9rem; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">
+                        <p class="fw-semibold mb-2 text-dark" style="font-size:0.9rem; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" title="{{ cat.nome }}">
                             {{ cat.nome }}
                         </p>
                         <div class="mb-2">
-                            <span class="catalog-id-badge" onclick="copyCatalogId('{{ cat.catalog_id }}')">
-                                <i class="fas fa-copy" style="font-size:0.65rem;"></i>
+                            <span class="catalog-id-badge" onclick="copyCatalogId('{{ cat.catalog_id }}')" title="Clique para copiar ID">
+                                <i class="fas fa-copy" style="font-size:0.7rem;"></i>
                                 {{ cat.catalog_id }}
                             </span>
                         </div>
                         {% if cat.termo_pesquisa %}
-                        <p class="text-muted mb-2" style="font-size:0.75rem;">
+                        <p class="text-muted mb-3" style="font-size:0.75rem;">
                             <i class="fas fa-tag me-1"></i>{{ cat.termo_pesquisa }}
                         </p>
                         {% endif %}
-                        <a href="{{ url_for('catalog.catalog_detail', catalog_id=cat.catalog_id) }}"
-                           class="btn btn-ver-sellers mt-1">
-                            <i class="fas fa-users me-2"></i>Ver Concorrentes
-                        </a>
+                        <div class="mt-auto">
+                            <a href="{{ url_for('catalog.catalog_detail', catalog_id=cat.catalog_id) }}"
+                               class="btn btn-ver-sellers">
+                                <i class="fas fa-users me-2"></i>Ver Concorrentes
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -306,14 +338,19 @@
     <div class="mt-4">
         <div class="section-title">
             <i class="fas fa-bookmark text-warning"></i>
-            Seus Catálogos
+            Catálogos Monitorados
         </div>
         <div class="empty-state">
             <div class="empty-state-icon">
                 <i class="fas fa-store-slash"></i>
             </div>
-            <h5 class="fw-semibold mb-2">Nenhum catálogo ainda</h5>
-            <p class="text-muted">Use o campo acima para buscar catálogos do Mercado Livre por termo de pesquisa.</p>
+            <h5 class="fw-bold mb-2 text-dark">Nenhum catálogo cadastrado ainda</h5>
+            <p class="text-muted mb-4 max-w-md mx-auto">
+                Você pode buscar novos catálogos pelo formulário acima ou <strong>extrair instantaneamente</strong> todos os catálogos dos produtos que você já buscou no histórico.
+            </p>
+            <button class="btn btn-sync-history btn-lg" onclick="extractCatalogsFromHistory()">
+                <i class="fas fa-magic me-2"></i> Extrair Catálogos do Histórico Salvo
+            </button>
         </div>
     </div>
     {% endif %}
@@ -323,19 +360,19 @@
 <div id="catalogOverlay" class="search-overlay" style="display:none;">
     <div class="search-overlay-box">
         <div class="spinner-ml"></div>
-        <h5 class="fw-bold mb-2" id="overlayTitle">Buscando catálogos...</h5>
-        <p class="text-muted mb-3" id="overlayMessage">Preparando busca...</p>
+        <h5 class="fw-bold mb-2" id="overlayTitle">Processando...</h5>
+        <p class="text-muted mb-3" id="overlayMessage">Aguarde...</p>
         <div class="progress mb-2" style="height:8px; border-radius:10px;">
             <div class="progress-bar" id="overlayProgress"
-                 style="width:0%; background: linear-gradient(90deg, #FFD600, #FF7800); transition: width 0.5s ease;"></div>
+                 style="width:0%; background: linear-gradient(90deg, #ffd600, #ff7800); transition: width 0.5s ease;"></div>
         </div>
-        <small class="text-muted">Isso pode levar 1-2 minutos...</small>
+        <small class="text-muted">Isso pode levar alguns momentos...</small>
     </div>
 </div>
 
-<!-- Toast de cópia -->
+<!-- Toast de notificação -->
 <div class="copy-toast" id="copyToast">
-    <i class="fas fa-check-circle me-2"></i> ID copiado!
+    <i class="fas fa-check-circle me-2"></i> <span id="toastMessage">ID copiado!</span>
 </div>
 {% endblock %}
 
@@ -343,6 +380,34 @@
 <script>
 let currentCatalogSearchId = null;
 let catalogStatusInterval = null;
+
+// ─── Extrair Catálogos das Buscas Recentes ────────────────────────
+async function extractCatalogsFromHistory() {
+    showOverlay('⚡ Extraindo Catálogos...', 'Analisando ofertas do Mercado Livre salvas no banco de dados...');
+    document.getElementById('overlayProgress').style.width = '60%';
+
+    try {
+        const res = await fetch('/catalog/extract-from-history', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+
+        hideOverlay();
+
+        if (data.success) {
+            showToast(`${data.count} catálogo(s) sincronizados com sucesso!`);
+            setTimeout(() => {
+                window.location.reload();
+            }, 1200);
+        } else {
+            alert('Erro ao extrair: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (err) {
+        hideOverlay();
+        alert('Erro ao sincronizar catálogos do histórico: ' + err.message);
+    }
+}
 
 // ─── Formulário de busca ──────────────────────────────────────────
 document.getElementById('catalogSearchForm').addEventListener('submit', async function(e) {
@@ -356,7 +421,7 @@ document.getElementById('catalogSearchForm').addEventListener('submit', async fu
         return;
     }
 
-    showOverlay('Buscando catálogos...', 'Iniciando o robô de busca no Mercado Livre...');
+    showOverlay('Buscando catálogos no ML...', 'Iniciando o robô de busca do Mercado Livre...');
 
     try {
         const res = await fetch('/catalog/search', {
@@ -415,10 +480,10 @@ function renderCatalogResults(catalogs) {
         section.style.display = 'block';
         grid.innerHTML = `
             <div class="col-12">
-                <div class="text-center py-5 text-muted">
-                    <i class="fas fa-search" style="font-size:3rem; opacity:0.3;"></i>
-                    <p class="mt-3">Nenhum catálogo encontrado para este termo.<br>
-                    <small>Tente outro produto ou mais páginas.</small></p>
+                <div class="text-center py-5 text-muted bg-white rounded-3 border">
+                    <i class="fas fa-search fs-1 opacity-25 d-block mb-3"></i>
+                    <p class="mb-0">Nenhum catálogo encontrado para este termo.<br>
+                    <small>Tente outro produto ou aumente a quantidade de páginas.</small></p>
                 </div>
             </div>`;
         count.textContent = '0';
@@ -432,23 +497,25 @@ function renderCatalogResults(catalogs) {
                 <div class="catalog-card-img-wrapper">
                     ${cat.imagem
                         ? `<img src="${cat.imagem}" alt="${escHtml(cat.nome)}" loading="lazy"
-                                onerror="this.src='https://via.placeholder.com/140x140/f8f9fa/adb5bd?text=ML'">`
-                        : `<i class="fas fa-box" style="font-size:3rem; color:#dee2e6;"></i>`
+                                onerror="this.src='https://via.placeholder.com/140x140/f8f9fa/94a3b8?text=ML+Catalog'">`
+                        : `<i class="fas fa-box" style="font-size:3rem; color:#cbd5e1;"></i>`
                     }
                 </div>
                 <div class="catalog-card-body">
-                    <p class="fw-semibold mb-2 text-dark" style="font-size:0.9rem; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">
+                    <p class="fw-semibold mb-2 text-dark" style="font-size:0.9rem; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" title="${escHtml(cat.nome)}">
                         ${escHtml(cat.nome)}
                     </p>
                     <div class="mb-2">
-                        <span class="catalog-id-badge" onclick="copyCatalogId('${cat.catalog_id}')">
-                            <i class="fas fa-copy" style="font-size:0.65rem;"></i>
+                        <span class="catalog-id-badge" onclick="copyCatalogId('${cat.catalog_id}')" title="Clique para copiar ID">
+                            <i class="fas fa-copy" style="font-size:0.7rem;"></i>
                             ${cat.catalog_id}
                         </span>
                     </div>
-                    <a href="/catalog/${cat.catalog_id}" class="btn btn-ver-sellers mt-1">
-                        <i class="fas fa-users me-2"></i>Ver Concorrentes
-                    </a>
+                    <div class="mt-auto">
+                        <a href="/catalog/${cat.catalog_id}" class="btn btn-ver-sellers">
+                            <i class="fas fa-users me-2"></i>Ver Concorrentes
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -474,10 +541,16 @@ function hideOverlay() {
 
 function copyCatalogId(id) {
     navigator.clipboard.writeText(id).then(() => {
-        const toast = document.getElementById('copyToast');
-        toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 2000);
+        showToast(`ID ${id} copiado!`);
     });
+}
+
+function showToast(msg) {
+    const toast = document.getElementById('copyToast');
+    const msgEl = document.getElementById('toastMessage');
+    msgEl.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
 }
 
 function escHtml(str) {

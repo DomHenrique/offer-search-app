@@ -49,18 +49,14 @@ def delete_search(busca_id):
     except Exception as e:
         return jsonify({'success': False, 'message': f'Erro interno: {str(e)}'})
 
-@history_bp.route('/clear', methods=['POST'])
+@history_bp.route('/api/recent')
 @login_required
-def clear_history():
-    """Limpar todo o histórico do usuário"""
+def api_recent_searches():
+    """Retorna os termos de busca recentes do usuário em formato JSON"""
     try:
         user_id = session['user_id']
-        
-        # Esta funcionalidade precisa ser implementada no db_manager
-        # Por enquanto, vamos retornar um erro amigável
-        # success = db.clear_all_history(user_id)
-        
-        return jsonify({'success': False, 'message': 'Funcionalidade ainda não implementada.'})
-            
+        terms = db.get_recent_search_terms(user_id, limit=10)
+        return jsonify({'success': True, 'terms': terms})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'Erro interno: {str(e)}'})
+        return jsonify({'success': False, 'terms': [], 'error': str(e)}), 500
+

@@ -205,32 +205,44 @@ def search_status_endpoint(search_id):
 
 @search_bp.route('/results')
 def results_page():
-    """Página de resultados da busca"""
+    """Página de resultados da busca (persistente e em tempo real)"""
     if 'user_id' not in session:
         flash('Você precisa fazer login para acessar esta página.', 'warning')
         return redirect(url_for('auth.login'))
     
     search_id = request.args.get('search_id')
-    print(f"🔍 Acessando página de resultados para search_id: {search_id}")
+    busca_id = request.args.get('busca_id', type=int)
+    termo = request.args.get('termo')
     
-    if not search_id or search_id not in search_status:
-        print("❌ Busca não encontrada ou search_id inválido")
-        flash('Busca não encontrada.', 'error')
-        return redirect(url_for('search.search_page'))
+    print(f"🔍 Acessando resultados - search_id: {search_id}, busca_id: {busca_id}, termo: {termo}")
     
-    status = search_status[search_id]
-    print(f"📊 Status da busca: {status}")
+    # 1. Tenta pegar da memória RAM (se veio de busca em andamento)
+    if search_id and search_id in search_status:
+        status = search_status[search_id]
+        if status.get('status') == 'concluida':
+            return render_template('search/results.html', 
+                                 results=status.get('results', []), 
+                                 stats=status.get('stats', {}),
+                                 search_id=search_id)
+        elif status.get('status') == 'erro':
+            flash(f"Erro na busca: {status.get('error')}", 'error')
+            return redirect(url_for('search.search_page'))
+        else:
+            flash('Busca ainda não foi concluída.', 'warning')
+            return redirect(url_for('search.search_page'))
+            
+    # 2. Se veio busca_id ou termo (ou se search_id expirou da RAM), busca do Supabase
+    if busca_id or termo:
+        data = db_manager.get_offers_by_search(busca_id=busca_id, termo=termo)
+        if data.get('results'):
+            return render_template('search/results.html',
+                                 results=data['results'],
+                                 stats=data.get('stats', {}),
+                                 busca_id=busca_id,
+                                 termo_pesquisa=data.get('termo_pesquisa'))
     
-    if status['status'] != 'concluida':
-        print("⚠️ Busca ainda não foi concluída")
-        flash('Busca ainda não foi concluída.', 'warning')
-        return redirect(url_for('search.search_page'))
-    
-    print(f"✅ Exibindo {len(status['results'])} resultados")
-    return render_template('search/results.html', 
-                         results=status['results'], 
-                         stats=status.get('stats', {}),
-                         search_id=search_id)
+    flash('Busca não encontrada ou expirada. Realize uma nova busca.', 'info')
+    return redirect(url_for('search.search_page'))
 
 @search_bp.route('/recent')
 def recent_searches():

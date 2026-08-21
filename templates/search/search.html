@@ -458,15 +458,32 @@ function hideSearchOverlay() {
 // Carrega buscas recentes
 async function loadRecentSearches() {
     try {
-        const response = await fetch('/history');
+        const response = await fetch('/history/api/recent');
+        const container = document.getElementById('recentSearches');
+        
         if (response.ok) {
-            // Implementar carregamento de buscas recentes
-            const recentSearches = ['smartphone', 'notebook', 'fone bluetooth', 'mouse gamer'];
-            const container = document.getElementById('recentSearches');
+            const data = await response.json();
+            const terms = data.terms || [];
             
-            container.innerHTML = recentSearches.map(term => 
-                `<a href="#" class="recent-search-tag" onclick="fillSearchTerm('${term}')">${term}</a>`
-            ).join('');
+            if (terms.length > 0) {
+                container.innerHTML = terms.map(term => {
+                    const safeTerm = term.replace(/'/g, "\\'");
+                    return `
+                        <div class="btn-group me-2 mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="fillSearchTerm('${safeTerm}')" title="Preencher termo">
+                                <i class="fas fa-search me-1"></i> ${term}
+                            </button>
+                            <a href="/search/results?termo=${encodeURIComponent(term)}" class="btn btn-sm btn-primary" title="Abrir resultados salvos">
+                                <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                container.innerHTML = '<span class="text-muted small">Nenhuma busca recente realizada ainda.</span>';
+            }
+        } else {
+            container.innerHTML = '<span class="text-muted small">Nenhuma busca recente.</span>';
         }
     } catch (error) {
         console.error('Erro ao carregar buscas recentes:', error);

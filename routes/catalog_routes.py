@@ -61,6 +61,25 @@ def catalog_detail(catalog_id):
                            sellers=sellers)
 
 
+@catalog_bp.route('/extract-from-history', methods=['POST'])
+def extract_from_history():
+    """Extrai catálogos do Mercado Livre a partir das ofertas salvas no banco de dados"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+
+    try:
+        user_id = session['user_id']
+        catalogs = db_manager.extract_and_save_catalogs_from_offers(user_id=user_id)
+        return jsonify({
+            'success': True,
+            'count': len(catalogs),
+            'catalogs': catalogs,
+            'message': f"{len(catalogs)} catálogo(s) sincronizado(s) com sucesso a partir do histórico de ofertas!"
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ─── API — Busca de catálogos (assíncrona) ───────────────────────────────────
 
 @catalog_bp.route('/search', methods=['POST'])
