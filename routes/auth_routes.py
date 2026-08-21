@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, request, redirect, url_for, session, flash
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
+from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from database.db_manager import DatabaseManager
 from utils.helpers import validate_email, validate_password
@@ -132,5 +133,82 @@ def profile():
     if 'user_id' not in session:
         flash('Você precisa fazer login para acessar esta página.', 'warning')
         return redirect(url_for('auth.login'))
-    
     return render_template('auth/profile.html')
+
+
+# ─── Sincronização de Sessão Mercado Livre (Extensão Chrome / API) ─────────────
+
+@auth_bp.route('/sync-ml-session', methods=['POST'])
+def sync_ml_session():
+    """
+    Recebe os cookies capturados pela extensão Chrome do Mercado Livre
+    e armazena na tabela de configurações do Supabase.
+    """
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        cookies = data.get('cookies') or []
+
+        if not cookies:
+            return jsonify({'success': False, 'error': 'Nenhum cookie recebido no payload.'}), 400
+
+        user_id = session.get('user_id') or data.get('user_id') or "1"
+        user_email = session.get('user_email') or data.get('user_email')
+
+        success = db_manager.save_ml_session(cookies=cookies, user_email=user_email, user_id=str(user_id))
+
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'{len(cookies)} cookies do Mercado Livre sincronizados com sucesso!',
+                'count': len(cookies),
+                'updated_at': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Erro ao persistir sessão no banco de dados.'}), 500
+
+    except Exception as e:
+        print(f"Erro ao sincronizar sessão ML: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@auth_bp.route('/ml-session-status', methods=['GET'])
+def ml_session_status():
+    """
+    Retorna o status atual da sessão do Mercado Livre.
+    """
+    try:
+        user_id = session.get('user_id') or "1"
+        session_data = db_manager.get_ml_session(user_id=str(user_id))
+
+        if not session_data:
+            return jsonify({
+                'connected': False,
+                'status': 'disconnected',
+                'message': 'Nenhuma sessão do Mercado Livre sincronizada.'
+            })
+
+        updated_at = session_data.get('updated_at')
+        total_cookies = session_data.get('total_cookies', 0)
+
+        # Considera recente se sincronizado nas últimas 48 horas
+        is_recent = True
+        if updated_at:
+            try:
+                dt = datetime.fromisoformat(updated_at.replace('Z', ''))
+                diff_hours = (datetime.now() - dt).total_seconds() / 3600
+                is_recent = diff_hours < 48
+            except Exception:
+                pass
+
+        return jsonify({
+            'connected': True,
+            'status': 'active' if is_recent else 'outdated',
+            'updated_at': updated_at,
+            'total_cookies': total_cookies,
+            'user_email': session_data.get('user_email'),
+            'message': 'Sessão ativa e pronta para uso.' if is_recent else 'Sessão desatualizada (mais de 48h).'
+        })
+
+    except Exception as e:
+        return jsonify({'connected': False, 'error': str(e)}), 500
+

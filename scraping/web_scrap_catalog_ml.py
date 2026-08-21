@@ -138,6 +138,56 @@ class CatalogScraper:
         except Exception:
             return False
 
+    def inject_ml_cookies(self, user_id: Optional[str] = None) -> bool:
+        """
+        Carrega os cookies salvos no Supabase e injeta no WebDriver
+        para navegar autenticado no Mercado Livre.
+        """
+        if not self.driver:
+            return False
+        try:
+            from database.db_manager import DatabaseManager
+            db = DatabaseManager()
+            session_data = db.get_ml_session(user_id=user_id)
+            if not session_data or not session_data.get('cookies'):
+                print("ℹ️ Nenhum cookie de sessão do ML encontrado no banco.")
+                return False
+
+            cookies = session_data.get('cookies', [])
+            print(f"🍪 Injetando {len(cookies)} cookies de sessão no Selenium...")
+
+            # Para injetar cookies no Selenium, é obrigatório primeiro estar no domínio
+            self.driver.get("https://www.mercadolivre.com.br/robots.txt")
+            time.sleep(1)
+
+            injected = 0
+            for c in cookies:
+                try:
+                    cookie_dict = {
+                        'name': c['name'],
+                        'value': c['value'],
+                        'path': c.get('path', '/'),
+                    }
+                    domain = c.get('domain', '')
+                    if domain:
+                        # Remove leading dot if any issue
+                        cookie_dict['domain'] = domain.lstrip('.')
+                    if c.get('secure'):
+                        cookie_dict['secure'] = True
+                    if c.get('httpOnly'):
+                        cookie_dict['httpOnly'] = True
+
+                    self.driver.add_cookie(cookie_dict)
+                    injected += 1
+                except Exception:
+                    pass
+
+            print(f"✅ {injected} cookies do Mercado Livre injetados com sucesso!")
+            return True
+        except Exception as e:
+            print(f"⚠️ Erro ao injetar cookies no Selenium: {e}")
+            return False
+
     # ─── Scraping de lista de catálogos ──────────────────────────────────────
 
     def scrape_catalog_list(self, search_term: str, n_pages: int = 1) -> Dict:
@@ -294,6 +344,9 @@ class CatalogScraper:
                 'error': 'Falha ao inicializar o driver', 'login_required': False
             }
 
+        # Injeta cookies de sessão ativa do Mercado Livre se existirem
+        self.inject_ml_cookies()
+
         url = f"https://www.mercadolivre.com.br/p/{catalog_id}/s?"
 
         try:
@@ -306,10 +359,10 @@ class CatalogScraper:
 
             # Verifica redirecionamento de login
             if self._is_login_page():
-                print("⚠️ Sessão do ML não autenticada — redirecionado para login")
+                print("⚠️ Sessão do ML não autenticada ou expirada — redirecionado para login")
                 return {
                     'success': False, 'sellers': [],
-                    'error': 'Sessão do Mercado Livre não autenticada. Valide o acesso no navegador configurado.',
+                    'error': 'Sessão do Mercado Livre expirada ou não sincronizada. Abra a extensão ML Session Sync no Chrome e clique em "Sincronizar Sessão".',
                     'login_required': True
                 }
 

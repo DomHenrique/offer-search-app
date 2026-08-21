@@ -751,3 +751,57 @@ class DatabaseManager:
             print(f"Erro ao extrair catálogos das ofertas: {e}")
             return []
 
+    # === MÉTODOS DE SESSÃO DO MERCADO LIVRE ===
+
+    def save_ml_session(self, cookies: List[Dict], user_email: Optional[str] = None, user_id: Optional[str] = None) -> bool:
+        """
+        Salva ou atualiza a sessão de cookies do Mercado Livre na tabela configuracoes.
+        """
+        try:
+            now = datetime.now().isoformat()
+            payload = {
+                "cookies": cookies,
+                "total_cookies": len(cookies),
+                "user_email": user_email or "default",
+                "updated_at": now,
+                "status": "active"
+            }
+            # Upsert na tabela de configurações sob a chave 'ml_session_cookies'
+            response = self.supabase.table("configuracoes").upsert({
+                "user_id": user_id or "1",
+                "chave": "ml_session_cookies",
+                "valor": payload,
+                "descricao": "Cookies de sessão ativa do Mercado Livre",
+                "tipo": "json"
+            }, on_conflict="user_id, chave").execute()
+            return len(response.data) > 0
+        except Exception as e:
+            print(f"Erro ao salvar sessão ML: {e}")
+            return False
+
+    def get_ml_session(self, user_id: Optional[str] = None) -> Optional[Dict]:
+        """
+        Recupera a sessão de cookies do Mercado Livre salva no Supabase.
+        """
+        try:
+            import json
+            query = self.supabase.table("configuracoes").select("valor, atualizado_em").eq("chave", "ml_session_cookies")
+            if user_id:
+                query = query.eq("user_id", user_id)
+            
+            response = query.limit(1).execute()
+            if response.data and response.data[0].get("valor"):
+                val = response.data[0]["valor"]
+                if isinstance(val, str):
+                    try:
+                        return json.loads(val)
+                    except Exception:
+                        return None
+                elif isinstance(val, dict):
+                    return val
+            return None
+        except Exception as e:
+            print(f"Erro ao buscar sessão ML: {e}")
+            return None
+
+

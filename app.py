@@ -41,6 +41,7 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # Registra blueprints (rotas modulares)
 app.register_blueprint(auth_bp, url_prefix='/auth')
+app.register_blueprint(auth_bp, url_prefix='/api/auth', name='auth_api')
 app.register_blueprint(search_bp, url_prefix='/search')
 app.register_blueprint(approval_bp, url_prefix='/approval')
 app.register_blueprint(schedule_bp, url_prefix='/schedule')

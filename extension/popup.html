@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offer Search ML Sync</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">⚡</span>
+        <div>
+          <h2>ML Session Sync</h2>
+          <span class="subtitle">Offer Search App</span>
+        </div>
+      </div>
+      <span class="badge" id="mlStatusBadge">Verificando...</span>
+    </header>
+
+    <!-- Card de Status do Mercado Livre -->
+    <div class="card" id="mlCard">
+      <div class="card-title">
+        <span>🛒 Sessão Mercado Livre</span>
+      </div>
+      <div class="status-row">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="mlStatusText" class="status-text">Buscando cookies ativos...</span>
+      </div>
+      <div class="info-row" id="cookiesCountRow">
+        <small id="cookiesCount">0 cookies encontrados</small>
+      </div>
+    </div>
+
+    <!-- Card de Configuração da Aplicação -->
+    <div class="card">
+      <div class="card-title">
+        <span>⚙️ Servidor da Aplicação</span>
+      </div>
+      <div class="form-group">
+        <label for="apiUrl">URL da API:</label>
+        <input type="url" id="apiUrl" placeholder="http://localhost:5000" value="http://localhost:5000">
+      </div>
+      <small class="help-text">Para servidor VPS, use ex: https://vps.griddmkt360.com.br</small>
+    </div>
+
+    <!-- Botão de Sincronização -->
+    <button class="btn-sync" id="btnSync">
+      <span class="btn-icon">⚡</span>
+      <span id="btnText">Sincronizar Sessão</span>
+    </button>
+
+    <!-- Feedback e Timestamp -->
+    <div class="feedback" id="feedback"></div>
+    <div class="footer">
+      <small id="lastSyncText">Nenhuma sincronização recente</small>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
