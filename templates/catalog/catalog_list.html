@@ -29,7 +29,7 @@
 
 /* ─── Formulário de Nova Busca ─────────────────────────────── */
 .search-box-catalog {
-    background: white;
+    background: #ffffff;
     border-radius: 16px;
     padding: 1.5rem;
     box-shadow: 0 4px 20px rgba(0,0,0,0.04);
@@ -38,12 +38,12 @@
 
 /* ─── Barra de Filtro e Busca Rápida na Grade ─────────────── */
 .catalog-toolbar {
-    background: white;
+    background: #ffffff;
     border-radius: 14px;
-    padding: 0.85rem 1.25rem;
+    padding: 1rem 1.25rem;
     border: 1px solid #e2e8f0;
     box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-    margin-bottom: 1.25rem;
+    margin-bottom: 1.5rem;
 }
 
 .catalog-search-filter {
@@ -56,7 +56,7 @@
     background: #f8fafc;
 }
 .catalog-search-filter:focus {
-    background: white;
+    background: #ffffff;
     border-color: #6366f1;
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
     outline: none;
@@ -68,7 +68,7 @@
     border-radius: 14px;
     border: 1px solid #e2e8f0;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -89,13 +89,15 @@
     align-items: center;
     justify-content: space-between;
     gap: 6px;
+    background: #fafafa;
+    border-bottom: 1px solid #f1f5f9;
 }
 
 .catalog-id-chip {
     font-family: 'Courier New', monospace;
     font-size: 0.72rem;
     font-weight: 700;
-    background: #f1f5f9;
+    background: #ffffff;
     color: #475569;
     border: 1px solid #e2e8f0;
     border-radius: 6px;
@@ -124,21 +126,22 @@
 
 /* Moldura da Imagem com Respiro Interno */
 .saas-img-frame {
-    height: 135px;
+    height: 140px;
     background: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 14px 16px;
-    margin: 0 8px;
-    border-radius: 10px;
+    padding: 12px 16px;
     overflow: hidden;
     position: relative;
+    border-bottom: 1px solid #f8fafc;
 }
 
 .saas-img-frame img {
-    max-height: 100%;
+    max-height: 116px;
     max-width: 100%;
+    width: auto;
+    height: auto;
     object-fit: contain;
     transition: transform 0.25s ease;
 }
@@ -149,7 +152,7 @@
 
 /* Corpo do Card (Título & Informações) */
 .saas-card-body {
-    padding: 10px 12px;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
     flex-grow: 1;
@@ -179,12 +182,13 @@
 
 /* Rodapé e Ações Rápidas */
 .saas-card-footer {
-    padding: 8px 12px 12px 12px;
+    padding: 10px 12px 12px 12px;
     display: flex;
     gap: 6px;
     align-items: center;
     margin-top: auto;
     border-top: 1px solid #f1f5f9;
+    background: #ffffff;
 }
 
 .btn-saas-primary {
@@ -316,7 +320,7 @@
                 <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill bg-white bg-opacity-10 text-warning small fw-bold mb-2">
                     <i class="fas fa-bolt"></i> Monitoramento de Concorrentes ML
                 </div>
-                <h1 class="fw-bold mb-2 fs-3">
+                <h1 class="fw-bold mb-2 fs-3 text-white">
                     <i class="fas fa-store me-2 text-warning"></i> Catálogos do Mercado Livre
                 </h1>
                 <p class="mb-0 text-white-50">
