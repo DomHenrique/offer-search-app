@@ -592,3 +592,21 @@ def comparar_produto_especifico(df: pd.DataFrame, termo_produto: str) -> pd.Data
             print(f"   Avaliação média: {df_mp['AVALIACAO'].mean():.2f}")
     
     return df_produto.sort_values('PRECO_NUM')
+
+
+def buscar_ofertas_do_dia(paginas_ml: int = 1) -> pd.DataFrame:
+    """
+    Busca ofertas do dia no Mercado Livre.
+    
+    Args:
+        paginas_ml (int): Número de páginas para buscar
+        
+    Returns:
+        pd.DataFrame: DataFrame com as ofertas encontradas
+    """
+    try:
+        return get_mercado_livre_data(termo="ofertas do dia", max_pages=paginas_ml)
+    except Exception as e:
+        print(f"Erro ao buscar ofertas do dia: {e}")
+        return pd.DataFrame()
+
