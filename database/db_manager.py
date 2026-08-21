@@ -804,4 +804,176 @@ class DatabaseManager:
             print(f"Erro ao buscar sessão ML: {e}")
             return None
 
+    # === MÉTODOS DE PEDIDOS DE COMPRA E ESTOQUE CONSOLIDADO ===
+
+    def create_purchase_order(self, user_id: str, numero_pedido: str, fornecedor: Optional[str] = None, 
+                              observacoes: Optional[str] = None, itens: Optional[List[Dict]] = None) -> Optional[Dict]:
+        """
+        Cria um novo pedido de compra e seus itens associados.
+        """
+        try:
+            order_data = {
+                "user_id": user_id,
+                "numero_pedido": (numero_pedido or "PED-SEM-NUMERO").strip(),
+                "fornecedor": (fornecedor or "").strip(),
+                "observacoes": (observacoes or "").strip()
+            }
+            order_res = self.supabase.table("pedidos_compra").insert(order_data).execute()
+            if not order_res.data:
+                return None
+            
+            created_order = order_res.data[0]
+            order_id = created_order["id"]
+
+            if itens and len(itens) > 0:
+                items_payload = []
+                for item in itens:
+                    sku = str(item.get("sku") or "").strip().upper()
+                    descricao = str(item.get("descricao") or item.get("nome") or sku).strip()
+                    if not sku:
+                        continue
+                    
+                    qtd = int(item.get("quantidade") or item.get("qtd") or 1)
+                    preco_custo = float(item.get("preco_custo") or 0) if item.get("preco_custo") is not None else None
+                    preco_revenda = float(item.get("preco_revenda") or item.get("preco_marketplace") or 0) if item.get("preco_revenda") or item.get("preco_marketplace") else None
+                    preco_site_pix = float(item.get("preco_site_pix") or 0) if item.get("preco_site_pix") else None
+                    ncm = str(item.get("ncm") or "").strip()
+                    link_produto = str(item.get("link_produto") or item.get("link") or "").strip()
+
+                    items_payload.append({
+                        "pedido_id": order_id,
+                        "sku": sku,
+                        "descricao": descricao,
+                        "ncm": ncm,
+                        "quantidade": qtd,
+                        "preco_custo": preco_custo,
+                        "preco_revenda": preco_revenda,
+                        "preco_site_pix": preco_site_pix,
+                        "link_produto": link_produto
+                    })
+                
+                if items_payload:
+                    self.supabase.table("itens_pedido").insert(items_payload).execute()
+            
+            return created_order
+        except Exception as e:
+            print(f"Erro ao criar pedido de compra: {e}")
+            return None
+
+    def get_purchase_orders(self, user_id: str) -> List[Dict]:
+        """
+        Retorna a lista de pedidos de compra do usuário com estatísticas de itens.
+        """
+        try:
+            orders_res = self.supabase.table("pedidos_compra").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+            orders = orders_res.data or []
+
+            # Busca contagem de itens por pedido
+            for order in orders:
+                items_res = self.supabase.table("itens_pedido").select("id, quantidade, preco_revenda").eq("pedido_id", order["id"]).execute()
+                items = items_res.data or []
+                order["total_itens_diferentes"] = len(items)
+                order["total_quantidade_produtos"] = sum(int(it.get("quantidade") or 0) for it in items)
+            
+            return orders
+        except Exception as e:
+            print(f"Erro ao buscar pedidos de compra: {e}")
+            return []
+
+    def get_purchase_order_by_id(self, pedido_id: str, user_id: str) -> Optional[Dict]:
+        """
+        Retorna os detalhes de um pedido específico e todos os seus itens.
+        """
+        try:
+            order_res = self.supabase.table("pedidos_compra").select("*").eq("id", pedido_id).eq("user_id", user_id).limit(1).execute()
+            if not order_res.data:
+                return None
+            
+            order = order_res.data[0]
+            items_res = self.supabase.table("itens_pedido").select("*").eq("pedido_id", pedido_id).order("sku").execute()
+            order["itens"] = items_res.data or []
+            order["total_quantidade"] = sum(int(it.get("quantidade") or 0) for it in order["itens"])
+            return order
+        except Exception as e:
+            print(f"Erro ao buscar pedido por ID: {e}")
+            return None
+
+    def delete_purchase_order(self, pedido_id: str, user_id: str) -> bool:
+        """
+        Exclui um pedido de compra (itens são excluídos via cascade).
+        """
+        try:
+            res = self.supabase.table("pedidos_compra").delete().eq("id", pedido_id).eq("user_id", user_id).execute()
+            return len(res.data) > 0
+        except Exception as e:
+            print(f"Erro ao excluir pedido: {e}")
+            return False
+
+    def get_consolidated_inventory(self, user_id: str) -> List[Dict]:
+        """
+        Retorna o estoque consolidado de produtos agrupado por SKU para o usuário,
+        somando as quantidades de todos os pedidos de compra.
+        """
+        try:
+            # 1. Busca todos os pedidos do usuário
+            orders_res = self.supabase.table("pedidos_compra").select("id, numero_pedido, fornecedor, created_at").eq("user_id", user_id).execute()
+            orders = orders_res.data or []
+            if not orders:
+                return []
+            
+            order_map = {o["id"]: o for o in orders}
+            order_ids = list(order_map.keys())
+
+            # 2. Busca todos os itens desses pedidos
+            items_res = self.supabase.table("itens_pedido").select("*").in_("pedido_id", order_ids).execute()
+            items = items_res.data or []
+
+            # 3. Consolidação por SKU
+            inventory_by_sku: Dict[str, Dict] = {}
+            for item in items:
+                sku = str(item.get("sku") or "").strip().upper()
+                if not sku:
+                    continue
+                
+                qtd = int(item.get("quantidade") or 0)
+                ped_info = order_map.get(item.get("pedido_id"))
+
+                if sku not in inventory_by_sku:
+                    inventory_by_sku[sku] = {
+                        "sku": sku,
+                        "descricao": item.get("descricao") or sku,
+                        "ncm": item.get("ncm") or "",
+                        "quantidade_total": 0,
+                        "preco_custo": item.get("preco_custo"),
+                        "preco_revenda": item.get("preco_revenda"),
+                        "preco_site_pix": item.get("preco_site_pix"),
+                        "link_produto": item.get("link_produto"),
+                        "pedidos": []
+                    }
+                
+                # Se o item atual tem informações de preço mais completas, atualiza
+                if item.get("preco_revenda"):
+                    inventory_by_sku[sku]["preco_revenda"] = item.get("preco_revenda")
+                if item.get("preco_site_pix"):
+                    inventory_by_sku[sku]["preco_site_pix"] = item.get("preco_site_pix")
+                if item.get("ncm") and not inventory_by_sku[sku]["ncm"]:
+                    inventory_by_sku[sku]["ncm"] = item.get("ncm")
+                if item.get("link_produto") and not inventory_by_sku[sku]["link_produto"]:
+                    inventory_by_sku[sku]["link_produto"] = item.get("link_produto")
+
+                inventory_by_sku[sku]["quantidade_total"] += qtd
+                if ped_info:
+                    inventory_by_sku[sku]["pedidos"].append({
+                        "pedido_id": ped_info["id"],
+                        "numero_pedido": ped_info["numero_pedido"],
+                        "fornecedor": ped_info.get("fornecedor"),
+                        "quantidade": qtd
+                    })
+
+            # Retorna como lista ordenada por SKU
+            return sorted(list(inventory_by_sku.values()), key=lambda x: x["sku"])
+        except Exception as e:
+            print(f"Erro ao consolidar estoque: {e}")
+            return []
+
 

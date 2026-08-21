@@ -1,0 +1,667 @@
+{% extends "base.html" %}
+
+{% block title %}Estoque & Pedidos - Offer Search App{% endblock %}
+
+{% block extra_styles %}
+<style>
+/* ─── Hero Section ─────────────────────────────────────────── */
+.inventory-hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+    border-radius: 20px;
+    padding: 2.25rem 2.5rem;
+    color: white;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.inventory-hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, rgba(255, 255, 255, 0) 70%);
+    border-radius: 50%;
+}
+
+/* ─── Cards de Estatísticas ────────────────────────────────── */
+.inv-stat-card {
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    transition: all 0.25s ease;
+}
+.inv-stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+.inv-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+}
+
+/* ─── Abas Modernas ────────────────────────────────────────── */
+.nav-pills-custom .nav-link {
+    border-radius: 12px;
+    padding: 0.75rem 1.5rem;
+    font-weight: 700;
+    color: #64748b;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    margin-right: 0.5rem;
+    transition: all 0.2s ease;
+}
+.nav-pills-custom .nav-link.active {
+    background: #4f46e5 !important;
+    color: white !important;
+    border-color: #4f46e5;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+/* ─── Tabela de Estoque ────────────────────────────────────── */
+.table-inventory {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+}
+.table-inventory thead th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 700;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1rem;
+    border-bottom: 2px solid #e2e8f0;
+}
+.table-inventory tbody td {
+    padding: 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.9rem;
+}
+.table-inventory tbody tr:hover td {
+    background: #fafafa;
+}
+
+/* ─── Chips e Badges ───────────────────────────────────────── */
+.sku-badge {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    font-size: 0.85rem;
+    background: #e0e7ff;
+    color: #3730a3;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid #c7d2fe;
+    display: inline-block;
+}
+.stock-qty-badge {
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+.stock-positive {
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+}
+.stock-zero {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+/* ─── Botão Ações ──────────────────────────────────────────── */
+.btn-market-search {
+    background: linear-gradient(135deg, #ffd600, #ff7800);
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 0.8rem;
+    border-radius: 8px;
+    padding: 0.4rem 0.8rem;
+    border: none;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.btn-market-search:hover {
+    box-shadow: 0 4px 12px rgba(255, 120, 0, 0.35);
+    color: #000;
+    transform: translateY(-1px);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+
+    <!-- Hero -->
+    <div class="inventory-hero">
+        <div class="row align-items-center g-3">
+            <div class="col-lg-7">
+                <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill bg-white bg-opacity-10 text-warning small fw-bold mb-2">
+                    <i class="fas fa-boxes-stacked"></i> Gestão Interna de Produtos & Lotes
+                </div>
+                <h1 class="fw-bold mb-2 fs-3 text-white">
+                    <i class="fas fa-warehouse me-2 text-indigo-400"></i> Estoque & Pedidos de Compra
+                </h1>
+                <p class="mb-0 text-white-50">
+                    Controle seus SKUs, registre pedidos de compra de fornecedores e dispare pesquisas de mercado para seus produtos em tempo real.
+                </p>
+            </div>
+            <div class="col-lg-5 text-lg-end d-flex gap-2 justify-content-lg-end flex-wrap">
+                <button class="btn btn-primary fw-bold px-3 py-2 shadow-sm rounded-3" data-bs-toggle="modal" data-bs-target="#newOrderModal">
+                    <i class="fas fa-plus-circle me-1"></i> Novo Pedido Manual
+                </button>
+                <button class="btn btn-success fw-bold px-3 py-2 shadow-sm rounded-3" data-bs-toggle="modal" data-bs-target="#importBulkModal">
+                    <i class="fas fa-file-import me-1"></i> Importar Planilha em Massa
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estatísticas Rápidas -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="inv-stat-card d-flex align-items-center gap-3">
+                <div class="inv-stat-icon bg-primary bg-opacity-10 text-primary">
+                    <i class="fas fa-barcode"></i>
+                </div>
+                <div>
+                    <h3 class="fw-bold text-dark mb-0">{{ total_skus }}</h3>
+                    <span class="text-muted small fw-semibold">SKUs Cadastrados</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="inv-stat-card d-flex align-items-center gap-3">
+                <div class="inv-stat-icon bg-success bg-opacity-10 text-success">
+                    <i class="fas fa-cubes"></i>
+                </div>
+                <div>
+                    <h3 class="fw-bold text-dark mb-0">{{ total_pecas }}</h3>
+                    <span class="text-muted small fw-semibold">Unidades em Estoque Total</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="inv-stat-card d-flex align-items-center gap-3">
+                <div class="inv-stat-icon bg-warning bg-opacity-10 text-warning">
+                    <i class="fas fa-receipt"></i>
+                </div>
+                <div>
+                    <h3 class="fw-bold text-dark mb-0">{{ total_pedidos }}</h3>
+                    <span class="text-muted small fw-semibold">Pedidos de Compra Registrados</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navegação de Abas: Estoque Consolidado vs. Pedidos de Compra -->
+    <ul class="nav nav-pills nav-pills-custom mb-4" id="inventoryTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-stock-btn" data-bs-toggle="pill" data-bs-target="#tab-stock" type="button" role="tab">
+                <i class="fas fa-layer-group me-2"></i> Estoque Consolidado por SKU ({{ total_skus }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-orders-btn" data-bs-toggle="pill" data-bs-target="#tab-orders" type="button" role="tab">
+                <i class="fas fa-clipboard-list me-2"></i> Pedidos de Compra / Lotes ({{ total_pedidos }})
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="inventoryTabsContent">
+        
+        <!-- ─── ABA 1: ESTOQUE CONSOLIDADO ───────────────────────────── -->
+        <div class="tab-pane fade show active" id="tab-stock" role="tabpanel">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                <div class="card-header bg-white p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3">
+                    <div class="position-relative" style="min-width: 320px; max-width: 480px; flex-grow: 1;">
+                        <i class="fas fa-search text-muted position-absolute" style="left: 12px; top: 12px;"></i>
+                        <input type="text" id="stockFilterInput" class="form-control ps-5 rounded-3" 
+                               placeholder="Filtrar por SKU, Descrição ou NCM..." oninput="filterStockTable()">
+                    </div>
+                    <div class="text-muted small">
+                        Mostrando <strong id="visibleStockCount">{{ inventory|length }}</strong> produtos
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-inventory mb-0" id="stockTable">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>Descrição do Produto</th>
+                                <th>NCM</th>
+                                <th class="text-center">Qtd Estoque</th>
+                                <th>Preço Revenda / Mkt</th>
+                                <th>Preço PIX</th>
+                                <th>Origem (Pedidos)</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if inventory %}
+                                {% for item in inventory %}
+                                <tr class="stock-row" data-sku="{{ item.sku|lower }}" data-desc="{{ item.descricao|lower }}" data-ncm="{{ item.ncm|lower }}">
+                                    <td>
+                                        <span class="sku-badge">{{ item.sku }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-dark">{{ item.descricao }}</div>
+                                        {% if item.link_produto %}
+                                            <a href="{{ item.link_produto }}" target="_blank" class="small text-decoration-none text-primary opacity-75">
+                                                <i class="fas fa-external-link-alt me-1"></i>Link Fornecedor
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-secondary border font-monospace">{{ item.ncm or '—' }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if item.quantidade_total > 0 %}
+                                            <span class="stock-qty-badge stock-positive">{{ item.quantidade_total }} UN</span>
+                                        {% else %}
+                                            <span class="stock-qty-badge stock-zero">0 UN</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="fw-semibold text-dark">
+                                        {% if item.preco_revenda %}
+                                            R$ {{ "%.2f"|format(item.preco_revenda)|replace('.', ',') }}
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="fw-semibold text-success">
+                                        {% if item.preco_site_pix %}
+                                            R$ {{ "%.2f"|format(item.preco_site_pix)|replace('.', ',') }}
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {% for ped in item.pedidos %}
+                                                <a href="{{ url_for('inventory.order_detail', pedido_id=ped.pedido_id) }}" class="badge bg-secondary text-decoration-none me-1 mb-1">
+                                                    {{ ped.numero_pedido }} ({{ ped.quantidade }})
+                                                </a>
+                                            {% endfor %}
+                                        </small>
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{{ url_for('search.search_page') }}?q={{ item.descricao|urlencode }}" 
+                                           class="btn-market-search" title="Buscar concorrentes deste produto no Mercado Livre">
+                                            <i class="fas fa-search"></i> Buscar Mercado
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="8" class="text-center py-5 text-muted">
+                                        <i class="fas fa-box-open fa-3x mb-3 opacity-25 d-block"></i>
+                                        <h6>Nenhum produto cadastrado no estoque ainda.</h6>
+                                        <p class="small mb-3">Crie um pedido manual ou faça a importação da sua planilha.</p>
+                                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#importBulkModal">
+                                            <i class="fas fa-file-import me-1"></i> Importar Planilha Agora
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── ABA 2: PEDIDOS DE COMPRA ─────────────────────────────── -->
+        <div class="tab-pane fade" id="tab-orders" role="tabpanel">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                <div class="card-header bg-white p-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0 text-dark">
+                        <i class="fas fa-receipt text-primary me-2"></i> Lotes e Pedidos Cadastrados
+                    </h6>
+                    <button class="btn btn-sm btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#newOrderModal">
+                        <i class="fas fa-plus me-1"></i> Cadastrar Pedido
+                    </button>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-inventory mb-0">
+                        <thead>
+                            <tr>
+                                <th>Número / Lote</th>
+                                <th>Fornecedor</th>
+                                <th>Data Cadastro</th>
+                                <th class="text-center">SKUs Distintos</th>
+                                <th class="text-center">Total Peças</th>
+                                <th>Observações</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if orders %}
+                                {% for ord in orders %}
+                                <tr>
+                                    <td class="fw-bold text-dark">
+                                        <a href="{{ url_for('inventory.order_detail', pedido_id=ord.id) }}" class="text-decoration-none text-primary">
+                                            <i class="fas fa-file-invoice me-1"></i> {{ ord.numero_pedido }}
+                                        </a>
+                                    </td>
+                                    <td>{{ ord.fornecedor or '—' }}</td>
+                                    <td>
+                                        <small class="text-muted">{{ ord.created_at[:10] if ord.created_at else '—' }}</small>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-light text-dark border">{{ ord.total_itens_diferentes or 0 }} SKUs</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="stock-qty-badge stock-positive">{{ ord.total_quantidade_produtos or 0 }} UN</span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ ord.observacoes or '—' }}</small>
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{{ url_for('inventory.order_detail', pedido_id=ord.id) }}" class="btn btn-sm btn-outline-primary me-1">
+                                            <i class="fas fa-eye"></i> Detalhes
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteOrder('{{ ord.id }}', '{{ ord.numero_pedido }}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center py-5 text-muted">
+                                        <i class="fas fa-receipt fa-3x mb-3 opacity-25 d-block"></i>
+                                        <h6>Nenhum pedido de compra cadastrado.</h6>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ─── MODAL 1: NOVO PEDIDO MANUAL ──────────────────────────────── -->
+<div class="modal fade" id="newOrderModal" tabindex="-1" aria-labelledby="newOrderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <form action="{{ url_for('inventory.create_order') }}" method="POST" id="manualOrderForm">
+                <div class="modal-header bg-gradient-primary text-white p-3">
+                    <h5 class="modal-title fw-bold" id="newOrderModalLabel">
+                        <i class="fas fa-cart-plus me-2"></i> Novo Pedido de Compra
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">Número do Pedido / Lote *</label>
+                            <input type="text" name="numero_pedido" class="form-control" placeholder="Ex: PED-2026-001" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">Fornecedor</label>
+                            <input type="text" name="fornecedor" class="form-control" placeholder="Ex: EcoFlow Store / Distribuidor">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold small">Observações</label>
+                            <input type="text" name="observacoes" class="form-control" placeholder="Ex: Lote importação 127v / 220v">
+                        </div>
+                    </div>
+
+                    <hr class="my-3">
+                    <h6 class="fw-bold mb-3 text-dark"><i class="fas fa-box me-2"></i>Produto / Item</h6>
+
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">SKU (Obrigatório) *</label>
+                            <input type="text" name="sku" class="form-control font-monospace" placeholder="Ex: ECO GR31BR1060" required>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label small fw-semibold">Descrição do Produto *</label>
+                            <input type="text" name="descricao" class="form-control" placeholder="Ex: Gerador RIVER 3 + Painel Solar 60W" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">NCM</label>
+                            <input type="text" name="ncm" class="form-control" placeholder="Ex: 8501.72.10">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Quantidade *</label>
+                            <input type="number" name="quantidade" class="form-control" value="1" min="1" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Preço Revenda (R$)</label>
+                            <input type="number" step="0.01" name="preco_revenda" class="form-control" placeholder="Ex: 3179.00">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Preço PIX (R$)</label>
+                            <input type="number" step="0.01" name="preco_site_pix" class="form-control" placeholder="Ex: 2859.00">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Link do Produto (Fornecedor / Oficial)</label>
+                            <input type="url" name="link_produto" class="form-control" placeholder="https://ecoflowstore.com.br/products/...">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer p-3 bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">Salvar Pedido</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ─── MODAL 2: IMPORTAÇÃO EM MASSA (UPLOAD + COPIAR E COLAR) ──── -->
+<div class="modal fade" id="importBulkModal" tabindex="-1" aria-labelledby="importBulkModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header bg-success text-white p-3">
+                <h5 class="modal-title fw-bold" id="importBulkModalLabel">
+                    <i class="fas fa-file-import me-2"></i> Importar Produtos & Pedidos em Massa
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                
+                <ul class="nav nav-tabs mb-3" id="importTabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active fw-bold" id="import-paste-tab" data-bs-toggle="tab" data-bs-target="#import-paste" type="button">
+                            <i class="fas fa-paste me-1"></i> 1. Copiar e Colar (Google Sheets / Excel)
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold" id="import-file-tab" data-bs-toggle="tab" data-bs-target="#import-file" type="button">
+                            <i class="fas fa-file-excel me-1"></i> 2. Upload de Arquivo (.xlsx / .csv)
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="importTabsContent">
+                    
+                    <!-- Opção 1: Colar Planilha -->
+                    <div class="tab-pane fade show active" id="import-paste" role="tabpanel">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Nome / Identificador do Lote *</label>
+                                <input type="text" id="pasteOrderNumber" class="form-control" placeholder="Ex: Lote-EcoFlow-01" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Fornecedor</label>
+                                <input type="text" id="pasteSupplier" class="form-control" placeholder="Ex: EcoFlow Oficial">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">
+                                Cole aqui as linhas copiadas da sua planilha (com ou sem cabeçalho):
+                            </label>
+                            <textarea id="pastedText" class="form-control font-monospace" rows="8" 
+                                      placeholder="Exemplo de conteúdo copiado (Ctrl+V):
+ECO GR31BR1060	Gerador RIVER 3 (127V) + Painel Solar 60W	8501.72.10	4 UN	3179.00
+ECO GR32EU1010	Gerador RIVER 3 (220V-EU) + Painel BR	8501.72.10	2 UN	3179.00"></textarea>
+                            <small class="text-muted">Suporta colunas copiadas diretamente do Google Sheets e Excel separadas por tabulação.</small>
+                        </div>
+
+                        <button type="button" class="btn btn-success fw-bold w-100 py-2" onclick="submitPastedImport()">
+                            <i class="fas fa-check-circle me-1"></i> Processar e Importar Linhas
+                        </button>
+                    </div>
+
+                    <!-- Opção 2: Upload de Arquivo -->
+                    <div class="tab-pane fade" id="import-file" role="tabpanel">
+                        <form id="fileUploadForm" enctype="multipart/form-data">
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold">Nome do Lote</label>
+                                    <input type="text" name="numero_pedido" class="form-control" placeholder="Ex: Lote-Importacao-XLSX">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold">Fornecedor</label>
+                                    <input type="text" name="fornecedor" class="form-control" placeholder="Ex: Fornecedor">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small fw-bold">Arquivo (.xlsx ou .csv) *</label>
+                                    <input type="file" name="file" id="importFile" class="form-control" accept=".xlsx, .xls, .csv" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-success fw-bold w-100 py-2">
+                                <i class="fas fa-upload me-1"></i> Fazer Upload e Importar
+                            </button>
+                        </form>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ─── Filtro em Tempo Real na Tabela de Estoque ─────────────────────
+function filterStockTable() {
+    const query = document.getElementById('stockFilterInput').value.trim().toLowerCase();
+    const rows = document.querySelectorAll('.stock-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const sku = row.getAttribute('data-sku') || '';
+        const desc = row.getAttribute('data-desc') || '';
+        const ncm = row.getAttribute('data-ncm') || '';
+
+        if (!query || sku.includes(query) || desc.includes(query) || ncm.includes(query)) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    document.getElementById('visibleStockCount').textContent = visibleCount;
+}
+
+// ─── Importação via Copiar e Colar (Paste Grid) ────────────────────
+async function submitPastedImport() {
+    const text = document.getElementById('pastedText').value.trim();
+    const orderNumber = document.getElementById('pasteOrderNumber').value.trim() || `LOTE-${new Date().toISOString().slice(0,10)}`;
+    const supplier = document.getElementById('pasteSupplier').value.trim();
+
+    if (!text) {
+        alert('Por favor, cole as linhas da planilha na caixa de texto.');
+        return;
+    }
+
+    try {
+        const res = await fetch('/inventory/import-bulk', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                numero_pedido: orderNumber,
+                fornecedor: supplier,
+                pasted_text: text
+            })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Erro na importação: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (err) {
+        alert('Erro ao enviar dados: ' + err.message);
+    }
+}
+
+// ─── Importação via Upload de Arquivo ──────────────────────────────
+document.getElementById('fileUploadForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+
+    try {
+        const res = await fetch('/inventory/import-bulk', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Erro no upload: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (err) {
+        alert('Erro no envio do arquivo: ' + err.message);
+    }
+});
+
+// ─── Excluir Pedido com Confirmação ───────────────────────────────
+async function confirmDeleteOrder(orderId, orderNum) {
+    if (!confirm(`Tem certeza que deseja excluir o pedido "${orderNum}"?\nTodos os itens desse pedido serão removidos.`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/inventory/orders/delete/${orderId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Erro: ' + (data.error || 'Não foi possível excluir.'));
+        }
+    } catch (err) {
+        alert('Erro ao excluir pedido: ' + err.message);
+    }
+}
+</script>
+{% endblock %}

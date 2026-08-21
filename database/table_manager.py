@@ -74,7 +74,9 @@ class TableManager:
             'agendamentos': '04_create_agendamentos_table.sql',
             'historico_buscas': '05_create_historico_buscas_table.sql',
             'alertas': '06_create_alertas_table.sql',
-            'configuracoes': '07_create_configuracoes_table.sql'
+            'configuracoes': '07_create_configuracoes_table.sql',
+            'pedidos_compra': '08_create_pedidos_compra_e_itens.sql',
+            'itens_pedido': '08_create_pedidos_compra_e_itens.sql'
         }
         
         for table_name, script_name in table_scripts.items():

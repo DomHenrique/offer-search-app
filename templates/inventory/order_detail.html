@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Detalhes do Pedido {{ order.numero_pedido }} - Offer Search App{% endblock %}
+
+{% block extra_styles %}
+<style>
+.order-header-card {
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    padding: 1.5rem 2rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    margin-bottom: 2rem;
+}
+.sku-badge {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    font-size: 0.85rem;
+    background: #e0e7ff;
+    color: #3730a3;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid #c7d2fe;
+    display: inline-block;
+}
+.table-order-items thead th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 700;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1rem;
+    border-bottom: 2px solid #e2e8f0;
+}
+.table-order-items tbody td {
+    padding: 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+
+    <!-- Navegação / Breadcrumb -->
+    <div class="mb-3">
+        <a href="{{ url_for('inventory.inventory_list') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+            <i class="fas fa-arrow-left me-1"></i> Voltar para Estoque & Pedidos
+        </a>
+    </div>
+
+    <!-- Header do Pedido -->
+    <div class="order-header-card">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <span class="badge bg-primary px-3 py-2 rounded-pill mb-2">Pedido de Compra</span>
+                <h2 class="fw-bold text-dark mb-1">
+                    <i class="fas fa-file-invoice me-2 text-primary"></i> {{ order.numero_pedido }}
+                </h2>
+                <p class="text-muted mb-0 small">
+                    Fornecedor: <strong class="text-dark">{{ order.fornecedor or 'Não informado' }}</strong> • 
+                    Cadastrado em: <strong>{{ order.created_at[:10] if order.created_at else '—' }}</strong>
+                </p>
+                {% if order.observacoes %}
+                    <p class="text-muted mt-2 mb-0 small fst-italic">
+                        <i class="fas fa-sticky-note me-1"></i> {{ order.observacoes }}
+                    </p>
+                {% endif %}
+            </div>
+            <div class="text-end">
+                <div class="fs-4 fw-bold text-success">{{ order.total_quantidade or 0 }} UN</div>
+                <small class="text-muted">Total de unidades neste lote</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Itens do Pedido -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-header bg-white p-3 border-bottom d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold mb-0 text-dark">
+                <i class="fas fa-boxes-stacked text-primary me-2"></i> Itens Deste Pedido ({{ order.itens|length }})
+            </h6>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-order-items mb-0">
+                <thead>
+                    <tr>
+                        <th>SKU</th>
+                        <th>Descrição</th>
+                        <th>NCM</th>
+                        <th class="text-center">Quantidade</th>
+                        <th>Preço Revenda</th>
+                        <th>Preço PIX</th>
+                        <th class="text-end">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for it in order.itens %}
+                    <tr>
+                        <td>
+                            <span class="sku-badge">{{ it.sku }}</span>
+                        </td>
+                        <td class="fw-semibold text-dark">
+                            {{ it.descricao }}
+                            {% if it.link_produto %}
+                                <a href="{{ it.link_produto }}" target="_blank" class="small text-primary d-block text-decoration-none opacity-75">
+                                    <i class="fas fa-external-link-alt me-1"></i>Link
+                                </a>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-secondary border font-monospace">{{ it.ncm or '—' }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-success bg-opacity-10 text-success fw-bold px-3 py-2 rounded-pill">
+                                {{ it.quantidade }} UN
+                            </span>
+                        </td>
+                        <td class="fw-semibold">
+                            {% if it.preco_revenda %}
+                                R$ {{ "%.2f"|format(it.preco_revenda)|replace('.', ',') }}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-semibold text-success">
+                            {% if it.preco_site_pix %}
+                                R$ {{ "%.2f"|format(it.preco_site_pix)|replace('.', ',') }}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{{ url_for('search.search_page') }}?q={{ it.descricao|urlencode }}" 
+                               class="btn btn-sm btn-warning fw-bold">
+                                <i class="fas fa-search me-1"></i> Buscar Ofertas
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

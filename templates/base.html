@@ -50,6 +50,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('inventory.') %}active{% endif %}" href="{{ url_for('inventory.inventory_list') }}">
+                            <i class="fas fa-boxes-stacked me-1"></i>Estoque & Pedidos
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint and request.endpoint.startswith('catalog.') %}active{% endif %}" href="{{ url_for('catalog.catalog_list') }}">
                             <i class="fas fa-store me-1"></i>Catálogos
                         </a>
