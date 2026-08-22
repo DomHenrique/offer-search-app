@@ -711,8 +711,10 @@
                             <!-- Grid de Inteligência de Mercado 2x4 -->
                             <div class="avantpro-metrics-grid">
                                 <div class="metric-col">
-                                    <span class="metric-label">{% if prod.is_catalog %}Atual ganhador{% else %}Vendedor{% endif %}</span>
-                                    <span class="metric-value" title="{{ prod.store_name }}">{{ prod.store_name[:14] }}</span>
+                                    <span class="metric-label">{% if prod.is_catalog %}Ganhador BuyBox{% else %}Vendedor{% endif %}</span>
+                                    <span class="metric-value fw-bold text-dark" title="{{ prod.store_name }}">
+                                        {% if prod.store_name|length > 18 %}{{ prod.store_name[:17] }}...{% else %}{{ prod.store_name }}{% endif %}
+                                    </span>
                                 </div>
                                 <div class="metric-col">
                                     <span class="metric-label">Vendas estimadas</span>
@@ -731,10 +733,10 @@
                                     <span class="metric-value warning">R$ {{ "%.2f"|format(prod.platform_commission)|replace('.', ',') }}</span>
                                 </div>
                                 <div class="metric-col">
-                                    <span class="metric-label">{% if prod.is_catalog %}Concorrentes{% else %}Estrutura{% endif %}</span>
-                                    <span class="metric-value {% if prod.is_catalog %}text-indigo{% else %}text-secondary{% endif %}">
+                                    <span class="metric-label">{% if prod.is_catalog %}Opções de Compra{% else %}Estrutura{% endif %}</span>
+                                    <span class="metric-value {% if prod.is_catalog %}text-indigo fw-bold{% else %}text-secondary{% endif %}" title="{% if prod.is_catalog and prod.buybox_min_price > 0 %}A partir de R$ {{ '%.2f'|format(prod.buybox_min_price)|replace('.', ',') }}{% endif %}">
                                         {% if prod.is_catalog %}
-                                             {{ prod.sellers_count }} sellers
+                                            {{ prod.sellers_count }} opções
                                         {% else %}
                                             <i class="fas fa-tag"></i> Individual
                                         {% endif %}
@@ -750,9 +752,25 @@
                                 </div>
                             </div>
 
-                            <!-- Barra de Concorrência -->
-                            <div class="concurrency-meter">
-                                <div class="concurrency-fill" style="width: {% if prod.is_catalog %}{{ [prod.sellers_count * 10, 100]|min }}%{% else %}15%{% endif %}; background: {% if prod.is_catalog %}{% if prod.sellers_count <= 5 %}#10b981{% elif prod.sellers_count <= 15 %}#f59e0b{% else %}#ef4444{% endif %}{% else %}#3b82f6{% endif %};"></div>
+                            <!-- Barra de Nível de Concorrência -->
+                            <div class="concurrency-bar-wrapper">
+                                <div class="d-flex justify-content-between text-xs text-muted mb-1">
+                                    <span>{% if prod.is_catalog %}Concorrência BuyBox{% else %}Densidade de Concorrência{% endif %}</span>
+                                    <span>
+                                        {% if prod.is_catalog %}
+                                            {% if prod.buybox_min_price and prod.buybox_min_price > 0 %}
+                                                a partir de R$ {{ "%.2f"|format(prod.buybox_min_price)|replace('.', ',') }}
+                                            {% else %}
+                                                {{ prod.sellers_count }} ofertas ativas
+                                            {% endif %}
+                                        {% else %}
+                                            Vendedor Único
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                <div class="concurrency-bar">
+                                    <div class="concurrency-fill" style="width: {% if prod.is_catalog %}{{ [prod.sellers_count * 5, 100]|min }}%{% else %}15%{% endif %}; background: {% if prod.is_catalog %}{% if prod.sellers_count <= 5 %}#10b981{% elif prod.sellers_count <= 15 %}#f59e0b{% else %}#ef4444{% endif %}{% else %}#3b82f6{% endif %};"></div>
+                                </div>
                             </div>
 
                             <!-- Preços e Condições -->

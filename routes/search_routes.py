@@ -244,11 +244,13 @@ def enrich_product_intel(produto: dict) -> dict:
     wid_match = re.search(r'wid=(MLB\d+)', url)
     p['winner_item_id'] = wid_match.group(1) if wid_match else ''
     
-    # 2. Vendedor e Medalha
-    store = p.get('loja_oficial') or p.get('store_name') or ''
-    if not store:
-        store = "Vendedor Mercado Livre" if 'mercadolivre' in url.lower() else "Amazon Brasil"
-    p['store_name'] = store
+    # 2. Vendedor da BuyBox e Medalha
+    raw_store = p.get('store_name') or p.get('loja_oficial') or p.get('LOJA_OFICIAL') or ''
+    clean_store = re.sub(r'^(vendido\s+por\s+|por\s+|loja\s+oficial\s+)', '', str(raw_store), flags=re.IGNORECASE).strip()
+    if not clean_store or clean_store.lower() in ('loja não identificada', 'loja', 'none'):
+        clean_store = "Vendedor Oficial" if is_cat else ("Vendedor Mercado Livre" if 'mercadolivre' in url.lower() else "Amazon Brasil")
+    p['store_name'] = clean_store
+    p['winner_seller_name'] = clean_store
     
     if p.get('prime') or p.get('patrocinado') or reviews >= 400:
         p['seller_medal'] = 'Platinum'
@@ -282,10 +284,16 @@ def enrich_product_intel(produto: dict) -> dict:
         p['platform_commission'] = float((price * 0.13) + (6.0 if price < 79.0 else 0.0))
         
     # 6. Concorrentes no catálogo (BuyBox)
-    if is_cat:
-        p['sellers_count'] = max(int(p.get('sellers_count') or (reviews / 15)), 2)
+    raw_sellers = p.get('sellers_count') or p.get('SELLERS_COUNT') or p.get('buybox_offers_count')
+    if raw_sellers and int(raw_sellers) > 0:
+        p['sellers_count'] = int(raw_sellers)
+    elif is_cat:
+        p['sellers_count'] = max(int(reviews / 15), 2)
     else:
         p['sellers_count'] = 1
+        
+    p['buybox_offers_count'] = p['sellers_count']
+    p['buybox_min_price'] = float(p.get('buybox_min_price') or p.get('BUYBOX_MIN_PRICE') or 0.0)
         
     # 7. Idade estimada (dias)
     p['age_days'] = min(max(reviews * 3, 60), 730)
