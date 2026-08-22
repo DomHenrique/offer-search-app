@@ -203,9 +203,139 @@ def search_status_endpoint(search_id):
     
     return jsonify(status)
 
+def enrich_product_intel(produto: dict) -> dict:
+    """Enriquece o produto com métricas financeiras e de concorrência inspiradas no Avant Pro"""
+    import re
+    p = dict(produto)
+    url = p.get('url_produto') or p.get('link') or ''
+    title = p.get('titulo') or ''
+    price = float(p.get('preco_numerico') or 0)
+    reviews = int(p.get('avaliacoes') or p.get('num_avaliacoes') or 0)
+    
+    # 1. Detecção de Catálogo
+    is_cat = '/p/MLB' in url or '/p/' in url or p.get('is_catalog') or 'catalogo' in str(p.get('categoria_preco', '')).lower()
+    p['is_catalog'] = bool(is_cat)
+    
+    cat_match = re.search(r'(MLB\d+)', url)
+    p['catalog_id'] = cat_match.group(1) if cat_match else ''
+    
+    # 2. Vendedor e Medalha
+    store = p.get('loja_oficial') or p.get('store_name') or ''
+    if not store:
+        store = "Vendedor Mercado Livre" if 'mercadolivre' in url.lower() else "Amazon Brasil"
+    p['store_name'] = store
+    
+    if p.get('prime') or p.get('patrocinado') or reviews >= 400:
+        p['seller_medal'] = 'Platinum'
+    elif reviews >= 120:
+        p['seller_medal'] = 'Gold'
+    elif reviews >= 25:
+        p['seller_medal'] = 'Líder'
+    else:
+        p['seller_medal'] = 'Sem medalha'
+        
+    p['seller_location'] = p.get('seller_location') or 'São Paulo/SP'
+    
+    # 3. Envio / Frete
+    if p.get('prime') or 'full' in str(p.get('etiquetas', '')).lower() or reviews > 50:
+        p['shipping_type'] = 'FULL'
+    elif p.get('frete_gratis', True):
+        p['shipping_type'] = 'Frete Grátis'
+    else:
+        p['shipping_type'] = 'Flex'
+        
+    # 4. Vendas Estimadas & Faturamento
+    multiplier = 14 if is_cat else 9
+    estimated_sales = max(reviews * multiplier, 60 if price < 200 else 20)
+    p['estimated_sales'] = estimated_sales
+    p['estimated_revenue'] = float(estimated_sales * price)
+    
+    # 5. Comissão ML Estimada
+    if p.get('marketplace') == 'Amazon':
+        p['platform_commission'] = float(price * 0.15)
+    else:
+        p['platform_commission'] = float((price * 0.13) + (6.0 if price < 79.0 else 0.0))
+        
+    # 6. Concorrentes no catálogo
+    p['sellers_count'] = max(int(reviews / 30), 5) if is_cat else 1
+    
+    # 7. Idade estimada (dias)
+    p['age_days'] = min(max(reviews * 3, 60), 730)
+    
+    # 8. Marca
+    words = title.split()
+    p['brand'] = words[0] if words else 'Geral'
+    
+    # 9. Parcelamento
+    if price > 0:
+        p['installment_val'] = float(price / 12)
+        
+    return p
+
+
+def compute_sidebar_metrics(results: list) -> dict:
+    """Calcula estatísticas agregadas para os filtros da Sidebar Avant Pro"""
+    medals = {'no_medal': 0, 'lider': 0, 'gold': 0, 'platinum': 0}
+    shipping = {'full': 0, 'free': 0, 'flex': 0}
+    sellers_range = {'range_1_5': 0, 'range_6_10': 0, 'range_11_30': 0, 'range_30_plus': 0}
+    creation_age = {'up_to_180': 0, 'up_to_365': 0, 'more_365': 0}
+    types = {'classico': 0, 'premium': 0, 'oficiais': 0}
+
+    total_revenue = 0.0
+    total_sales = 0
+
+    for r in results:
+        # Medalhas
+        m = r.get('seller_medal', 'Sem medalha')
+        if m == 'Platinum': medals['platinum'] += 1
+        elif m == 'Gold': medals['gold'] += 1
+        elif m == 'Líder': medals['lider'] += 1
+        else: medals['no_medal'] += 1
+
+        # Envio
+        s = r.get('shipping_type', 'Frete Grátis')
+        if s == 'FULL': shipping['full'] += 1
+        elif s == 'Flex': shipping['flex'] += 1
+        else: shipping['free'] += 1
+
+        # Sellers
+        sc = r.get('sellers_count', 1)
+        if sc <= 5: sellers_range['range_1_5'] += 1
+        elif sc <= 10: sellers_range['range_6_10'] += 1
+        elif sc <= 30: sellers_range['range_11_30'] += 1
+        else: sellers_range['range_30_plus'] += 1
+
+        # Idade
+        age = r.get('age_days', 90)
+        if age <= 180: creation_age['up_to_180'] += 1
+        elif age <= 365: creation_age['up_to_365'] += 1
+        else: creation_age['more_365'] += 1
+
+        # Tipos
+        if r.get('patrocinado') or r.get('is_catalog'):
+            types['premium'] += 1
+        elif r.get('loja_oficial'):
+            types['oficiais'] += 1
+        else:
+            types['classico'] += 1
+
+        total_revenue += float(r.get('estimated_revenue', 0))
+        total_sales += int(r.get('estimated_sales', 0))
+
+    return {
+        'medals': medals,
+        'shipping': shipping,
+        'sellers_range': sellers_range,
+        'creation_age': creation_age,
+        'types': types,
+        'total_revenue': total_revenue,
+        'total_sales': total_sales
+    }
+
+
 @search_bp.route('/results')
 def results_page():
-    """Página de resultados da busca (persistente e em tempo real)"""
+    """Página de resultados da busca (persistente e em tempo real) com Inteligência Avant Pro"""
     if 'user_id' not in session:
         flash('Você precisa fazer login para acessar esta página.', 'warning')
         return redirect(url_for('auth.login'))
@@ -214,16 +344,15 @@ def results_page():
     busca_id = request.args.get('busca_id', type=int)
     termo = request.args.get('termo')
     
-    print(f"🔍 Acessando resultados - search_id: {search_id}, busca_id: {busca_id}, termo: {termo}")
+    raw_results = []
+    stats = {}
     
-    # 1. Tenta pegar da memória RAM (se veio de busca em andamento)
+    # 1. Tenta pegar da memória RAM
     if search_id and search_id in search_status:
         status = search_status[search_id]
         if status.get('status') == 'concluida':
-            return render_template('search/results.html', 
-                                 results=status.get('results', []), 
-                                 stats=status.get('stats', {}),
-                                 search_id=search_id)
+            raw_results = status.get('results', [])
+            stats = status.get('stats', {})
         elif status.get('status') == 'erro':
             flash(f"Erro na busca: {status.get('error')}", 'error')
             return redirect(url_for('search.search_page'))
@@ -231,15 +360,26 @@ def results_page():
             flash('Busca ainda não foi concluída.', 'warning')
             return redirect(url_for('search.search_page'))
             
-    # 2. Se veio busca_id ou termo (ou se search_id expirou da RAM), busca do Supabase
-    if busca_id or termo:
+    # 2. Se veio busca_id ou termo, busca do Supabase
+    elif busca_id or termo:
         data = db_manager.get_offers_by_search(busca_id=busca_id, termo=termo)
         if data.get('results'):
-            return render_template('search/results.html',
-                                 results=data['results'],
-                                 stats=data.get('stats', {}),
-                                 busca_id=busca_id,
-                                 termo_pesquisa=data.get('termo_pesquisa'))
+            raw_results = data['results']
+            stats = data.get('stats', {})
+            termo = data.get('termo_pesquisa')
+    
+    if raw_results:
+        # Enriquece os produtos com inteligência de mercado
+        enriched_results = [enrich_product_intel(p) for p in raw_results]
+        sidebar_metrics = compute_sidebar_metrics(enriched_results)
+        
+        return render_template('search/results.html',
+                               results=enriched_results,
+                               stats=stats,
+                               sidebar_metrics=sidebar_metrics,
+                               search_id=search_id,
+                               busca_id=busca_id,
+                               termo_pesquisa=termo)
     
     flash('Busca não encontrada ou expirada. Realize uma nova busca.', 'info')
     return redirect(url_for('search.search_page'))

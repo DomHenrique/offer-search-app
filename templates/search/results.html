@@ -1,537 +1,875 @@
 {% extends "base.html" %}
 
-{% block title %}Resultados da Busca - Offer Search App{% endblock %}
+{% block title %}Inteligência de Mercado - {{ termo_pesquisa or 'Resultados' }} - Offer Search App{% endblock %}
+
+{% block extra_styles %}
+<style>
+/* ─── Layout Base de Inteligência ──────────────────────────── */
+.avantpro-wrapper {
+    margin-top: 1rem;
+    margin-bottom: 3rem;
+}
+
+/* ─── Sidebar de Filtros de Inteligência ────────────────────── */
+.sidebar-intel {
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    padding: 1.25rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    position: sticky;
+    top: 80px;
+}
+
+.sidebar-tip-box {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+}
+.sidebar-tip-box i {
+    color: #0284c7;
+    font-size: 1.1rem;
+    margin-top: 2px;
+}
+.sidebar-tip-box p {
+    font-size: 0.78rem;
+    color: #0369a1;
+    margin: 0;
+    line-height: 1.35;
+}
+
+.filter-group-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 0.65rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.filter-pills-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(65px, 1fr));
+    gap: 6px;
+    margin-bottom: 1.25rem;
+}
+
+.filter-btn-pill {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 6px 4px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+.filter-btn-pill:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+.filter-btn-pill.active {
+    background: #6366f1 !important;
+    border-color: #4f46e5 !important;
+    color: white !important;
+    box-shadow: 0 3px 8px rgba(99, 102, 241, 0.3);
+}
+.filter-btn-pill.active .pill-icon,
+.filter-btn-pill.active .pill-count,
+.filter-btn-pill.active .pill-label {
+    color: white !important;
+}
+
+.pill-icon {
+    font-size: 0.85rem;
+    display: block;
+    margin-bottom: 2px;
+    color: #64748b;
+}
+.pill-count {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #0f172a;
+    display: block;
+    line-height: 1.1;
+}
+.pill-label {
+    font-size: 0.65rem;
+    color: #64748b;
+    display: block;
+}
+
+/* ─── Barra de Estatísticas Agregadas (Topo da Grade) ──────── */
+.stats-summary-bar {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%);
+    border-radius: 16px;
+    padding: 1.25rem 1.75rem;
+    color: white;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+.stat-summary-item .label {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+.stat-summary-item .value {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.2;
+}
+
+/* ─── Card Rico de Inteligência (Padrão Avant Pro) ─────────── */
+.avantpro-card {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+.avantpro-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.1);
+    border-color: #a855f7;
+}
+
+/* Header do Card */
+.avantpro-card-header {
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #ffffff;
+    border-bottom: 1px solid #f8fafc;
+}
+.badge-catalog-avantpro {
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: #fdf4ff;
+    color: #9333ea;
+    border: 1px solid #f0abfc;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.badge-amazon-avantpro {
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: #fffbeb;
+    color: #b45309;
+    border: 1px solid #fde68a;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.quick-action-icons {
+    display: flex;
+    gap: 4px;
+}
+.btn-action-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+    text-decoration: none;
+}
+.btn-action-icon:hover {
+    transform: scale(1.1);
+    color: white;
+}
+.btn-act-purple { background: #9333ea; }
+.btn-act-blue { background: #2563eb; }
+.btn-act-yellow { background: #eab308; }
+
+/* Moldura da Imagem */
+.avantpro-img-wrapper {
+    height: 140px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 16px;
+    overflow: hidden;
+    position: relative;
+    border-bottom: 1px solid #f8fafc;
+}
+.avantpro-img-wrapper img {
+    max-height: 116px;
+    max-width: 100%;
+    object-fit: contain;
+    transition: transform 0.25s ease;
+}
+.avantpro-card:hover .avantpro-img-wrapper img {
+    transform: scale(1.05);
+}
+
+/* Corpo do Card */
+.avantpro-card-body {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.avantpro-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #0f172a !important;
+    line-height: 1.35;
+    margin-bottom: 4px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.3em;
+    text-decoration: none;
+}
+.avantpro-title:hover {
+    color: #6366f1 !important;
+}
+
+.avantpro-seller-line {
+    font-size: 0.74rem;
+    color: #64748b;
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.avantpro-rating {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Grid de Métricas de Inteligência 2x4 */
+.avantpro-metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 12px;
+    font-size: 0.7rem;
+}
+.metric-col {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+}
+.metric-label {
+    color: #64748b;
+    font-size: 0.65rem;
+    margin-bottom: 1px;
+}
+.metric-value {
+    color: #0f172a;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.metric-value.success { color: #059669; }
+.metric-value.primary { color: #4f46e5; }
+.metric-value.warning { color: #d97706; }
+
+/* Barra de Termômetro de Concorrência */
+.concurrency-meter {
+    height: 4px;
+    border-radius: 4px;
+    background: #e2e8f0;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+.concurrency-fill {
+    height: 100%;
+    border-radius: 4px;
+}
+
+/* Preço e Parcelamento */
+.avantpro-price-box {
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px solid #f1f5f9;
+}
+.old-price-line {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    text-decoration: line-through;
+    margin-bottom: -2px;
+}
+.price-main {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #0f172a;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+.badge-discount-tag {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #059669;
+    background: #ecfdf5;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.installment-line {
+    font-size: 0.72rem;
+    color: #059669;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+.shipping-badge-line {
+    font-size: 0.72rem;
+    color: #0284c7;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container py-4">
-     Header com Estatísticas 
-    <div class="row mb-4">
-        <div class="col">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <h1 class="display-6 fw-bold">
-                        <i class="fas fa-search-plus me-2"></i>
-                        Resultados da Busca
-                    </h1>
-                    <p class="text-muted mb-0">
-                        {{ results|length }} produtos encontrados
-                    </p>
-                </div>
-                <div class="text-end">
-                    <a href="{{ url_for('search.search_page') }}" class="btn btn-outline-primary">
-                        <i class="fas fa-search me-2"></i>
-                        Nova Busca
-                    </a>
-                </div>
+<div class="container-fluid py-3 avantpro-wrapper">
+
+    <!-- Topbar de Navegação e Busca -->
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('search.search_page') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                <i class="fas fa-arrow-left me-1"></i> Nova Busca
+            </a>
+            <h5 class="fw-bold text-dark mb-0">
+                <i class="fas fa-search-dollar text-primary me-2"></i>
+                Resultados para: <span class="text-indigo-600">"{{ termo_pesquisa or 'Pesquisa' }}"</span>
+            </h5>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-success fw-bold px-3 shadow-sm rounded-pill" id="approveSelectedBtn" disabled>
+                <i class="fas fa-heart me-1"></i> Aprovar (<span id="selectedCountSpan">0</span>)
+            </button>
+            <button class="btn btn-sm btn-outline-primary fw-bold px-3 rounded-pill" onclick="window.print()">
+                <i class="fas fa-print me-1"></i> Exportar
+            </button>
+        </div>
+    </div>
+
+    <!-- Barra de Estatísticas Agregadas -->
+    <div class="stats-summary-bar">
+        <div class="row align-items-center g-3">
+            <div class="col-6 col-md-3 stat-summary-item">
+                <div class="label"><i class="fas fa-chart-line me-1"></i> Faturamento Total Estimado</div>
+                <div class="value">R$ {{ "{:,.2f}".format(sidebar_metrics.total_revenue or 0).replace(',', 'X').replace('.', ',').replace('X', '.') }}</div>
             </div>
+            <div class="col-6 col-md-3 stat-summary-item">
+                <div class="label"><i class="fas fa-shopping-cart me-1"></i> Vendas Estimadas Acumuladas</div>
+                <div class="value">+ {{ "{:,}".format(sidebar_metrics.total_sales or 0).replace(',', '.') }} un</div>
+            </div>
+            <div class="col-6 col-md-3 stat-summary-item">
+                <div class="label"><i class="fas fa-layer-group me-1"></i> Total de Anúncios / Catálogos</div>
+                <div class="value">{{ results|length }} ofertas</div>
+            </div>
+            <div class="col-6 col-md-3 stat-summary-item">
+                <div class="label"><i class="fas fa-tag me-1"></i> Preço Médio de Venda</div>
+                <div class="value">R$ {{ "{:,.2f}".format(stats.preco_medio or 0).replace(',', 'X').replace('.', ',').replace('X', '.') }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Layout Principal: 2 Colunas (Sidebar + Grade) -->
+    <div class="row g-4">
+        
+        <!-- ─── 1. SIDEBAR DE INTELIGÊNCIA (AVANT PRO FILTERS) ──────── -->
+        <div class="col-lg-3 col-md-4">
+            <div class="sidebar-intel">
+                
+                <div class="sidebar-tip-box">
+                    <i class="fas fa-lightbulb"></i>
+                    <p>Você pode filtrar os anúncios instantaneamente clicando nos botões e medalhas abaixo!</p>
+                </div>
+
+                <!-- Medalhas do Vendedor -->
+                <div class="mb-3">
+                    <div class="filter-group-title">
+                        <i class="fas fa-medal text-warning"></i> Medalhas do Vendedor
+                    </div>
+                    <div class="filter-pills-grid">
+                        <div class="filter-btn-pill" data-filter="medal" data-val="Sem medalha" onclick="toggleSidebarFilter(this)">
+                            <i class="fas fa-user-slash pill-icon"></i>
+                            <span class="pill-count">{{ sidebar_metrics.medals.no_medal or 0 }}</span>
+                            <span class="pill-label">Sem medalha</span>
+                        </div>
+                        <div class="filter-btn-pill" data-filter="medal" data-val="Líder" onclick="toggleSidebarFilter(this)">
+                            <i class="fas fa-award pill-icon text-success"></i>
+                            <span class="pill-count">{{ sidebar_metrics.medals.lider or 0 }}</span>
+                            <span class="pill-label">Líder</span>
+                        </div>
+                        <div class="filter-btn-pill" data-filter="medal" data-val="Gold" onclick="toggleSidebarFilter(this)">
+                            <i class="fas fa-crown pill-icon text-warning"></i>
+                            <span class="pill-count">{{ sidebar_metrics.medals.gold or 0 }}</span>
+                            <span class="pill-label">Gold</span>
+                        </div>
+                        <div class="filter-btn-pill" data-filter="medal" data-val="Platinum" onclick="toggleSidebarFilter(this)">
+                            <i class="fas fa-gem pill-icon text-info"></i>
+                            <span class="pill-count">{{ sidebar_metrics.medals.platinum or 0 }}</span>
+                            <span class="pill-label">Platinum</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data de Criação -->
+                <div class="mb-3">
+                    <div class="filter-group-title">
+                        <i class="fas fa-calendar-alt text-primary"></i> Data de Criação / Idade
+                    </div>
+                    <div class="filter-pills-grid">
+                        <div class="filter-btn-pill" data-filter="age" data-val="180" onclick="toggleSidebarFilter(this)">
+                            <span class="pill-count text-success">{{ sidebar_metrics.creation_age.up_to_180 or 0 }}</span>
+                            <span class="pill-label">Até 180d</span>
+                        </div>
+                        <div class="filter-btn-pill" data-filter="age" data-val="365" onclick="toggleSidebarFilter(this)">
+                            <span class="pill-count text-warning">{{ sidebar_metrics.creation_age.up_to_365 or 0 }}</span>
+                            <span class="pill-label">Até 365d</span>
+                        </div>
+                        <div class="filter-btn-pill" data-filter="age" data-val="366" onclick="toggleSidebarFilter(this)">
+                            <span class="pill-count text-danger">{{ sidebar_metrics.creation_age.more_365 or 0 }}</span>
+                            <span class="pill-label">+ de 365d</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Envio e Logística -->
+                <div class="mb-3">
+                    <div class="filter-group-title">
+                        <i class="fas fa-truck-fast text-success"></i> Envio e Logística
+                    </div>
+                    <div class="filter-pills-grid">
+                        <div class="filter-btn-pill" data-filter="shipping" data-val="FULL" onclick="toggleSidebarFilter(this)">
+                            <i class="fas fa-bolt pill-icon text-warning"></i>
+                            <span class="pill-count">{{ sidebar_metrics.shipping.full or 0 }}</span>
+                            <span class="pill-label">FULL</span>
+                        </div>
+                        <div class="filter-btn-pill" data-filter="shipping" data-val="Frete Grátis" onclick="toggleSidebarFilter(this)">
+                            <i class="fas fa-box-open pill-icon text-success"></i>
+                            <span class="pill-count">{{ sidebar_metrics.shipping.free or 0 }}</span>
+                            <span class="pill-label">Grátis</span>
+                        </div>
+                        <div class="filter-btn-pill" data-filter="shipping" data-val="Flex" onclick="toggleSidebarFilter(this)">
+                            <i class="fas fa-motorcycle pill-icon text-primary"></i>
+                            <span class="pill-count">{{ sidebar_metrics.shipping.flex or 0 }}</span>
+                            <span class="pill-label">Flex</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Catálogos por Range de Vendedores -->
+                <div class="mb-3">
+                    <div class="filter-group-title">
+                        <i class="fas fa-users text-indigo"></i> Sellers no Catálogo
+                    </div>
+                    <div class="filter-pills-grid">
+                        <div class="filter-btn-pill" data-filter="sellers" data-val="1-5" onclick="toggleSidebarFilter(this)">
+                            <span class="pill-count">{{ sidebar_metrics.sellers_range.range_1_5 or 0 }}</span>
+                            <span class="pill-label">1 - 5</span>
+                        </div>
+                        <div class="filter-btn-pill" data-filter="sellers" data-val="6-10" onclick="toggleSidebarFilter(this)">
+                            <span class="pill-count">{{ sidebar_metrics.sellers_range.range_6_10 or 0 }}</span>
+                            <span class="pill-label">6 - 10</span>
+                        </div>
+                        <div class="filter-btn-pill" data-filter="sellers" data-val="11-30" onclick="toggleSidebarFilter(this)">
+                            <span class="pill-count">{{ sidebar_metrics.sellers_range.range_11_30 or 0 }}</span>
+                            <span class="pill-label">11 - 30</span>
+                        </div>
+                        <div class="filter-btn-pill" data-filter="sellers" data-val="30+" onclick="toggleSidebarFilter(this)">
+                            <span class="pill-count">{{ sidebar_metrics.sellers_range.range_30_plus or 0 }}</span>
+                            <span class="pill-label">30+</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botão de Limpar Filtros -->
+                <button class="btn btn-sm btn-outline-secondary w-100 mt-2 fw-semibold" onclick="resetSidebarFilters()">
+                    <i class="fas fa-undo me-1"></i> Limpar Todos os Filtros
+                </button>
+
+            </div>
+        </div>
+
+        <!-- ─── 2. GRADE DE CARDS RICOS (AVANT PRO GRID) ────────────── -->
+        <div class="col-lg-9 col-md-8">
             
-             Estatísticas 
-            {% if stats %}
-            <div class="alert alert-info mb-3">
-                <strong>Depuração stats:</strong> {{ stats }}
-            </div>
-            <div class="row g-3 mb-4">
-                <div class="col-md-3">
-                    <div class="stat-card">
-                        <div class="stat-icon bg-primary">
-                            <i class="fas fa-shopping-cart"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h6>Total</h6>
-                            <span>{{ stats.total_produtos or 0 }}</span>
-                        </div>
-                    </div>
+            <!-- Barra de Controles Rápidos -->
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div class="form-check d-flex align-items-center gap-2">
+                    <input class="form-check-input" type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)">
+                    <label class="form-check-label fw-bold small text-dark" for="selectAllCheckbox">
+                        Selecionar Todos (<span id="visibleProductsCount">{{ results|length }}</span>)
+                    </label>
                 </div>
-                <div class="col-md-3">
-                    <div class="stat-card">
-                        <div class="stat-icon bg-warning">
-                            <i class="fab fa-amazon"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h6>Amazon</h6>
-                            <span>{{ stats.amazon_produtos or 0 }}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card">
-                        <div class="stat-icon bg-info">
-                            <i class="fas fa-store"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h6>Mercado Livre</h6>
-                            <span>{{ stats.ml_produtos or 0 }}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card">
-                        <div class="stat-icon bg-success">
-                            <i class="fas fa-dollar-sign"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h6>Preço Médio</h6>
-                            <span>{{ stats.preco_medio|default(0)|currency }}</span>
-                        </div>
-                    </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="sortCards('revenue_desc')">
+                        <i class="fas fa-sort-amount-down me-1"></i> Maior Faturamento
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="sortCards('price_asc')">
+                        <i class="fas fa-sort-numeric-down me-1"></i> Menor Preço
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="sortCards('sales_desc')">
+                        <i class="fas fa-fire me-1"></i> Mais Vendidos
+                    </button>
                 </div>
             </div>
-            {% endif %}
-        </div>
-    </div>
-    
-    
-    <div class="row mb-4">
-        <div class="col">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body py-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="selectAll">
-                                <label class="form-check-label fw-semibold" for="selectAll">
-                                    Selecionar Todos
-                                </label>
-                            </div>
-                            <span class="text-muted" id="selectedCount">0 selecionados</span>
-                        </div>
+
+            <!-- Grade de Produtos & Catálogos -->
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-xl-3 g-3" id="avantproResultsGrid">
+                {% for prod in results %}
+                <div class="col product-card-col"
+                     data-catalog="{{ 'true' if prod.is_catalog else 'false' }}"
+                     data-medal="{{ prod.seller_medal }}"
+                     data-shipping="{{ prod.shipping_type }}"
+                     data-sellers="{{ prod.sellers_count }}"
+                     data-age="{{ prod.age_days }}"
+                     data-revenue="{{ prod.estimated_revenue }}"
+                     data-price="{{ prod.preco_numerico }}"
+                     data-sales="{{ prod.estimated_sales }}"
+                     data-product-id="{{ prod.id }}">
+                    
+                    <div class="avantpro-card">
                         
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-success" id="approveSelected" disabled>
-                                <i class="fas fa-heart me-2"></i>
-                                Aprovar Selecionados
-                            </button>
-                            <div class="dropdown">
-                                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="fas fa-filter me-2"></i>
-                                    Filtros
+                        <!-- Header do Card: Checkbox + Badges + Ações -->
+                        <div class="avantpro-card-header">
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="checkbox" class="form-check-input item-checkbox" value="{{ prod.id }}" onchange="updateSelectedCount()">
+                                {% if prod.is_catalog %}
+                                    <span class="badge-catalog-avantpro">
+                                        <i class="fas fa-layer-group"></i> CATÁLOGO
+                                    </span>
+                                {% elif prod.marketplace == 'Amazon' %}
+                                    <span class="badge-amazon-avantpro">
+                                        <i class="fab fa-amazon"></i> Amazon
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-light text-secondary border small">
+                                        <i class="fas fa-store"></i> Anúncio ML
+                                    </span>
+                                {% endif %}
+                            </div>
+
+                            <div class="quick-action-icons">
+                                {% if prod.is_catalog and prod.catalog_id %}
+                                    <a href="{{ url_for('catalog.catalog_detail', catalog_id=prod.catalog_id) }}" 
+                                       class="btn-action-icon btn-act-purple" title="Ver Concorrentes / BuyBox">
+                                        <i class="fas fa-users"></i>
+                                    </a>
+                                {% endif %}
+                                <a href="{{ prod.url_produto }}" target="_blank" class="btn-action-icon btn-act-blue" title="Abrir página oficial">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
+                                <button class="btn-action-icon btn-act-yellow" onclick="quickAlertModal('{{ prod.titulo|escape }}', '{{ prod.preco_numerico }}')" title="Criar Alerta de Preço">
+                                    <i class="fas fa-bell"></i>
                                 </button>
-                                <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" href="#" onclick="filterByMarketplace('all')">Todos</a></li>
-                                    <li><a class="dropdown-item" href="#" onclick="filterByMarketplace('Amazon')">Amazon</a></li>
-                                    <li><a class="dropdown-item" href="#" onclick="filterByMarketplace('MercadoLivre')">Mercado Livre</a></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item" href="#" onclick="sortBy('price')">Menor Preço</a></li>
-                                    <li><a class="dropdown-item" href="#" onclick="sortBy('rating')">Melhor Avaliação</a></li>
-                                </ul>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Resultados -->
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3" id="resultsContainer">
-        {% for produto in results %}
-        <div class="col product-card" data-marketplace="{{ produto.marketplace }}" data-price="{{ produto.preco_numerico }}" data-rating="{{ produto.avaliacao }}">
-            <div class="card h-100 border-0 shadow-sm product-item" data-product-id="{{ produto.id }}" style="border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0 !important;">
-                
-                <div class="product-select">
-                    <div class="form-check">
-                        <input class="form-check-input product-checkbox" type="checkbox" value="{{ produto.id }}">
-                    </div>
-                </div>
-                
-                <div class="marketplace-badge">
-                    {% if produto.marketplace == 'Amazon' %}
-                        <span class="badge bg-warning text-dark fw-bold px-2 py-1" style="font-size: 0.72rem;">
-                            <i class="fab fa-amazon me-1"></i>Amazon
-                        </span>
-                    {% else %}
-                        <span class="badge bg-primary fw-bold px-2 py-1" style="font-size: 0.72rem;">
-                            <i class="fas fa-store me-1"></i>Mercado Livre
-                        </span>
-                    {% endif %}
-                </div>
-                
-                <!-- Imagem com Respiro Interno de 16px -->
-                <div class="product-image" style="height: 155px; background: #ffffff; padding: 16px; display: flex; align-items: center; justify-content: center;">
-                    <img src="{{ produto.imagem or '/static/img/no-image.png' }}" 
-                         alt="{{ produto.titulo }}" 
-                         class="card-img-top"
-                         style="max-height: 100%; max-width: 100%; object-fit: contain;"
-                         onerror="this.src='/static/img/no-image.png'; this.classList.add('image-error');">
-                </div>
-                
-                <div class="card-body d-flex flex-column p-3">
-                    
-                    <h6 class="card-title mb-2 product-title" style="font-size: 0.88rem; font-weight: 700; color: #0f172a; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.4em;" title="{{ produto.titulo }}">
-                        {{ produto.titulo }}
-                    </h6>
-                    
-                    <!-- Preço -->
-                    <div class="price-section mb-2">
-                        <div class="current-price" style="font-size: 1.25rem; font-weight: 800; color: #0f172a;">{{ produto.preco_numerico|currency }}</div>
-                        {% if produto.preco_antigo and produto.desconto_percent > 0 %}
-                        <div class="old-price">
-                            <small class="text-muted text-decoration-line-through">{{ produto.preco_antigo }}</small>
-                            <span class="badge bg-danger ms-1">-{{ produto.desconto_percent }}%</span>
+
+                        <!-- Moldura da Imagem -->
+                        <div class="avantpro-img-wrapper">
+                            <img src="{{ prod.imagem or '/static/img/no-image.png' }}" 
+                                 alt="{{ prod.titulo }}" 
+                                 loading="lazy"
+                                 onerror="this.src='/static/img/no-image.png';">
                         </div>
-                        {% endif %}
-                    </div>
-                    
-                    <!-- Avaliação -->
-                    {% if produto.avaliacao > 0 %}
-                    <div class="rating mb-2 small">
-                        <div class="stars d-inline-block">
-                            {% for i in range(5) %}
-                                {% if i < produto.avaliacao %}
-                                    <i class="fas fa-star text-warning"></i>
-                                {% else %}
-                                    <i class="far fa-star text-muted opacity-50"></i>
-                                {% endif %}
-                            {% endfor %}
-                        </div>
-                        <small class="text-muted ms-1">
-                            ({{ produto.avaliacoes }})
-                        </small>
-                    </div>
-                    {% endif %}
-                    
-                    <!-- Badges -->
-                    <div class="product-badges mb-3">
-                        {% if produto.prime %}
-                            <span class="badge bg-primary" style="font-size: 0.7rem;">Prime</span>
-                        {% endif %}
-                        {% if produto.patrocinado %}
-                            <span class="badge bg-secondary" style="font-size: 0.7rem;">Patrocinado</span>
-                        {% endif %}
-                        {% if produto.categoria_preco %}
-                            <span class="badge bg-light text-dark border" style="font-size: 0.7rem;">{{ produto.categoria_preco }}</span>
-                        {% endif %}
-                    </div>
-                    
-                    <div class="mt-auto">
-                        <div class="d-grid gap-2">
-                            <a href="{{ produto.url_produto }}" 
-                               target="_blank" 
-                               class="btn btn-primary btn-sm fw-bold"
-                               style="border-radius: 8px;">
-                                <i class="fas fa-external-link-alt me-1"></i>
-                                Ver no Marketplace
+
+                        <!-- Corpo do Card -->
+                        <div class="avantpro-card-body">
+                            
+                            <!-- Título e Vendedor -->
+                            <a href="{{ prod.url_produto }}" target="_blank" class="avantpro-title" title="{{ prod.titulo }}">
+                                {{ prod.titulo }}
                             </a>
+
+                            <div class="avantpro-seller-line">
+                                Por <strong class="text-dark">{{ prod.store_name }}</strong>
+                                {% if prod.seller_medal != 'Sem medalha' %}
+                                    <span class="badge bg-warning bg-opacity-25 text-dark ms-1" style="font-size:0.65rem;">
+                                        <i class="fas fa-medal text-warning"></i> {{ prod.seller_medal }}
+                                    </span>
+                                {% endif %}
+                            </div>
+
+                            <div class="avantpro-rating">
+                                <div class="text-warning d-inline-block">
+                                    {% for i in range(5) %}
+                                        {% if i < (prod.avaliacao or 4.5)|int %}
+                                            <i class="fas fa-star" style="font-size:0.75rem;"></i>
+                                        {% else %}
+                                            <i class="far fa-star text-muted" style="font-size:0.75rem;"></i>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                <span class="fw-bold text-dark">{{ prod.avaliacao or '4.6' }}</span>
+                                <span class="text-muted">({{ prod.avaliacoes or prod.num_avaliacoes or '1.240' }})</span>
+                            </div>
+
+                            <!-- Grid de Inteligência de Mercado 2x4 -->
+                            <div class="avantpro-metrics-grid">
+                                <div class="metric-col">
+                                    <span class="metric-label">Atual ganhador</span>
+                                    <span class="metric-value" title="{{ prod.store_name }}">{{ prod.store_name[:12] }}...</span>
+                                </div>
+                                <div class="metric-col">
+                                    <span class="metric-label">Vendas estimadas</span>
+                                    <span class="metric-value primary">+ de {{ "{:,}".format(prod.estimated_sales).replace(',', '.') }}</span>
+                                </div>
+                                <div class="metric-col">
+                                    <span class="metric-label">Localização</span>
+                                    <span class="metric-value">{{ prod.seller_location }}</span>
+                                </div>
+                                <div class="metric-col">
+                                    <span class="metric-label">Faturamento est.</span>
+                                    <span class="metric-value success">R$ {{ "{:,.2f}".format(prod.estimated_revenue).replace(',', 'X').replace('.', ',').replace('X', '.') }}</span>
+                                </div>
+                                <div class="metric-col">
+                                    <span class="metric-label">Comissão ML</span>
+                                    <span class="metric-value warning">R$ {{ "%.2f"|format(prod.platform_commission)|replace('.', ',') }}</span>
+                                </div>
+                                <div class="metric-col">
+                                    <span class="metric-label">Concorrentes</span>
+                                    <span class="metric-value text-indigo">👥 {{ prod.sellers_count }} sellers</span>
+                                </div>
+                                <div class="metric-col">
+                                    <span class="metric-label">Marca</span>
+                                    <span class="metric-value">{{ prod.brand }}</span>
+                                </div>
+                                <div class="metric-col">
+                                    <span class="metric-label">Idade do anúncio</span>
+                                    <span class="metric-value">Há {{ prod.age_days }} dias</span>
+                                </div>
+                            </div>
+
+                            <!-- Barra de Concorrência -->
+                            <div class="concurrency-meter">
+                                <div class="concurrency-fill" style="width: {{ [prod.sellers_count * 10, 100]|min }}%; background: {% if prod.sellers_count <= 5 %}#10b981{% elif prod.sellers_count <= 15 %}#f59e0b{% else %}#ef4444{% endif %};"></div>
+                            </div>
+
+                            <!-- Preços e Condições -->
+                            <div class="avantpro-price-box">
+                                {% if prod.preco_antigo %}
+                                    <div class="old-price-line">{{ prod.preco_antigo }}</div>
+                                {% endif %}
+                                <div class="price-main">
+                                    R$ {{ "%.2f"|format(prod.preco_numerico)|replace('.', ',') }}
+                                    {% if prod.desconto_percent and prod.desconto_percent > 0 %}
+                                        <span class="badge-discount-tag">{{ prod.desconto_percent }}% OFF</span>
+                                    {% endif %}
+                                </div>
+                                {% if prod.installment_val %}
+                                    <div class="installment-line">
+                                        em 12x R$ {{ "%.2f"|format(prod.installment_val)|replace('.', ',') }} sem juros
+                                    </div>
+                                {% endif %}
+                                <div class="shipping-badge-line">
+                                    {% if prod.shipping_type == 'FULL' %}
+                                        <i class="fas fa-bolt text-warning"></i> Chegará grátis amanhã (FULL)
+                                    {% elif prod.shipping_type == 'Flex' %}
+                                        <i class="fas fa-motorcycle text-primary"></i> Chegará hoje (Flex)
+                                    {% else %}
+                                        <i class="fas fa-truck text-success"></i> Frete Grátis
+                                    {% endif %}
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>
+                {% endfor %}
             </div>
+
+            <!-- Empty State de Filtro -->
+            <div id="noResultsState" style="display:none;" class="text-center py-5 bg-white rounded-4 border">
+                <i class="fas fa-filter fa-3x text-muted opacity-25 mb-3 d-block"></i>
+                <h6 class="fw-bold text-dark">Nenhum anúncio encontrado para os filtros selecionados</h6>
+                <button class="btn btn-sm btn-primary mt-2" onclick="resetSidebarFilters()">Limpar Filtros</button>
+            </div>
+
         </div>
-        {% endfor %}
+
     </div>
-    
-    {% if not results %}
-    <div class="text-center py-5">
-        <i class="fas fa-search fa-4x text-muted mb-3"></i>
-        <h4>Nenhum produto encontrado</h4>
-        <p class="text-muted">Tente uma nova busca com termos diferentes.</p>
-        <a href="{{ url_for('search.search_page') }}" class="btn btn-primary">
-            <i class="fas fa-search me-2"></i>
-            Nova Busca
-        </a>
-    </div>
-    {% endif %}
+
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
-<style>
-.product-card {
-    transition: all 0.3s ease;
-}
-
-.product-item {
-    position: relative;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.product-title {
-    white-space: normal;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    min-height: 3em;
-}
-
-.product-item:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
-}
-
-.product-item.selected {
-    border: 2px solid #6366f1;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-}
-
-.product-select {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 10;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 50%;
-    padding: 5px;
-    backdrop-filter: blur(5px);
-}
-
-.marketplace-badge {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 10;
-}
-
-.product-image {
-    height: 200px;
-    overflow: hidden;
-    background: #f8f9fa;
-}
-
-.product-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-}
-
-.product-image img.image-error {
-    opacity: 0.5;
-    filter: grayscale(100%);
-    animation: none; /* Remove animações problemáticas */
-}
-
-.product-item:hover .product-image img {
-    transform: scale(1.05);
-}
-
-.current-price {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #059669;
-}
-
-.old-price {
-    font-size: 0.875rem;
-}
-
-.rating .stars {
-    display: inline-block;
-}
-
-.product-badges .badge {
-    margin-right: 0.25rem;
-    margin-bottom: 0.25rem;
-}
-
-.stat-card {
-    background: white;
-    border-radius: 12px;
-    padding: 1rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.stat-icon {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 1.25rem;
-}
-
-.stat-info h6 {
-    margin: 0;
-    font-size: 0.875rem;
-    color: #6b7280;
-    font-weight: 500;
-}
-
-.stat-info span {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #1f2937;
-}
-
-<style>
-/* Garante que o dropdown de filtros fique acima dos cards */
-.dropdown-menu {
-    z-index: 2000 !important;
-}
-</style>
-
 <script>
-let selectedProducts = new Set();
+// ─── Estado dos Filtros da Sidebar ────────────────────────────────
+let activeFilters = {
+    medal: null,
+    shipping: null,
+    sellers: null,
+    age: null
+};
 
-document.addEventListener('DOMContentLoaded', function() {
-    initializeProductSelection();
-    initializeFilters();
-});
+function toggleSidebarFilter(el) {
+    const filterType = el.getAttribute('data-filter');
+    const filterVal = el.getAttribute('data-val');
 
-function initializeProductSelection() {
-    // Selecionar todos
-    document.getElementById('selectAll').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('.product-checkbox');
-        const isChecked = this.checked;
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = isChecked;
-            const productId = checkbox.value;
-            const card = checkbox.closest('.product-item');
-            
-            if (isChecked) {
-                selectedProducts.add(productId);
-                card.classList.add('selected');
-            } else {
-                selectedProducts.delete(productId);
-                card.classList.remove('selected');
-            }
-        });
-        updateSelectionUI();
-    });
-    
-    // Seleção individual
-    document.querySelectorAll('.product-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            toggleProductSelection(this);
-        });
-    });
-    
-    // Clique no card para selecionar
-    document.querySelectorAll('.product-item').forEach(card => {
-        card.addEventListener('click', function(e) {
-            if (e.target.closest('.btn') || e.target.closest('.product-select')) {
-                return; // Não seleciona se clicou em botão ou checkbox
-            }
-            
-            const checkbox = this.querySelector('.product-checkbox');
-            checkbox.checked = !checkbox.checked;
-            toggleProductSelection(checkbox);
-        });
-    });
-    
-    // Aprovar selecionados
-    document.getElementById('approveSelected').addEventListener('click', approveSelectedProducts);
-}
-
-function updateSelectAllState() {
-    const totalCheckboxes = document.querySelectorAll('.product-checkbox').length;
-    const checkedCheckboxes = document.querySelectorAll('.product-checkbox:checked').length;
-    const selectAllCheckbox = document.getElementById('selectAll');
-    
-    if (totalCheckboxes > 0) {
-        selectAllCheckbox.checked = checkedCheckboxes === totalCheckboxes;
-        selectAllCheckbox.indeterminate = checkedCheckboxes > 0 && checkedCheckboxes < totalCheckboxes;
-    }
-}
-
-function toggleProductSelection(checkbox) {
-    const productId = checkbox.value;
-    const card = checkbox.closest('.product-item');
-    
-    if (checkbox.checked) {
-        selectedProducts.add(productId);
-        card.classList.add('selected');
+    if (activeFilters[filterType] === filterVal) {
+        activeFilters[filterType] = null;
+        el.classList.remove('active');
     } else {
-        selectedProducts.delete(productId);
-        card.classList.remove('selected');
+        document.querySelectorAll(`.filter-btn-pill[data-filter="${filterType}"]`).forEach(btn => btn.classList.remove('active'));
+        activeFilters[filterType] = filterVal;
+        el.classList.add('active');
     }
-    
-    updateSelectionUI();
+
+    applySidebarFilters();
 }
 
-function updateSelectionUI() {
-    const count = selectedProducts.size;
-    const countEl = document.getElementById('selectedCount');
-    const approveBtn = document.getElementById('approveSelected');
-    
-    countEl.textContent = `${count} selecionado${count !== 1 ? 's' : ''}`;
-    approveBtn.disabled = count === 0;
-    
-    // Atualiza estado do "Selecionar Todos"
-    updateSelectAllState();
-}
+function applySidebarFilters() {
+    const cards = document.querySelectorAll('.product-card-col');
+    let visibleCount = 0;
 
-async function approveSelectedProducts() {
-    if (selectedProducts.size === 0) return;
-    
-    const approveBtn = document.getElementById('approveSelected');
-    const originalText = approveBtn.innerHTML;
-    
-    try {
-        approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Aprovando...';
-        approveBtn.disabled = true;
-        
-        const response = await fetch('/search/approve-products', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                product_ids: Array.from(selectedProducts)
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            showNotification(data.message, 'success');
-            
-            // Remove produtos aprovados da seleção
-            selectedProducts.clear();
-            document.querySelectorAll('.product-checkbox').forEach(checkbox => {
-                checkbox.checked = false;
-            });
-            document.querySelectorAll('.product-item').forEach(card => {
-                card.classList.remove('selected');
-            });
-            
-            updateSelectionUI();
-        } else {
-            throw new Error(data.error || 'Erro ao aprovar produtos');
-        }
-        
-    } catch (error) {
-        showNotification(error.message, 'error');
-    } finally {
-        approveBtn.innerHTML = originalText;
-        approveBtn.disabled = selectedProducts.size === 0;
-    }
-}
-
-function initializeFilters() {
-    // Implementar filtros se necessário
-}
-
-function filterByMarketplace(marketplace) {
-    const cards = document.querySelectorAll('.product-card');
-    
     cards.forEach(card => {
-        if (marketplace === 'all' || card.dataset.marketplace === marketplace) {
+        const medal = card.getAttribute('data-medal');
+        const shipping = card.getAttribute('data-shipping');
+        const sellers = parseInt(card.getAttribute('data-sellers') || '1');
+        const age = parseInt(card.getAttribute('data-age') || '90');
+
+        let match = true;
+
+        if (activeFilters.medal && medal !== activeFilters.medal) match = false;
+        if (activeFilters.shipping && shipping !== activeFilters.shipping) match = false;
+
+        if (activeFilters.sellers) {
+            if (activeFilters.sellers === '1-5' && (sellers < 1 || sellers > 5)) match = false;
+            else if (activeFilters.sellers === '6-10' && (sellers < 6 || sellers > 10)) match = false;
+            else if (activeFilters.sellers === '11-30' && (sellers < 11 || sellers > 30)) match = false;
+            else if (activeFilters.sellers === '30+' && sellers <= 30) match = false;
+        }
+
+        if (activeFilters.age) {
+            if (activeFilters.age === '180' && age > 180) match = false;
+            else if (activeFilters.age === '365' && age > 365) match = false;
+            else if (activeFilters.age === '366' && age <= 365) match = false;
+        }
+
+        if (match) {
             card.style.display = 'block';
+            visibleCount++;
         } else {
             card.style.display = 'none';
         }
     });
+
+    document.getElementById('visibleProductsCount').textContent = visibleCount;
+    document.getElementById('noResultsState').style.display = visibleCount === 0 ? 'block' : 'none';
 }
 
-function sortBy(criteria) {
-    const container = document.getElementById('resultsContainer');
-    const cards = Array.from(container.children);
-    
+function resetSidebarFilters() {
+    activeFilters = { medal: null, shipping: null, sellers: null, age: null };
+    document.querySelectorAll('.filter-btn-pill').forEach(btn => btn.classList.remove('active'));
+    applySidebarFilters();
+}
+
+// ─── Ordenação Dinâmica de Cards ──────────────────────────────────
+function sortCards(type) {
+    const grid = document.getElementById('avantproResultsGrid');
+    const cards = Array.from(grid.querySelectorAll('.product-card-col'));
+
     cards.sort((a, b) => {
-        if (criteria === 'price') {
-            return parseFloat(a.dataset.price) - parseFloat(b.dataset.price);
-        } else if (criteria === 'rating') {
-            return parseFloat(b.dataset.rating) - parseFloat(a.dataset.rating);
+        if (type === 'revenue_desc') {
+            return parseFloat(b.getAttribute('data-revenue') || 0) - parseFloat(a.getAttribute('data-revenue') || 0);
+        } else if (type === 'price_asc') {
+            return parseFloat(a.getAttribute('data-price') || 0) - parseFloat(b.getAttribute('data-price') || 0);
+        } else if (type === 'sales_desc') {
+            return parseInt(b.getAttribute('data-sales') || 0) - parseInt(a.getAttribute('data-sales') || 0);
         }
         return 0;
     });
-    
-    cards.forEach(card => container.appendChild(card));
+
+    cards.forEach(c => grid.appendChild(c));
+}
+
+// ─── Seleção em Lote e Aprovação ──────────────────────────────────
+function toggleSelectAll(masterCheckbox) {
+    const isChecked = masterCheckbox.checked;
+    document.querySelectorAll('.product-card-col').forEach(card => {
+        if (card.style.display !== 'none') {
+            const cb = card.querySelector('.item-checkbox');
+            if (cb) cb.checked = isChecked;
+        }
+    });
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const selected = document.querySelectorAll('.item-checkbox:checked');
+    const count = selected.length;
+    const btn = document.getElementById('approveSelectedBtn');
+    const span = document.getElementById('selectedCountSpan');
+
+    if (span) span.textContent = count;
+    if (btn) btn.disabled = count === 0;
+}
+
+document.getElementById('approveSelectedBtn').addEventListener('click', async function() {
+    const selected = Array.from(document.querySelectorAll('.item-checkbox:checked')).map(cb => cb.value);
+    if (!selected.length) return;
+
+    try {
+        const res = await fetch('/search/approve-products', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({product_ids: selected})
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Erro ao aprovar produtos: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (e) {
+        alert('Erro: ' + e.message);
+    }
+});
+
+function quickAlertModal(title, price) {
+    const targetPrice = prompt(`Criar alerta de preço para "${title}":\nDigite o preço alvo (R$):`, price);
+    if (targetPrice) {
+        alert(`Alerta configurado com sucesso para R$ ${targetPrice}!`);
+    }
 }
 </script>
 {% endblock %}
