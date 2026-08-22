@@ -25,7 +25,7 @@ def limpar_preco_numerico(preco_str: str) -> float:
     if not preco_str or pd.isna(preco_str):
         return 0.0
     
-    preco_str = str(preco_str)
+    preco_str = str(preco_str).strip()
     
     # Remove símbolos de moeda e espaços
     preco_limpo = (preco_str
@@ -35,9 +35,8 @@ def limpar_preco_numerico(preco_str: str) -> float:
                    .strip())
     
     # Trata diferentes formatos de número
-    # Ex: "1.234,56" -> "1234.56" ou "1,234.56" -> "1234.56"
+    # Caso 1: Tem ponto e vírgula, ex: "1.234,56" ou "1,234.56"
     if ',' in preco_limpo and '.' in preco_limpo:
-        # Formato "1.234,56" (brasileiro) ou "1,234.56" (americano)
         if preco_limpo.rfind(',') > preco_limpo.rfind('.'):
             # Formato brasileiro: "1.234,56"
             preco_limpo = preco_limpo.replace('.', '').replace(',', '.')
@@ -45,14 +44,19 @@ def limpar_preco_numerico(preco_str: str) -> float:
             # Formato americano: "1,234.56"
             preco_limpo = preco_limpo.replace(',', '')
     elif ',' in preco_limpo:
-        # Se só tem vírgula, pode ser decimal ou separador de milhares
+        # Só tem vírgula: se tiver até 2 dígitos após a vírgula, é decimal (ex: "123,45" -> "123.45")
         partes = preco_limpo.split(',')
         if len(partes) == 2 and len(partes[1]) <= 2:
-            # Provavelmente decimal: "123,45"
             preco_limpo = preco_limpo.replace(',', '.')
         else:
-            # Provavelmente separador de milhares: "1,234"
+            # Separador de milhar: "1,234"
             preco_limpo = preco_limpo.replace(',', '')
+    elif '.' in preco_limpo:
+        # Só tem ponto: no Brasil, valores como "8.200", "1.879", "10.500" usam ponto como milhar!
+        partes = preco_limpo.split('.')
+        # Se a última parte tem exatamente 3 dígitos (ex: "8.200", "1.879", "10.500"), é milhar
+        if len(partes) > 1 and all(len(p) == 3 for p in partes[1:]):
+            preco_limpo = preco_limpo.replace('.', '')
     
     # Extrai apenas números e ponto decimal
     match = re.search(r'(\d+\.?\d*)', preco_limpo)

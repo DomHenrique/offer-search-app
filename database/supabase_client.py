@@ -259,17 +259,14 @@ class SupabaseDB:
             df_supabase[coluna_supabase] = valor_coluna
 
         # **CORREÇÃO DEFINITIVA**: Converte tipos explicitamente e com segurança
-        def safe_convert_to_numeric(series, dtype='float'):
+        def safe_convert_to_numeric(series, dtype='float', max_val=99999999.99, min_val=0.0):
             """Converte série para numérico com tratamento seguro de erros"""
             try:
                 converted = pd.to_numeric(series, errors='coerce').fillna(0)
                 if dtype == 'int':
                     return converted.astype('int64')
-                # Limita valores para evitar erro de precisão no Supabase (precisão 5, escala 2)
-                # Isso significa que o valor máximo absoluto deve ser menor que 10^3 = 1000
-                max_value = 999.99
-                min_value = -999.99
-                converted = converted.clip(lower=min_value, upper=max_value)
+                # Permite valores reais de produtos de alto valor (ex: geradores, eletrônicos)
+                converted = converted.clip(lower=min_val, upper=max_val)
                 return converted
             except Exception as e:
                 print(f"⚠️ Erro na conversão numérica: {e}")
