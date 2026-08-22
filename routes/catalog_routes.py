@@ -29,11 +29,22 @@ def catalog_list():
 
     user_id = session['user_id']
 
-    # Catálogos já salvos do usuário
-    saved_catalogs = db_manager.get_user_catalogs(user_id, limit=50)
+    # Catálogos já salvos do usuário (agrupados por termo de pesquisa)
+    saved_catalogs = db_manager.get_user_catalogs(user_id, limit=200)
+
+    # Agrupa os catálogos pelo termo que os originou
+    from collections import OrderedDict
+    grouped_catalogs = OrderedDict()
+    for cat in saved_catalogs:
+        raw_term = (cat.get('termo_pesquisa') or '').strip()
+        term = raw_term if raw_term else 'Outros / Sem termo associado'
+        if term not in grouped_catalogs:
+            grouped_catalogs[term] = []
+        grouped_catalogs[term].append(cat)
 
     return render_template('catalog/catalog_list.html',
-                           saved_catalogs=saved_catalogs)
+                           saved_catalogs=saved_catalogs,
+                           grouped_catalogs=grouped_catalogs)
 
 
 @catalog_bp.route('/<catalog_id>')

@@ -132,47 +132,65 @@
 
     <!-- Tabela de Concorrentes -->
     <div class="table-saas-card mb-4">
+        <div class="p-3 border-bottom d-flex align-items-center justify-content-between">
+            <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
+                <i class="fas fa-list-ol text-primary me-2"></i>
+                Vendedores Concorrentes
+                <span class="badge-saas badge-saas-neutral ms-2 font-tabular">Ordenado por Menor Preço</span>
+            </h6>
+            <small class="text-muted">
+                <i class="fas fa-info-circle me-1"></i> Preços e condições extraídos do Mercado Livre
+            </small>
+        </div>
+
         {% if sellers and sellers|length > 0 %}
         <div class="table-responsive">
             <table class="ml-sellers-table">
                 <thead>
                     <tr>
-                        <th style="width: 22%;">Preço</th>
-                        <th style="width: 14%;">Condição</th>
-                        <th style="width: 32%;">Forma de entrega</th>
-                        <th style="width: 20%;">Vendedor</th>
+                        <th style="width: 22%;">Preço & Condições</th>
+                        <th style="width: 12%;">Condição</th>
+                        <th style="width: 32%;">Forma de Entrega</th>
+                        <th style="width: 22%;">Vendedor & Reputação</th>
                         <th style="width: 12%; text-align: center;">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for s in sellers %}
-                    <tr class="{% if loop.first and s.preco > 0 %}best-offer-row{% endif %}">
+                    <tr class="{% if loop.first and s.preco and s.preco > 0 %}best-offer-row{% endif %}">
                         <!-- Coluna 1: Preço -->
                         <td>
-                            <div class="price-display-main">
-                                {% if s.preco and s.preco > 0 %}
-                                    R$ {{ "%.2f"|format(s.preco)|replace('.', ',') }}
-                                {% elif s.preco_str %}
-                                    {{ s.preco_str }}
-                                {% else %}
-                                    <span class="text-muted">A consultar</span>
+                            <div class="d-flex align-items-baseline gap-2">
+                                <div class="price-display-main">
+                                    {% if s.preco and s.preco > 0 %}
+                                        R$ {{ "%.2f"|format(s.preco)|replace('.', ',') }}
+                                    {% elif s.preco_str %}
+                                        {{ s.preco_str }}
+                                    {% else %}
+                                        <span class="text-muted">A consultar</span>
+                                    {% endif %}
+                                </div>
+                                {% if loop.first and s.preco and s.preco > 0 %}
+                                <span class="badge bg-success text-white" style="font-size: 0.65rem; padding: 2px 6px;">
+                                    <i class="fas fa-crown"></i> LÍDER
+                                </span>
                                 {% endif %}
                             </div>
                             
                             {% if s.parcelamento %}
                                 <div class="{% if 'sem juros' in s.parcelamento|lower %}price-installment-green{% else %}price-installment-gray{% endif %}">
-                                    {{ s.parcelamento }}
+                                    <i class="far fa-credit-card me-1"></i>{{ s.parcelamento }}
                                 </div>
                             {% elif s.preco and s.preco > 0 %}
                                 <div class="price-installment-gray">
-                                    12x R$ {{ "%.2f"|format(s.preco / 12)|replace('.', ',') }}
+                                    <i class="far fa-credit-card me-1"></i>12x R$ {{ "%.2f"|format(s.preco / 12)|replace('.', ',') }}
                                 </div>
                             {% endif %}
                         </td>
 
                         <!-- Coluna 2: Condição -->
                         <td>
-                            <span class="fw-semibold text-secondary">
+                            <span class="badge-saas badge-saas-neutral">
                                 {{ s.condicao or 'Novo' }}
                             </span>
                         </td>
@@ -181,7 +199,7 @@
                         <td>
                             {% if s.entrega_texto %}
                                 <div class="shipping-bullet">
-                                    <span>•</span>
+                                    <i class="fas fa-truck text-success mt-1" style="font-size: 0.8rem;"></i>
                                     <span>
                                         {% if 'grátis' in s.entrega_texto|lower %}
                                             <span class="shipping-green-highlight">Chegará grátis</span> {{ s.entrega_texto|replace('Chegará grátis', '')|replace('chegará grátis', '') }}
@@ -192,19 +210,19 @@
                                 </div>
                             {% elif s.frete_gratis %}
                                 <div class="shipping-bullet">
-                                    <span>•</span>
+                                    <i class="fas fa-truck text-success mt-1" style="font-size: 0.8rem;"></i>
                                     <span class="shipping-green-highlight">Chegará grátis com envio rápido</span>
                                 </div>
                             {% else %}
                                 <div class="shipping-bullet text-muted">
-                                    <span>•</span>
+                                    <i class="fas fa-truck text-muted mt-1" style="font-size: 0.8rem;"></i>
                                     <span>Frete a calcular</span>
                                 </div>
                             {% endif %}
 
                             {% if s.retirada_texto %}
                                 <div class="shipping-bullet">
-                                    <span>•</span>
+                                    <i class="fas fa-store text-primary mt-1" style="font-size: 0.8rem;"></i>
                                     <span>
                                         {% if 'grátis' in s.retirada_texto|lower %}
                                             <span class="shipping-green-highlight">Retire grátis</span> {{ s.retirada_texto|replace('Retire grátis', '')|replace('retire grátis', '') }}
@@ -217,7 +235,7 @@
 
                             {% if s.frete_full %}
                                 <div class="mt-1">
-                                    <span class="badge bg-success text-white fw-bold px-2 py-1" style="font-size: 0.72rem; letter-spacing: 0.5px;">
+                                    <span class="shipping-badge-full">
                                         <i class="fas fa-bolt"></i> FULL
                                     </span>
                                 </div>
@@ -227,16 +245,16 @@
                         <!-- Coluna 4: Vendedor -->
                         <td>
                             <div class="d-flex align-items-center gap-2">
-                                <div style="width: 38px; height: 38px; border-radius: 8px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #475569; font-size: 1rem; border: 1px solid #e2e8f0;">
-                                    {{ s.seller_name[:2]|upper }}
+                                <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #475569; font-size: 0.85rem; border: 1px solid #e2e8f0; flex-shrink: 0;">
+                                    {{ s.seller_name[:2]|upper if s.seller_name else 'ML' }}
                                 </div>
                                 <div>
-                                    <a href="https://www.mercadolivre.com.br/perfil/{{ s.seller_name|replace(' ', '+') }}" target="_blank" class="seller-name-link">
-                                        {{ s.seller_name }}
+                                    <a href="https://www.mercadolivre.com.br/perfil/{{ s.seller_name|replace(' ', '+') if s.seller_name else '' }}" target="_blank" class="seller-name-link">
+                                        {{ s.seller_name or 'Vendedor Mercado Livre' }}
                                         <i class="fas fa-check-circle seller-verified-icon" title="Vendedor Identificado"></i>
                                     </a>
                                     <div class="seller-reputation-text">
-                                        {{ s.reputacao or 'MercadoLíder | Vendedor Ativo' }}
+                                        <i class="fas fa-medal me-1 text-warning"></i>{{ s.reputacao or 'MercadoLíder | Vendedor Ativo' }}
                                     </div>
                                 </div>
                             </div>

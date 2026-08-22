@@ -73,13 +73,13 @@
         <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3" id="catalogGrid"></div>
     </div>
 
-    <!-- Catálogos salvos para monitoramento -->
+    <!-- Catálogos salvos para monitoramento agrupados por termo -->
     {% if saved_catalogs %}
     <div class="mt-4">
-        <!-- Toolbar com Filtro em Tempo Real e Contador -->
+        <!-- Toolbar com Filtro em Tempo Real e Controles de Expansão -->
         <div class="table-saas-card p-3 mb-3">
             <div class="row align-items-center g-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
                         <i class="fas fa-bookmark text-warning me-2"></i>
                         Catálogos Monitorados
@@ -92,86 +92,114 @@
                         <input type="text"
                                id="catalogFilterInput"
                                class="form-control"
-                               placeholder="Filtrar por nome do produto ou ID (ex: EcoFlow, MLB...)"
+                               placeholder="Filtrar por produto, termo ou ID (MLB...)"
                                oninput="filterCatalogsLive()">
                     </div>
                 </div>
-                <div class="col-md-3 text-md-end">
+                <div class="col-md-4 text-md-end d-flex align-items-center justify-content-md-end gap-2 flex-wrap">
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-secondary" onclick="expandAllGroups()" title="Expandir todos os grupos">
+                            <i class="fas fa-expand-alt me-1"></i> Expandir
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="collapseAllGroups()" title="Recolher todos os grupos">
+                            <i class="fas fa-compress-alt me-1"></i> Recolher
+                        </button>
+                    </div>
                     <button class="btn btn-sm btn-secondary" onclick="extractCatalogsFromHistory()">
-                        <i class="fas fa-sync-alt"></i> Atualizar Lista
+                        <i class="fas fa-sync-alt"></i> Sincronizar
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Grade Compacta de Alta Densidade (4 a 5 colunas) -->
-        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3" id="savedCatalogsGrid">
-            {% for cat in saved_catalogs %}
-            <div class="col catalog-item-wrapper"
-                 data-title="{{ (cat.nome or '')|lower }}"
-                 data-id="{{ (cat.catalog_id or '')|lower }}"
-                 data-term="{{ (cat.termo_pesquisa or '')|lower }}">
-                <div class="saas-catalog-card">
-                    <!-- Topbar do Card -->
-                    <div class="saas-card-topbar">
-                        <span class="catalog-chip" onclick="copyCatalogId('{{ cat.catalog_id }}')" title="Clique para copiar ID">
-                            <i class="fas fa-copy" style="font-size: 0.65rem;"></i>
-                            {{ cat.catalog_id }}
-                        </span>
-                        <span class="badge-saas badge-saas-success">
-                            <i class="fas fa-eye"></i> Ativo
-                        </span>
-                    </div>
-
-                    <!-- Imagem com Respiro e Moldura -->
-                    <div class="saas-img-frame">
-                        {% if cat.imagem %}
-                            <img src="{{ cat.imagem }}" alt="{{ cat.nome }}" loading="lazy"
-                                 onerror="this.src='https://via.placeholder.com/140x140/ffffff/94a3b8?text=ML+Catalog'">
-                        {% else %}
-                            <i class="fas fa-box" style="font-size: 2.5rem; color: #cbd5e1;"></i>
-                        {% endif %}
-                    </div>
-
-                    <!-- Corpo do Card -->
-                    <div class="saas-card-body">
-                        <h6 class="saas-card-title" title="{{ cat.nome }}">
-                            {{ cat.nome }}
-                        </h6>
-                        {% if cat.termo_pesquisa %}
-                        <div class="small text-muted text-truncate mb-2" title="Busca: {{ cat.termo_pesquisa }}">
-                            <i class="fas fa-tag me-1 text-primary opacity-75"></i> {{ cat.termo_pesquisa }}
+        <!-- Seções Agrupadas por Termo de Busca -->
+        <div id="catalogGroupsContainer">
+            {% if grouped_catalogs %}
+                {% for term, catalogs in grouped_catalogs.items() %}
+                <div class="catalog-search-group" id="group-{{ loop.index }}">
+                    <!-- Cabeçalho do Grupo (Clicável para Expandir/Recolher) -->
+                    <div class="search-group-header" onclick="toggleGroup('group-{{ loop.index }}')">
+                        <div class="search-group-title">
+                            <i class="fas fa-layer-group text-primary"></i>
+                            <span>{{ term }}</span>
+                            <span class="badge-saas badge-saas-primary font-tabular group-count-badge">
+                                {{ catalogs|length }} {{ 'catálogo' if catalogs|length == 1 else 'catálogos' }}
+                            </span>
                         </div>
-                        {% else %}
-                        <div class="small text-muted mb-2">
-                            <i class="fas fa-cube me-1"></i> Catálogo ML
+                        <div class="d-flex align-items-center gap-2">
+                            <small class="text-muted group-toggle-text">Recolher / Expandir</small>
+                            <i class="fas fa-chevron-down toggle-arrow"></i>
                         </div>
-                        {% endif %}
                     </div>
 
-                    <!-- Rodapé e Ações Rápidas -->
-                    <div class="saas-card-footer d-flex gap-2">
-                        <a href="{{ url_for('catalog.catalog_detail', catalog_id=cat.catalog_id) }}"
-                           class="btn btn-sm btn-primary flex-grow-1">
-                            <i class="fas fa-users"></i> Concorrentes
-                        </a>
-                        <a href="https://www.mercadolivre.com.br/p/{{ cat.catalog_id }}"
-                           target="_blank"
-                           class="btn btn-sm btn-secondary px-2"
-                           title="Abrir no Mercado Livre">
-                            <i class="fas fa-external-link-alt"></i>
-                        </a>
+                    <!-- Corpo do Grupo (Grade de Cards) -->
+                    <div class="search-group-body">
+                        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3">
+                            {% for cat in catalogs %}
+                            <div class="col catalog-item-wrapper"
+                                 data-title="{{ (cat.nome or '')|lower }}"
+                                 data-id="{{ (cat.catalog_id or '')|lower }}"
+                                 data-term="{{ (cat.termo_pesquisa or '')|lower }}">
+                                <div class="saas-catalog-card">
+                                    <!-- Topbar do Card -->
+                                    <div class="saas-card-topbar">
+                                        <span class="catalog-chip" onclick="copyCatalogId('{{ cat.catalog_id }}')" title="Clique para copiar ID">
+                                            <i class="fas fa-copy" style="font-size: 0.65rem;"></i>
+                                            {{ cat.catalog_id }}
+                                        </span>
+                                        <span class="badge-saas badge-saas-success">
+                                            <i class="fas fa-eye"></i> Ativo
+                                        </span>
+                                    </div>
+
+                                    <!-- Imagem com Respiro e Moldura -->
+                                    <div class="saas-img-frame">
+                                        {% if cat.imagem %}
+                                            <img src="{{ cat.imagem }}" alt="{{ cat.nome }}" loading="lazy"
+                                                 onerror="this.src='https://via.placeholder.com/140x140/ffffff/94a3b8?text=ML+Catalog'">
+                                        {% else %}
+                                            <i class="fas fa-box" style="font-size: 2.5rem; color: #cbd5e1;"></i>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Corpo do Card -->
+                                    <div class="saas-card-body">
+                                        <h6 class="saas-card-title" title="{{ cat.nome }}">
+                                            {{ cat.nome }}
+                                        </h6>
+                                        <div class="small text-muted text-truncate mb-2" title="ID: {{ cat.catalog_id }}">
+                                            <i class="fas fa-barcode me-1 text-secondary opacity-75"></i> {{ cat.catalog_id }}
+                                        </div>
+                                    </div>
+
+                                    <!-- Rodapé e Ações Rápidas -->
+                                    <div class="saas-card-footer d-flex gap-2">
+                                        <a href="{{ url_for('catalog.catalog_detail', catalog_id=cat.catalog_id) }}"
+                                           class="btn btn-sm btn-primary flex-grow-1">
+                                            <i class="fas fa-users"></i> Concorrentes
+                                        </a>
+                                        <a href="https://www.mercadolivre.com.br/p/{{ cat.catalog_id }}"
+                                           target="_blank"
+                                           class="btn btn-sm btn-secondary px-2"
+                                           title="Abrir no Mercado Livre">
+                                            <i class="fas fa-external-link-alt"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
-            </div>
-            {% endfor %}
+                {% endfor %}
+            {% endif %}
         </div>
 
         <!-- Mensagem de Nenhum resultado no filtro live -->
-        <div id="noFilterResults" style="display:none;" class="text-center py-5">
+        <div id="noFilterResults" style="display:none;" class="table-saas-card text-center py-5 my-3">
             <i class="fas fa-search text-muted opacity-25 fa-3x mb-3"></i>
             <h6 class="text-muted fw-bold">Nenhum catálogo encontrado para o filtro aplicado</h6>
-            <button class="btn btn-sm btn-outline-secondary mt-2" onclick="clearCatalogFilter()">Limpar Filtro</button>
+            <button class="btn btn-sm btn-secondary mt-2" onclick="clearCatalogFilter()">Limpar Filtro</button>
         </div>
     </div>
     {% else %}
@@ -185,7 +213,7 @@
             <p class="text-muted mb-4 max-w-md mx-auto small">
                 Você pode buscar novos catálogos pelo formulário acima ou <strong>extrair instantaneamente</strong> todos os catálogos dos produtos que você já buscou no histórico.
             </p>
-            <button class="btn btn-sync-history" onclick="extractCatalogsFromHistory()">
+            <button class="btn btn-primary" onclick="extractCatalogsFromHistory()">
                 <i class="fas fa-magic me-2"></i> Extrair Catálogos do Histórico Salvo
             </button>
         </div>
@@ -218,31 +246,81 @@
 let currentCatalogSearchId = null;
 let catalogStatusInterval = null;
 
-// ─── Filtro em Tempo Real ─────────────────────────────────────────
+// ─── Controle de Expandir / Recolher Grupos ───────────────────────
+function toggleGroup(groupId) {
+    const group = document.getElementById(groupId);
+    if (!group) return;
+    const body = group.querySelector('.search-group-body');
+    if (!body) return;
+
+    const isCollapsed = group.classList.toggle('collapsed');
+    if (isCollapsed) {
+        body.style.display = 'none';
+    } else {
+        body.style.display = 'block';
+    }
+}
+
+function expandAllGroups() {
+    document.querySelectorAll('.catalog-search-group').forEach(group => {
+        group.classList.remove('collapsed');
+        const body = group.querySelector('.search-group-body');
+        if (body) body.style.display = 'block';
+    });
+}
+
+function collapseAllGroups() {
+    document.querySelectorAll('.catalog-search-group').forEach(group => {
+        group.classList.add('collapsed');
+        const body = group.querySelector('.search-group-body');
+        if (body) body.style.display = 'none';
+    });
+}
+
+// ─── Filtro em Tempo Real Inteligente (Suporta Grupos) ───────────
 function filterCatalogsLive() {
     const query = document.getElementById('catalogFilterInput').value.trim().toLowerCase();
-    const items = document.querySelectorAll('.catalog-item-wrapper');
-    let visibleCount = 0;
+    const groups = document.querySelectorAll('.catalog-search-group');
+    let totalVisible = 0;
 
-    items.forEach(item => {
-        const title = item.getAttribute('data-title') || '';
-        const id = item.getAttribute('data-id') || '';
-        const term = item.getAttribute('data-term') || '';
+    groups.forEach(group => {
+        const items = group.querySelectorAll('.catalog-item-wrapper');
+        let groupVisibleCount = 0;
 
-        if (!query || title.includes(query) || id.includes(query) || term.includes(query)) {
-            item.style.display = 'block';
-            visibleCount++;
+        items.forEach(item => {
+            const title = item.getAttribute('data-title') || '';
+            const id = item.getAttribute('data-id') || '';
+            const term = item.getAttribute('data-term') || '';
+
+            if (!query || title.includes(query) || id.includes(query) || term.includes(query)) {
+                item.style.display = 'block';
+                groupVisibleCount++;
+                totalVisible++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        // Se houver itens visíveis no grupo, exibe o grupo; caso contrário, oculta
+        if (groupVisibleCount > 0) {
+            group.style.display = 'block';
+            // Se estiver filtrando e houver match, garante que o grupo esteja aberto
+            if (query && group.classList.contains('collapsed')) {
+                group.classList.remove('collapsed');
+                const body = group.querySelector('.search-group-body');
+                if (body) body.style.display = 'block';
+            }
         } else {
-            item.style.display = 'none';
+            group.style.display = 'none';
         }
     });
 
     const badge = document.getElementById('savedCountBadge');
-    if (badge) badge.textContent = visibleCount;
+    if (badge) badge.textContent = totalVisible;
 
     const noResults = document.getElementById('noFilterResults');
     if (noResults) {
-        noResults.style.display = (visibleCount === 0 && items.length > 0) ? 'block' : 'none';
+        noResults.style.display = (totalVisible === 0 && groups.length > 0) ? 'block' : 'none';
     }
 }
 
@@ -339,11 +417,11 @@ async function checkCatalogStatus() {
     } catch (err) {
         clearInterval(catalogStatusInterval);
         hideOverlay();
-        console.error('Erro no polling:', err);
+        console.error('Erro ao verificar status:', err);
     }
 }
 
-// ─── Renderiza cards de resultado ao vivo ─────────────────────────
+// ─── Renderiza resultados da busca ao vivo ────────────────────────
 function renderCatalogResults(catalogs) {
     const section = document.getElementById('searchResults');
     const grid = document.getElementById('catalogGrid');
@@ -368,11 +446,11 @@ function renderCatalogResults(catalogs) {
         <div class="col">
             <div class="saas-catalog-card">
                 <div class="saas-card-topbar">
-                    <span class="catalog-id-chip" onclick="copyCatalogId('${cat.catalog_id}')" title="Clique para copiar ID">
+                    <span class="catalog-chip" onclick="copyCatalogId('${cat.catalog_id}')" title="Clique para copiar ID">
                         <i class="fas fa-copy" style="font-size: 0.65rem;"></i>
                         ${cat.catalog_id}
                     </span>
-                    <span class="status-badge-saas"><i class="fas fa-fire text-warning me-1"></i>Novo</span>
+                    <span class="badge-saas badge-saas-warning"><i class="fas fa-fire me-1"></i>Novo</span>
                 </div>
                 <div class="saas-img-frame">
                     ${cat.imagem
@@ -385,15 +463,15 @@ function renderCatalogResults(catalogs) {
                     <h6 class="saas-card-title" title="${escHtml(cat.nome)}">
                         ${escHtml(cat.nome)}
                     </h6>
-                    <div class="saas-card-search-term text-muted">
-                        <i class="fas fa-tag me-1"></i> Busca atual
+                    <div class="small text-muted mb-2">
+                        <i class="fas fa-tag me-1 text-primary opacity-75"></i> Busca atual
                     </div>
                 </div>
-                <div class="saas-card-footer">
-                    <a href="/catalog/${cat.catalog_id}" class="btn-saas-primary">
+                <div class="saas-card-footer d-flex gap-2">
+                    <a href="/catalog/${cat.catalog_id}" class="btn btn-sm btn-primary flex-grow-1">
                         <i class="fas fa-users"></i> Concorrentes
                     </a>
-                    <a href="https://www.mercadolivre.com.br/p/${cat.catalog_id}" target="_blank" class="btn-saas-icon" title="Abrir no ML">
+                    <a href="https://www.mercadolivre.com.br/p/${cat.catalog_id}" target="_blank" class="btn btn-sm btn-secondary px-2" title="Abrir no ML">
                         <i class="fas fa-external-link-alt"></i>
                     </a>
                 </div>

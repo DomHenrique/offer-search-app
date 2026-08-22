@@ -692,6 +692,226 @@ body {
   text-align: center;
 }
 
+/* ===== AGRUPAMENTO DE CATÁLOGOS POR TERMO DE BUSCA ===== */
+.catalog-search-group {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.catalog-search-group:hover {
+  border-color: #cbd5e1;
+}
+
+.search-group-header {
+  padding: var(--space-3) var(--space-4);
+  background: #ffffff;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.search-group-header:hover {
+  background-color: var(--bg-subtle);
+}
+
+.search-group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.search-group-header .toggle-arrow {
+  color: var(--text-muted);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.85rem;
+}
+
+.catalog-search-group.collapsed .toggle-arrow {
+  transform: rotate(-90deg);
+}
+
+.catalog-search-group.collapsed .search-group-header {
+  border-bottom-color: transparent;
+}
+
+.search-group-body {
+  padding: var(--space-4);
+  background: #fafafa;
+}
+
+/* ===== TABELA DE CONCORRENTES DO MERCADO LIVRE ===== */
+.ml-sellers-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-bottom: 0;
+}
+
+.ml-sellers-table thead th {
+  background: #f8fafc;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ml-sellers-table tbody tr {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background-color 0.15s ease;
+  background: #ffffff;
+}
+
+.ml-sellers-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+.ml-sellers-table tbody tr.best-offer-row {
+  background-color: #f0fdf4 !important;
+  border-left: 3px solid #10b981;
+}
+
+.ml-sellers-table tbody td {
+  padding: var(--space-4);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Coluna de Preço */
+.price-display-main {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+  font-family: var(--font-mono);
+}
+
+.price-installment-green {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #059669;
+  margin-top: 3px;
+}
+
+.price-installment-gray {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* Coluna de Entrega */
+.shipping-bullet {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.shipping-green-highlight {
+  color: #059669;
+  font-weight: 600;
+}
+
+.shipping-badge-full {
+  background-color: #00a650;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0.5px;
+}
+
+/* Coluna do Vendedor */
+.seller-name-link {
+  color: #2563eb;
+  font-weight: 600;
+  font-size: 0.92rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.15s ease;
+}
+
+.seller-name-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.seller-verified-icon {
+  color: #3483fa;
+  font-size: 0.85rem;
+}
+
+.seller-reputation-text {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Botões de Ação na Tabela de Concorrentes */
+.btn-ml-buy {
+  background: #3483fa;
+  color: #ffffff !important;
+  font-weight: 700;
+  font-size: 0.82rem;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  display: block;
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.btn-ml-buy:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.btn-ml-cart {
+  background: rgba(52, 131, 250, 0.1);
+  color: #2563eb !important;
+  font-weight: 600;
+  font-size: 0.78rem;
+  border-radius: var(--radius-sm);
+  padding: 4px var(--space-2);
+  border: 1px solid rgba(52, 131, 250, 0.2);
+  display: block;
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+  margin-top: var(--space-1);
+  transition: background-color 0.15s ease;
+}
+
+.btn-ml-cart:hover {
+  background: rgba(52, 131, 250, 0.18);
+}
+
 /* ===== UTILITÁRIOS ===== */
 .text-gradient {
   background: var(--brand-gradient);
