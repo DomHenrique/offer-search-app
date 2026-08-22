@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  offer-search:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: offer-search-prod
+    restart: unless-stopped
+    shm_size: 2gb
+    networks:
+      - rede_gridd
+    env_file:
+      - .env
+    environment:
+      - PORT=5000
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.offer-search.rule=Host(`offer-search.hnperformancedigital.com.br`)"
+      - "traefik.http.routers.offer-search.entrypoints=websecure"
+      - "traefik.http.routers.offer-search.tls=true"
+      - "traefik.http.routers.offer-search.tls.certresolver=letsencryptresolver"
+      - "traefik.http.services.offer-search.loadbalancer.server.port=5000"
+
+networks:
+  rede_gridd:
+    external: true
