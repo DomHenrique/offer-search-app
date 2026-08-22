@@ -1169,8 +1169,12 @@ class DatabaseManager:
           - error_message: str (opcional)
         """
         try:
+            raw_uid = log_data.get('user_id')
+            # Se não for UUID com hifens (36 chars), define como None para nao violar o tipo UUID no postgres
+            valid_uuid = str(raw_uid) if raw_uid and len(str(raw_uid)) == 36 and '-' in str(raw_uid) else None
+
             payload = {
-                'user_id': log_data.get('user_id'),
+                'user_id': valid_uuid,
                 'user_email': log_data.get('user_email') or 'admin@local',
                 'termo_original': str(log_data.get('termo_original') or '').strip(),
                 'termo_utilizado': str(log_data.get('termo_utilizado') or '').strip(),

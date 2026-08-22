@@ -608,7 +608,7 @@ def _executar_busca_marketplaces(
     # Busca dados do Mercado Livre
     print(f"🛒 Buscando produtos no Mercado Livre para '{termo}'...")
     try:
-        df_ml = get_mercado_livre_data(termo, paginas_ml)
+        df_ml = get_mercado_livre_data(termo, paginas_ml, user_id=user_id)
         
         # Se o Mercado Livre retornar 0 para o termo original, tenta auto-recuperação específica
         if df_ml is None or df_ml.empty:
@@ -616,7 +616,7 @@ def _executar_busca_marketplaces(
             if relaxed_ml and relaxed_ml.lower() != termo.lower() and len(relaxed_ml) >= 3:
                 print(f"🔄 [ML Auto-Recuperação] Termo original veio vazio no Mercado Livre.")
                 print(f"   Tentando no ML com termo otimizado: '{relaxed_ml}'...")
-                df_ml = get_mercado_livre_data(relaxed_ml, paginas_ml)
+                df_ml = get_mercado_livre_data(relaxed_ml, paginas_ml, user_id=user_id)
                 
         if df_ml is not None and not df_ml.empty:
             print(f"✅ Mercado Livre: {len(df_ml)} produtos encontrados")

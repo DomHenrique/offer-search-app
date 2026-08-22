@@ -64,6 +64,55 @@ class MercadoLivreScraper:
         except Exception as e:
             print(f"❌ Erro ao configurar Firefox driver: {e}")
             return None
+
+    def inject_ml_cookies(self, user_id: Optional[str] = None) -> bool:
+        """
+        Carrega os cookies salvos no Supabase pela extensão Chrome e injeta no WebDriver
+        para navegar autenticado no Mercado Livre sem bloqueios de WAF/CAPTCHA.
+        """
+        if not self.driver:
+            return False
+        try:
+            from database.db_manager import DatabaseManager
+            db = DatabaseManager()
+            session_data = db.get_ml_session(user_id=user_id)
+            if not session_data or not session_data.get('cookies'):
+                print("ℹ️ [ML] Nenhum cookie de sessão do ML encontrado no banco.")
+                return False
+
+            cookies = session_data.get('cookies', [])
+            print(f"🍪 [ML] Injetando {len(cookies)} cookies de sessão no WebDriver Firefox...")
+
+            # É necessário carregar o domínio antes de injetar os cookies
+            self.driver.get("https://www.mercadolivre.com.br/robots.txt")
+            time.sleep(1)
+
+            injected = 0
+            for c in cookies:
+                try:
+                    cookie_dict = {
+                        'name': c['name'],
+                        'value': c['value'],
+                        'path': c.get('path', '/'),
+                    }
+                    domain = c.get('domain', '')
+                    if domain:
+                        cookie_dict['domain'] = domain.lstrip('.')
+                    if c.get('secure'):
+                        cookie_dict['secure'] = True
+                    if c.get('httpOnly'):
+                        cookie_dict['httpOnly'] = True
+
+                    self.driver.add_cookie(cookie_dict)
+                    injected += 1
+                except Exception:
+                    pass
+
+            print(f"✅ [ML] {injected} cookies do Mercado Livre injetados com sucesso!")
+            return True
+        except Exception as e:
+            print(f"⚠️ [ML] Erro ao injetar cookies do Mercado Livre: {e}")
+            return False
     
     def is_element_ignored(self, element) -> bool:
         """
@@ -540,14 +589,15 @@ class MercadoLivreScraper:
         
         return self.extract_product_data()
     
-    def scrape_search(self, search_term: str, n_pages: int = 1, delay_range: Tuple[float, float] = (1, 3)) -> Optional[pd.DataFrame]:
+    def scrape_search(self, search_term: str, n_pages: int = 1, delay_range: Tuple[float, float] = (1, 3), user_id: Optional[str] = None) -> Optional[pd.DataFrame]:
         """
-        Faz scraping de múltiplas páginas para um termo de pesquisa
+        Faz scraping de múltiplas páginas para um termo de pesquisa com injeção de sessão
         
         Args:
             search_term (str): Termo de pesquisa
             n_pages (int): Número de páginas para processar
             delay_range (Tuple[float, float]): Intervalo de delay entre páginas
+            user_id (str, optional): ID do usuário para injeção de sessão do Mercado Livre
             
         Returns:
             Optional[pd.DataFrame]: DataFrame com os dados ou None
@@ -561,6 +611,9 @@ class MercadoLivreScraper:
             return None
         
         try:
+            # Injeta cookies de sessão autêntica para evitar bloqueios de WAF/CAPTCHA em VPS
+            self.inject_ml_cookies(user_id=user_id)
+
             all_products = []
             
             # Formata o termo de pesquisa para URL
@@ -646,7 +699,7 @@ class MercadoLivreScraper:
         print(f"💾 Dados salvos em: {filepath}")
         return filepath
 
-def scrape_mercado_livre(search_term: str, n_pages: int = 1, save_csv: bool = False, ignored_selectors: List[str] = None) -> Optional[pd.DataFrame]:
+def scrape_mercado_livre(search_term: str, n_pages: int = 1, save_csv: bool = False, ignored_selectors: List[str] = None, user_id: Optional[str] = None) -> Optional[pd.DataFrame]:
     """
     Função principal para scraping do Mercado Livre
     
@@ -655,22 +708,23 @@ def scrape_mercado_livre(search_term: str, n_pages: int = 1, save_csv: bool = Fa
         n_pages (int): Número de páginas para processar
         save_csv (bool): Se deve salvar em CSV
         ignored_selectors (List[str]): Seletores CSS adicionais para ignorar
+        user_id (str, optional): ID do usuário para injeção de sessão
         
     Returns:
         Optional[pd.DataFrame]: DataFrame com os dados ou None
     """
     scraper = MercadoLivreScraper(ignored_selectors)
     
-    df = scraper.scrape_search(search_term, n_pages)
+    df = scraper.scrape_search(search_term, n_pages, user_id=user_id)
     
     if df is not None and save_csv:
         scraper.save_to_csv(df, search_term)
         
     return df
 
-def get_mercado_livre_data(search_term: str, pages: int = 1, ignored_selectors: List[str] = None) -> Optional[pd.DataFrame]:
-    """Função simplificada para importação em outros arquivos"""
-    return scrape_mercado_livre(search_term, pages, save_csv=False, ignored_selectors=ignored_selectors)
+def get_mercado_livre_data(search_term: str, pages: int = 1, ignored_selectors: List[str] = None, user_id: Optional[str] = None) -> Optional[pd.DataFrame]:
+    """Função simplificada para importação em outros arquivos com suporte a sessão"""
+    return scrape_mercado_livre(search_term, pages, save_csv=False, ignored_selectors=ignored_selectors, user_id=user_id)
 
 # Exemplo de uso:
 if __name__ == "__main__":
