@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.db_manager import DatabaseManager
 from scraping.web_scrap_catalog_ml import get_catalog_list, get_catalog_sellers
+from scraping.web_scrap_amazon_catalog import get_amazon_catalog_sellers
 
 catalog_bp = Blueprint('catalog', __name__)
 db_manager = DatabaseManager()
@@ -49,14 +50,17 @@ def catalog_list():
 
 @catalog_bp.route('/<catalog_id>')
 def catalog_detail(catalog_id):
-    """Página de detalhe de um catálogo — sellers e comparativo."""
+    """Página de detalhe de um catálogo — sellers e comparativo (Mercado Livre e Amazon)."""
     if 'user_id' not in session:
         flash('Você precisa fazer login para acessar esta página.', 'warning')
         return redirect(url_for('auth.login'))
 
-    # Valida o formato do catalog_id
+    catalog_id = str(catalog_id).strip().upper()
+
+    # Valida o formato do catalog_id (MLB... ou ASIN de 10 dígitos)
     import re
-    if not re.match(r'^MLB\d+$', catalog_id):
+    is_valid = bool(re.match(r'^MLB\d+$', catalog_id)) or bool(re.match(r'^[A-Z0-9]{10}$', catalog_id))
+    if not is_valid:
         flash('ID de catálogo inválido.', 'error')
         return redirect(url_for('catalog.catalog_list'))
 
@@ -66,6 +70,20 @@ def catalog_detail(catalog_id):
     # Busca sellers já coletados (última coleta)
     sellers = db_manager.get_catalog_sellers(catalog_id)
 
+    # Se não tiver catálogo no banco nem sellers, cria registro inicial básico
+    if not catalog:
+        mp = "MercadoLivre" if catalog_id.startswith('MLB') else "Amazon"
+        catalog = {
+            "catalog_id": catalog_id,
+            "titulo": f"Catálogo {mp} {catalog_id}",
+            "nome": f"Catálogo {mp} {catalog_id}",
+            "url_produto": f"https://www.mercadolivre.com.br/p/{catalog_id}" if mp == "MercadoLivre" else f"https://www.amazon.com.br/dp/{catalog_id}",
+            "marketplace": mp,
+            "buybox_winner": "Vendedor Oficial",
+            "buybox_min_price": 0.0,
+            "sellers_count": len(sellers) if sellers else 1
+        }
+
     return render_template('catalog/catalog_detail.html',
                            catalog_id=catalog_id,
                            catalog=catalog,
@@ -74,7 +92,7 @@ def catalog_detail(catalog_id):
 
 @catalog_bp.route('/extract-from-history', methods=['POST'])
 def extract_from_history():
-    """Extrai catálogos do Mercado Livre a partir das ofertas salvas no banco de dados"""
+    """Extrai catálogos do Mercado Livre e Amazon a partir das ofertas salvas no banco de dados"""
     if 'user_id' not in session:
         return jsonify({'error': 'Não autenticado'}), 401
 
@@ -196,25 +214,29 @@ def search_status(search_id):
     return jsonify(status)
 
 
-# ─── API — Scraping de sellers (assíncrona) ───────────────────────────────────
+# ─── API — Scraping de sellers (assíncrona para ML e Amazon) ───────────────────
 
 @catalog_bp.route('/<catalog_id>/scrape-sellers', methods=['POST'])
 def scrape_sellers(catalog_id):
-    """Inicia scraping de sellers de um catálogo específico."""
+    """Inicia scraping de sellers de um catálogo específico (Mercado Livre ou Amazon)."""
     if 'user_id' not in session:
         return jsonify({'error': 'Não autenticado'}), 401
 
+    catalog_id = str(catalog_id).strip().upper()
     import re
-    if not re.match(r'^MLB\d+$', catalog_id):
+    is_valid = bool(re.match(r'^MLB\d+$', catalog_id)) or bool(re.match(r'^[A-Z0-9]{10}$', catalog_id))
+    if not is_valid:
         return jsonify({'error': 'ID de catálogo inválido'}), 400
 
     user_id = session['user_id']
     scrape_id = f"sellers_{catalog_id}_{int(time.time())}"
+    is_amazon = not catalog_id.startswith('MLB')
+    mp_name = "Amazon" if is_amazon else "Mercado Livre"
 
     catalog_sellers_status[scrape_id] = {
         'status': 'iniciando',
         'progress': 0,
-        'message': f'Iniciando scraping de sellers do catálogo {catalog_id}...',
+        'message': f'Iniciando scraping de sellers do catálogo {catalog_id} ({mp_name})...',
         'sellers': [],
         'error': None,
         'login_required': False,
@@ -232,39 +254,45 @@ def scrape_sellers(catalog_id):
 
 
 def _scrape_sellers_thread(scrape_id: str, user_id: str, catalog_id: str):
-    """Thread de scraping de sellers."""
+    """Thread de scraping de sellers suportando Mercado Livre e Amazon."""
     try:
+        is_amazon = not catalog_id.startswith('MLB')
+        mp_name = "Amazon" if is_amazon else "Mercado Livre"
+
         catalog_sellers_status[scrape_id].update({
             'status': 'buscando',
             'progress': 25,
-            'message': f'Acessando página de sellers do catálogo {catalog_id}...'
+            'message': f'Acessando página de concorrentes de {catalog_id} no {mp_name}...'
         })
 
-        result = get_catalog_sellers(catalog_id, user_id=user_id)
-
-        if not result['success']:
-            catalog_sellers_status[scrape_id].update({
-                'status': 'erro',
-                'error': result.get('error', 'Erro desconhecido'),
-                'login_required': result.get('login_required', False),
-                'completed': True,
-            })
-            return
-
-        sellers = result['sellers']
-
-        catalog_sellers_status[scrape_id].update({
-            'progress': 75,
-            'message': f'Salvando {len(sellers)} sellers...'
-        })
-
-        # Persiste sellers no Supabase
-        saved_count = db_manager.save_catalog_sellers(catalog_id, sellers)
+        if is_amazon:
+            res_amazon = get_amazon_catalog_sellers(catalog_id, user_id=user_id)
+            sellers = res_amazon.get('sellers', [])
+            if not sellers and res_amazon.get('error'):
+                catalog_sellers_status[scrape_id].update({
+                    'status': 'erro',
+                    'error': res_amazon.get('error'),
+                    'completed': True,
+                })
+                return
+        else:
+            result = get_catalog_sellers(catalog_id, user_id=user_id)
+            if not result['success']:
+                catalog_sellers_status[scrape_id].update({
+                    'status': 'erro',
+                    'error': result.get('error', 'Erro desconhecido'),
+                    'login_required': result.get('login_required', False),
+                    'completed': True,
+                })
+                return
+            sellers = result['sellers']
+            # Persiste sellers no Supabase
+            db_manager.save_catalog_sellers(catalog_id, sellers)
 
         catalog_sellers_status[scrape_id].update({
             'status': 'concluida',
             'progress': 100,
-            'message': f'{len(sellers)} vendedor(es) encontrado(s).',
+            'message': f'{len(sellers)} vendedor(es) encontrado(s) no {mp_name}.',
             'sellers': sellers,
             'completed': True,
         })
@@ -282,7 +310,7 @@ def _scrape_sellers_thread(scrape_id: str, user_id: str, catalog_id: str):
 @catalog_bp.route('/sellers-status/<scrape_id>')
 @catalog_bp.route('/sellers/status/<scrape_id>')
 def sellers_scrape_status(scrape_id):
-    """Endpoint de polling — status do scraping de sellers (com alias para evitar 404)."""
+    """Endpoint de polling — status do scraping de sellers."""
     if 'user_id' not in session:
         return jsonify({'error': 'Não autenticado'}), 401
 
@@ -296,18 +324,19 @@ def sellers_scrape_status(scrape_id):
 
 @catalog_bp.route('/api/<catalog_id>/sellers')
 def api_catalog_sellers(catalog_id):
-    """Retorna lista de concorrentes/sellers cacheados no Supabase em formato JSON."""
+    """Retorna lista de concorrentes/sellers cacheados no Supabase em formato JSON (MLB ou ASIN)."""
     if 'user_id' not in session:
         return jsonify({'error': 'Não autenticado'}), 401
 
+    catalog_id = str(catalog_id).strip().upper()
     import re
-    if not re.match(r'^MLB\d+$', catalog_id):
+    is_valid = bool(re.match(r'^MLB\d+$', catalog_id)) or bool(re.match(r'^[A-Z0-9]{10}$', catalog_id))
+    if not is_valid:
         return jsonify({'error': 'ID de catálogo inválido'}), 400
 
     catalog_data = db_manager.get_catalog_by_id(catalog_id)
     sellers = db_manager.get_catalog_sellers(catalog_id)
 
-    # Se não houver sellers cacheados, retorna lista vazia
     min_price = 0.0
     winner_name = None
     if sellers:

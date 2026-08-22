@@ -147,16 +147,22 @@
                                             <i class="fas fa-copy" style="font-size: 0.65rem;"></i>
                                             {{ cat.catalog_id }}
                                         </span>
-                                        <span class="badge-saas badge-saas-success">
-                                            <i class="fas fa-eye"></i> Ativo
-                                        </span>
+                                        {% if cat.marketplace == 'Amazon' or not cat.catalog_id.startswith('MLB') %}
+                                            <span class="badge-saas" style="background:#fff7ed; color:#c2410c; border:1px solid #fed7aa;">
+                                                <i class="fab fa-amazon"></i> Amazon
+                                            </span>
+                                        {% else %}
+                                            <span class="badge-saas" style="background:#fef9c3; color:#a16207; border:1px solid #fde047;">
+                                                <i class="fas fa-layer-group"></i> ML
+                                            </span>
+                                        {% endif %}
                                     </div>
 
                                     <!-- Imagem com Respiro e Moldura -->
                                     <div class="saas-img-frame">
-                                        {% if cat.imagem %}
-                                            <img src="{{ cat.imagem }}" alt="{{ cat.nome }}" loading="lazy"
-                                                 onerror="this.src='https://via.placeholder.com/140x140/ffffff/94a3b8?text=ML+Catalog'">
+                                        {% if cat.imagem or cat.imagem_url %}
+                                            <img src="{{ cat.imagem or cat.imagem_url }}" alt="{{ cat.nome or cat.titulo }}" loading="lazy"
+                                                 onerror="this.src='https://via.placeholder.com/140x140/ffffff/94a3b8?text=Catalog'">
                                         {% else %}
                                             <i class="fas fa-box" style="font-size: 2.5rem; color: #cbd5e1;"></i>
                                         {% endif %}
@@ -164,8 +170,8 @@
 
                                     <!-- Corpo do Card -->
                                     <div class="saas-card-body">
-                                        <h6 class="saas-card-title" title="{{ cat.nome }}">
-                                            {{ cat.nome }}
+                                        <h6 class="saas-card-title" title="{{ cat.nome or cat.titulo }}">
+                                            {{ cat.nome or cat.titulo }}
                                         </h6>
                                         <div class="small text-muted text-truncate mb-2" title="ID: {{ cat.catalog_id }}">
                                             <i class="fas fa-barcode me-1 text-secondary opacity-75"></i> {{ cat.catalog_id }}
@@ -176,15 +182,24 @@
                                     <div class="saas-card-footer d-flex gap-2">
                                         <button type="button"
                                                 class="btn btn-sm btn-primary flex-grow-1"
-                                                onclick="openCompetitorsDrawer('{{ cat.catalog_id }}', '{{ (cat.nome or '')|replace('\'', '\\\'')|replace('\"', '&quot;') }}', '{{ cat.imagem or '' }}')">
+                                                onclick="openCompetitorsDrawer('{{ cat.catalog_id }}', '{{ (cat.nome or cat.titulo or '')|replace('\'', '\\\'')|replace('\"', '&quot;') }}', '{{ cat.imagem or cat.imagem_url or '' }}')">
                                             <i class="fas fa-users"></i> Concorrentes
                                         </button>
-                                        <a href="https://www.mercadolivre.com.br/p/{{ cat.catalog_id }}"
-                                           target="_blank"
-                                           class="btn btn-sm btn-secondary px-2"
-                                           title="Abrir no Mercado Livre">
-                                            <i class="fas fa-external-link-alt"></i>
-                                        </a>
+                                        {% if cat.marketplace == 'Amazon' or not cat.catalog_id.startswith('MLB') %}
+                                            <a href="https://www.amazon.com.br/dp/{{ cat.catalog_id }}"
+                                               target="_blank"
+                                               class="btn btn-sm btn-secondary px-2"
+                                               title="Abrir na Amazon">
+                                                <i class="fas fa-external-link-alt"></i>
+                                            </a>
+                                        {% else %}
+                                            <a href="https://www.mercadolivre.com.br/p/{{ cat.catalog_id }}"
+                                               target="_blank"
+                                               class="btn btn-sm btn-secondary px-2"
+                                               title="Abrir no Mercado Livre">
+                                                <i class="fas fa-external-link-alt"></i>
+                                            </a>
+                                        {% endif %}
                                     </div>
                                 </div>
                             </div>

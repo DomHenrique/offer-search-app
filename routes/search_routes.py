@@ -280,13 +280,22 @@ def enrich_product_intel(produto: dict) -> dict:
     reviews = int(p.get('avaliacoes') or p.get('num_avaliacoes') or 0)
     
     # 1. Classificação Precisa de Catálogo com Concorrência de Sellers vs Anúncio de Vendedor Único
-    # No Mercado Livre, um item é considerado catálogo se pertencer ao catálogo oficial (/p/MLB...)
-    # com opções de compra / múltiplos vendedores disputando a BuyBox.
+    # Mercado Livre: catálogo oficial (/p/MLB...)
+    # Amazon: produto com ASIN (/dp/ASIN) e múltiplas opções de compra
     is_user_post = '/up/' in url or 'MLBU' in url
     
-    # Extrai o Catalog ID se houver
+    # Extrai o Catalog ID se houver (Mercado Livre ou Amazon ASIN)
     cat_match = re.search(r'/p/(MLB\d+)', url)
-    raw_cat_id = cat_match.group(1) if cat_match else (p.get('catalog_id') or '')
+    asin_match = re.search(r'/dp/([A-Z0-9]{10})', url) or re.search(r'([A-Z0-9]{10})', str(p.get('codigo_produto') or p.get('ASIN') or ''))
+    
+    is_amazon = (p.get('marketplace') or '').lower() == 'amazon' or 'amazon.com' in url.lower()
+    
+    if cat_match:
+        raw_cat_id = cat_match.group(1)
+    elif is_amazon and asin_match:
+        raw_cat_id = asin_match.group(1)
+    else:
+        raw_cat_id = p.get('catalog_id') or ''
     
     # Flags vindas do scraper, banco ou metadados
     raw_is_cat = p.get('is_catalog')
@@ -295,7 +304,8 @@ def enrich_product_intel(produto: dict) -> dict:
     if raw_is_cat is None:
         raw_is_cat = p.get('is_catalogo')
     
-    has_buybox_sellers = int(p.get('sellers_count') or 0) > 1
+    sellers_count = int(p.get('sellers_count') or p.get('SELLERS_COUNT') or 1)
+    has_buybox_sellers = sellers_count > 1
     has_options_link = bool(re.search(r'/p/MLB\d+/s', url)) or ('type=product' in url and bool(p.get('opcoes_compra')))
     is_explicit_cat = p.get('origem') == 'catalogo' and bool(p.get('tem_concorrentes'))
     has_scraper_cat_flag = bool(raw_is_cat) or (bool(raw_cat_id) and not is_user_post)
@@ -303,11 +313,12 @@ def enrich_product_intel(produto: dict) -> dict:
     # Para ser considerado catálogo ativo no card:
     is_cat = (has_scraper_cat_flag or has_buybox_sellers or has_options_link or is_explicit_cat) and not is_user_post
     p['is_catalog'] = bool(is_cat)
+    p['sellers_count'] = sellers_count
     
-    p['catalog_id'] = raw_cat_id if (raw_cat_id and is_cat) else ''
+    p['catalog_id'] = raw_cat_id if (raw_cat_id and is_cat) else (raw_cat_id if is_amazon else '')
     
     wid_match = re.search(r'wid=(MLB\d+)', url)
-    p['winner_item_id'] = wid_match.group(1) if wid_match else ''
+    p['winner_item_id'] = wid_match.group(1) if wid_match else (raw_cat_id if is_amazon else '')
     
     # 2. Vendedor da BuyBox e Medalha
     raw_store = p.get('store_name') or p.get('loja_oficial') or p.get('LOJA_OFICIAL') or ''

@@ -498,15 +498,25 @@ class DatabaseManager:
             bool: True se salvo com sucesso
         """
         try:
+            cid = str(catalog_data.get("catalog_id") or "")
+            uid = catalog_data.get("user_id")
+            if uid is not None:
+                try:
+                    uid = int(uid)
+                except Exception:
+                    uid = None
+
+            record = {
+                "catalog_id": cid,
+                "nome": catalog_data.get("nome") or catalog_data.get("titulo") or f"Catálogo {cid}",
+                "imagem": catalog_data.get("imagem") or catalog_data.get("imagem_url") or "",
+                "termo_pesquisa": catalog_data.get("termo_pesquisa") or "",
+                "user_id": uid,
+                "coletado_em": datetime.now().isoformat(),
+            }
+
             response = self.supabase.table("catalogos").upsert(
-                {
-                    "catalog_id": catalog_data.get("catalog_id"),
-                    "nome": catalog_data.get("nome", ""),
-                    "imagem": catalog_data.get("imagem", ""),
-                    "termo_pesquisa": catalog_data.get("termo_pesquisa", ""),
-                    "user_id": catalog_data.get("user_id"),
-                    "coletado_em": datetime.now().isoformat(),
-                },
+                record,
                 on_conflict="catalog_id"
             ).execute()
             return len(response.data) > 0
@@ -632,7 +642,16 @@ class DatabaseManager:
                 .limit(1)
                 .execute()
             )
-            return response.data[0] if response.data else None
+            if response.data:
+                cat = response.data[0]
+                cid = cat.get("catalog_id", "")
+                is_amz = not cid.startswith("MLB")
+                cat["marketplace"] = "Amazon" if is_amz else "MercadoLivre"
+                cat["url_produto"] = cat.get("url_produto") or (f"https://www.amazon.com.br/dp/{cid}" if is_amz else f"https://www.mercadolivre.com.br/p/{cid}")
+                cat["titulo"] = cat.get("titulo") or cat.get("nome", "")
+                cat["imagem_url"] = cat.get("imagem_url") or cat.get("imagem", "")
+                return cat
+            return None
         except Exception as e:
             print(f"Erro ao buscar catálogo {catalog_id}: {e}")
             return None
@@ -717,14 +736,15 @@ class DatabaseManager:
 
     def extract_and_save_catalogs_from_offers(self, user_id: Optional[str] = None) -> List[Dict]:
         """
-        Analisa as ofertas salvas do Mercado Livre na tabela 'ofertas',
-        extrai links com padrão de catálogo (/p/MLB...) e salva na tabela 'catalogos'.
+        Analisa as ofertas salvas na tabela 'ofertas' (Mercado Livre e Amazon),
+        extrai links com padrão de catálogo (/p/MLB... ou /dp/ASIN) e salva na tabela 'catalogos'.
         """
         try:
+            import re
             from scraping.web_scrap_catalog_ml import extract_catalog_id_from_url
 
-            query = self.supabase.table("ofertas").select("titulo, imagem, url_produto, termo_pesquisa, criado_em")
-            resp = query.order("criado_em", desc=True).limit(300).execute()
+            query = self.supabase.table("ofertas").select("titulo, imagem, url_produto, termo_pesquisa, marketplace, criado_em")
+            resp = query.order("criado_em", desc=True).limit(500).execute()
             ofertas = resp.data or []
 
             catalogs_found = []
@@ -732,20 +752,35 @@ class DatabaseManager:
 
             for item in ofertas:
                 url = item.get("url_produto") or ""
-                cat_id = extract_catalog_id_from_url(url)
+                mp = item.get("marketplace") or "MercadoLivre"
+                
+                cat_id = None
+                if mp == "Amazon" or "amazon.com" in url.lower():
+                    asin_m = re.search(r'/dp/([A-Z0-9]{10})', url)
+                    if asin_m:
+                        cat_id = asin_m.group(1)
+                        mp = "Amazon"
+                else:
+                    cat_id = extract_catalog_id_from_url(url)
+                    mp = "MercadoLivre"
+
                 if cat_id and cat_id not in seen_ids:
                     seen_ids.add(cat_id)
                     catalog_data = {
                         "catalog_id": cat_id,
                         "nome": item.get("titulo") or f"Catálogo {cat_id}",
+                        "titulo": item.get("titulo") or f"Catálogo {cat_id}",
                         "imagem": item.get("imagem") or "",
+                        "imagem_url": item.get("imagem") or "",
+                        "url_produto": url,
+                        "marketplace": mp,
                         "termo_pesquisa": item.get("termo_pesquisa") or "",
-                        "user_id": user_id
+                        "user_id": user_id or "1"
                     }
                     self.save_catalog(catalog_data)
                     catalogs_found.append(catalog_data)
 
-            print(f"✅ {len(catalogs_found)} catálogos extraídos e sincronizados das ofertas existentes")
+            print(f"✅ {len(catalogs_found)} catálogos híbridos (ML + Amazon) extraídos das ofertas existentes")
             return catalogs_found
         except Exception as e:
             print(f"Erro ao extrair catálogos das ofertas: {e}")

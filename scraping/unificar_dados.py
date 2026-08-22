@@ -106,7 +106,10 @@ def padronizar_colunas_amazon(df: pd.DataFrame) -> pd.DataFrame:
         'BADGES': 'ETIQUETAS',
         'BOUGHT_LAST_MONTH': 'VENDIDOS_MES',
         'OFFERS': 'OFERTAS_ESPECIAIS',
-        'SNAP_EBT_ELIGIBLE': 'SNAP_EBT'
+        'SNAP_EBT_ELIGIBLE': 'SNAP_EBT',
+        'IS_CATALOG': 'IS_CATALOG',
+        'SELLERS_COUNT': 'SELLERS_COUNT',
+        'BUYBOX_MIN_PRICE': 'BUYBOX_MIN_PRICE'
     }
     
     # Renomeia colunas existentes
@@ -123,7 +126,10 @@ def padronizar_colunas_amazon(df: pd.DataFrame) -> pd.DataFrame:
         'PRODUTO_URL': '',
         'TERMO_BUSCA': '',
         'DATA_SCRAPING': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'MARKETPLACE': 'Amazon'
+        'MARKETPLACE': 'Amazon',
+        'IS_CATALOG': False,
+        'SELLERS_COUNT': 1,
+        'BUYBOX_MIN_PRICE': 0.0
     }
     
     for coluna, valor_padrao in colunas_obrigatorias.items():

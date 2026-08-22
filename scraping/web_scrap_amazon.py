@@ -280,6 +280,35 @@ class AmazonDirectScraper:
                     if container.select_one('.s-sponsored-label-info-icon') or "Patrocinado" in container.text:
                         product_data['SPONSORED'] = True
 
+                    # Detecção de Múltiplas Ofertas / Catálogo (All Offers / Outros vendedores)
+                    is_catalog = False
+                    sellers_count = 1
+                    container_text = container.text
+
+                    # 1. Procura por links de offer-listing ou gatilho de ofertas
+                    olp_link = container.select_one('a[href*="offer-listing"], a[href*="aod"], a[data-action="show-all-offers-display"]')
+                    if olp_link:
+                        is_catalog = True
+                        olp_text = olp_link.text.strip()
+                        match_count = re.search(r'(\d+)\s*(?:outras?\s*ofertas?|opções|vendedores)', olp_text, re.IGNORECASE)
+                        if match_count:
+                            sellers_count = int(match_count.group(1)) + 1
+
+                    # 2. Procura no texto do card por padrões de múltiplos concorrentes
+                    if not is_catalog:
+                        multi_match = re.search(r'(?:outras?|mais)\s*(\d+)\s*(?:ofertas?|opções|vendedores)', container_text, re.IGNORECASE)
+                        if multi_match:
+                            is_catalog = True
+                            sellers_count = int(multi_match.group(1)) + 1
+                        elif re.search(r'outras\s*opções\s*de\s*compra|outros\s*vendedores', container_text, re.IGNORECASE):
+                            is_catalog = True
+                            sellers_count = 2
+
+                    # Todo ASIN válido na Amazon é uma página de catálogo indexável
+                    product_data['IS_CATALOG'] = is_catalog
+                    product_data['SELLERS_COUNT'] = sellers_count
+                    product_data['BUYBOX_MIN_PRICE'] = product_data['PRICE_NUMERIC']
+
                     # Validação de produto válido
                     if product_data['TITLE'] and (product_data['PRICE_NUMERIC'] > 0 or product_data['PRICE']):
                         all_products.append(product_data)

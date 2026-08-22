@@ -6,17 +6,23 @@
 <div class="app-container">
 
     <!-- Navegação Voltar -->
-    <div class="mb-4 d-flex align-items-center justify-content-between">
+    <div class="mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
         <a href="{{ url_for('catalog.catalog_list') }}" class="btn btn-sm btn-secondary">
             <i class="fas fa-arrow-left"></i> Voltar aos Catálogos
         </a>
         <div class="d-flex align-items-center gap-2">
-            <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}" target="_blank" class="btn btn-sm btn-secondary">
-                <i class="fas fa-external-link-alt"></i> Ver no Mercado Livre
-            </a>
-            <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}/s?" target="_blank" class="btn btn-sm btn-secondary">
-                <i class="fas fa-list-ul text-warning"></i> Opções (/s?)
-            </a>
+            {% if catalog and catalog.marketplace == 'Amazon' or not catalog_id.startswith('MLB') %}
+                <a href="https://www.amazon.com.br/dp/{{ catalog_id }}" target="_blank" class="btn btn-sm btn-secondary">
+                    <i class="fab fa-amazon text-warning"></i> Ver na Amazon
+                </a>
+            {% else %}
+                <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}" target="_blank" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-external-link-alt text-warning"></i> Ver no Mercado Livre
+                </a>
+                <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}/s?" target="_blank" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-list-ul text-warning"></i> Opções (/s?)
+                </a>
+            {% endif %}
         </div>
     </div>
 
@@ -24,9 +30,9 @@
     <div class="page-header-clean mb-4">
         <div class="d-flex align-items-center gap-3">
             <div class="rounded-3 border p-2 bg-white d-flex align-items-center justify-content-center" style="width: 80px; height: 80px; flex-shrink: 0;">
-                {% if catalog and catalog.imagem %}
-                    <img src="{{ catalog.imagem }}" alt="{{ catalog.nome }}" style="max-width: 100%; max-height: 100%; object-fit: contain;"
-                         onerror="this.src='https://via.placeholder.com/80x80/ffffff/94a3b8?text=ML'">
+                {% if catalog and (catalog.imagem or catalog.imagem_url) %}
+                    <img src="{{ catalog.imagem or catalog.imagem_url }}" alt="{{ catalog.nome or catalog.titulo }}" style="max-width: 100%; max-height: 100%; object-fit: contain;"
+                         onerror="this.src='https://via.placeholder.com/80x80/ffffff/94a3b8?text=Product'">
                 {% else %}
                     <i class="fas fa-box text-muted" style="font-size: 2rem;"></i>
                 {% endif %}
@@ -36,6 +42,15 @@
                     <span class="catalog-chip">
                         <i class="fas fa-barcode text-warning"></i> Catálogo: {{ catalog_id }}
                     </span>
+                    {% if catalog and catalog.marketplace == 'Amazon' or not catalog_id.startswith('MLB') %}
+                    <span class="badge-saas" style="background:#fff7ed; color:#c2410c; border:1px solid #fed7aa;">
+                        <i class="fab fa-amazon"></i> Amazon
+                    </span>
+                    {% else %}
+                    <span class="badge-saas" style="background:#fef9c3; color:#a16207; border:1px solid #fde047;">
+                        <i class="fas fa-layer-group"></i> Mercado Livre
+                    </span>
+                    {% endif %}
                     {% if sellers and sellers|length > 0 %}
                     <span class="badge-saas badge-saas-success">
                         <i class="fas fa-check-circle"></i> {{ sellers|length }} Vendedores
@@ -43,8 +58,8 @@
                     {% endif %}
                 </div>
                 <h1 class="page-header-title fs-5">
-                    {% if catalog and catalog.nome %}
-                        {{ catalog.nome }}
+                    {% if catalog and (catalog.nome or catalog.titulo) %}
+                        {{ catalog.nome or catalog.titulo }}
                     {% else %}
                         Catálogo {{ catalog_id }}
                     {% endif %}
@@ -54,7 +69,7 @@
                         <span><i class="fas fa-search me-1 text-primary"></i> Busca: <strong>{{ catalog.termo_pesquisa }}</strong></span>
                     {% endif %}
                     {% if catalog and catalog.coletado_em %}
-                        <span><i class="fas fa-history me-1"></i> Sincronizado: {{ catalog.coletado_em }}</span>
+                        <span><i class="fas fa-history me-1"></i> Sincronizado: {{ catalog.coletado_em[:19] if catalog.coletado_em else '' }}</span>
                     {% endif %}
                 </div>
             </div>
@@ -132,20 +147,36 @@
 
     <!-- Tabela de Concorrentes -->
     <div class="table-saas-card mb-4">
-        <div class="p-3 border-bottom d-flex align-items-center justify-content-between">
-            <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
-                <i class="fas fa-list-ol text-primary me-2"></i>
-                Vendedores Concorrentes
-                <span class="badge-saas badge-saas-neutral ms-2 font-tabular">Ordenado por Menor Preço</span>
-            </h6>
-            <small class="text-muted">
-                <i class="fas fa-info-circle me-1"></i> Preços e condições extraídos do Mercado Livre
-            </small>
+        <div class="p-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
+                    <i class="fas fa-list-ol text-primary me-2"></i>
+                    Vendedores Concorrentes
+                    <span class="badge-saas badge-saas-neutral ms-2 font-tabular">Ordenado por Menor Preço</span>
+                </h6>
+                <span class="badge bg-light text-secondary border font-tabular" id="visibleSellersBadge">
+                    {{ sellers|length if sellers else 0 }} ofertas
+                </span>
+            </div>
+            
+            <div class="d-flex align-items-center gap-3">
+                <!-- Filtro Pré-configurado para Produtos Novos -->
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="filterOnlyNew" checked onchange="filterConditionSellers()">
+                    <label class="form-check-label small fw-bold text-dark" for="filterOnlyNew">
+                        <i class="fas fa-sparkles text-warning me-1"></i> Somente Novos
+                    </label>
+                </div>
+                
+                <small class="text-muted d-none d-md-inline">
+                    <i class="fas fa-info-circle me-1"></i> {% if catalog and catalog.marketplace == 'Amazon' or not catalog_id.startswith('MLB') %}Dados extraídos da Amazon Brasil{% else %}Dados extraídos do Mercado Livre{% endif %}
+                </small>
+            </div>
         </div>
 
         {% if sellers and sellers|length > 0 %}
         <div class="table-responsive">
-            <table class="ml-sellers-table">
+            <table class="ml-sellers-table" id="catalogSellersTable">
                 <thead>
                     <tr>
                         <th style="width: 22%;">Preço & Condições</th>
@@ -157,7 +188,9 @@
                 </thead>
                 <tbody>
                     {% for s in sellers %}
-                    <tr class="{% if loop.first and s.preco and s.preco > 0 %}best-offer-row{% endif %}">
+                    {% set is_new = (s.condicao or 'novo')|lower == 'novo' %}
+                    <tr class="seller-table-row {% if loop.first and s.preco and s.preco > 0 %}best-offer-row{% endif %}"
+                        data-condition="{{ (s.condicao or 'novo')|lower }}">
                         <!-- Coluna 1: Preço -->
                         <td>
                             <div class="d-flex align-items-baseline gap-2">
@@ -190,14 +223,19 @@
 
                         <!-- Coluna 2: Condição -->
                         <td>
-                            <span class="badge-saas badge-saas-neutral">
+                            <span class="badge-saas {% if is_new %}badge-saas-success{% else %}badge-saas-neutral{% endif %}">
                                 {{ s.condicao or 'Novo' }}
                             </span>
                         </td>
 
                         <!-- Coluna 3: Forma de Entrega -->
                         <td>
-                            {% if s.entrega_texto %}
+                            {% if s.prazo_entrega %}
+                                <div class="shipping-bullet">
+                                    <i class="fas fa-truck text-success mt-1" style="font-size: 0.8rem;"></i>
+                                    <span>{{ s.prazo_entrega }}</span>
+                                </div>
+                            {% elif s.entrega_texto %}
                                 <div class="shipping-bullet">
                                     <i class="fas fa-truck text-success mt-1" style="font-size: 0.8rem;"></i>
                                     <span>
@@ -220,24 +258,17 @@
                                 </div>
                             {% endif %}
 
-                            {% if s.retirada_texto %}
-                                <div class="shipping-bullet">
-                                    <i class="fas fa-store text-primary mt-1" style="font-size: 0.8rem;"></i>
-                                    <span>
-                                        {% if 'grátis' in s.retirada_texto|lower %}
-                                            <span class="shipping-green-highlight">Retire grátis</span> {{ s.retirada_texto|replace('Retire grátis', '')|replace('retire grátis', '') }}
-                                        {% else %}
-                                            {{ s.retirada_texto }}
-                                        {% endif %}
-                                    </span>
-                                </div>
-                            {% endif %}
-
                             {% if s.frete_full %}
                                 <div class="mt-1">
-                                    <span class="shipping-badge-full">
-                                        <i class="fas fa-bolt"></i> FULL
-                                    </span>
+                                    {% if catalog and catalog.marketplace == 'Amazon' or not catalog_id.startswith('MLB') %}
+                                        <span class="badge bg-warning bg-opacity-25 text-dark">
+                                            <i class="fab fa-amazon text-warning"></i> PRIME / FBA
+                                        </span>
+                                    {% else %}
+                                        <span class="shipping-badge-full">
+                                            <i class="fas fa-bolt"></i> FULL
+                                        </span>
+                                    {% endif %}
                                 </div>
                             {% endif %}
                         </td>
@@ -246,15 +277,14 @@
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #475569; font-size: 0.85rem; border: 1px solid #e2e8f0; flex-shrink: 0;">
-                                    {{ s.seller_name[:2]|upper if s.seller_name else 'ML' }}
+                                    {{ s.seller_name[:2]|upper if s.seller_name else 'V' }}
                                 </div>
                                 <div>
-                                    <a href="https://www.mercadolivre.com.br/perfil/{{ s.seller_name|replace(' ', '+') if s.seller_name else '' }}" target="_blank" class="seller-name-link">
-                                        {{ s.seller_name or 'Vendedor Mercado Livre' }}
-                                        <i class="fas fa-check-circle seller-verified-icon" title="Vendedor Identificado"></i>
-                                    </a>
+                                    <strong class="text-dark d-block">
+                                        {{ s.seller_name or 'Vendedor Oficial' }}
+                                    </strong>
                                     <div class="seller-reputation-text">
-                                        <i class="fas fa-medal me-1 text-warning"></i>{{ s.reputacao or 'MercadoLíder | Vendedor Ativo' }}
+                                        <i class="fas fa-award text-warning me-1"></i>{{ s.reputacao or 'Vendedor Qualificado' }}
                                     </div>
                                 </div>
                             </div>
@@ -262,7 +292,17 @@
 
                         <!-- Coluna 5: Ações / Comprar -->
                         <td style="text-align: center;">
-                            <a href="{{ s.buy_url or 'https://www.mercadolivre.com.br/p/' ~ catalog_id ~ '/s?' }}" target="_blank" class="btn-ml-buy">
+                            {% set is_amz = catalog and catalog.marketplace == 'Amazon' or not catalog_id.startswith('MLB') %}
+                            {% set buy_link = s.buy_url or (('https://www.amazon.com.br/dp/' ~ catalog_id) if is_amz else ('https://www.mercadolivre.com.br/p/' ~ catalog_id ~ '/s?')) %}
+                            <a href="{{ buy_link }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Abrir anúncio">
+                                <i class="fas fa-external-link-alt"></i> Comprar
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
                                 Comprar agora
                             </a>
                             <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}/s?" target="_blank" class="btn-ml-cart">
@@ -393,5 +433,38 @@ function hideOverlay() {
     document.getElementById('sellersOverlay').style.display = 'none';
     document.body.style.overflow = 'auto';
 }
+
+// Filtro de condição (Novo vs Usado)
+function filterConditionSellers() {
+    const onlyNew = document.getElementById('filterOnlyNew') ? document.getElementById('filterOnlyNew').checked : false;
+    const rows = document.querySelectorAll('.seller-table-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const cond = (row.getAttribute('data-condition') || 'novo').toLowerCase();
+        const isNew = cond === 'novo';
+
+        if (onlyNew) {
+            if (isNew) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        } else {
+            row.style.display = '';
+            visibleCount++;
+        }
+    });
+
+    const badge = document.getElementById('visibleSellersBadge');
+    if (badge) {
+        badge.textContent = `${visibleCount} ofertas`;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    filterConditionSellers();
+});
 </script>
 {% endblock %}
