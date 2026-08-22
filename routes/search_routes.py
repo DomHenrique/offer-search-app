@@ -212,18 +212,24 @@ def enrich_product_intel(produto: dict) -> dict:
     price = float(p.get('preco_numerico') or 0)
     reviews = int(p.get('avaliacoes') or p.get('num_avaliacoes') or 0)
     
-    # 1. Detecção Precisa de Catálogo (BuyBox com múltiplos vendedores)
-    # Anúncios normais possuem vendedor único (não são catálogo)
-    # Catálogos reais possuem indicação explícita ou padrão /p/MLB.../s ou flag is_catalog
-    has_explicit_catalog = bool(p.get('is_catalog')) or p.get('origem') == 'catalogo' or bool(p.get('tem_buybox'))
-    has_buybox_sellers = int(p.get('sellers_count') or 0) > 1
-    has_catalog_url = bool(re.search(r'/p/MLB\d+/s', url)) or ('type=product' in url and bool(p.get('opcoes_compra')))
+    # 1. Classificação Precisa de Catálogo vs Anúncio Individual no Mercado Livre
+    # Anúncios de Catálogo (/p/MLB...) possuem BuyBox e múltiplos vendedores
+    # Anúncios Individuais (/up/MLBU... ou links diretos de usuário) possuem vendedor único
+    is_user_post = '/up/' in url or 'MLBU' in url
+    is_catalog_url = ('/p/MLB' in url or 'type=product' in url) and not is_user_post
+    is_explicit_cat = bool(p.get('is_catalog')) or p.get('origem') == 'catalogo'
     
-    is_cat = has_explicit_catalog or has_buybox_sellers or has_catalog_url
+    is_cat = (is_catalog_url or is_explicit_cat) and not is_user_post
     p['is_catalog'] = bool(is_cat)
     
-    cat_match = re.search(r'(MLB\d+)', url)
+    # Extrai o Catalog ID (/p/MLB...) e o Winner ID (wid=MLB...)
+    cat_match = re.search(r'/p/(MLB\d+)', url)
+    if not cat_match:
+        cat_match = re.search(r'(MLB\d+)', url)
     p['catalog_id'] = cat_match.group(1) if (cat_match and is_cat) else ''
+    
+    wid_match = re.search(r'wid=(MLB\d+)', url)
+    p['winner_item_id'] = wid_match.group(1) if wid_match else ''
     
     # 2. Vendedor e Medalha
     store = p.get('loja_oficial') or p.get('store_name') or ''
@@ -251,8 +257,8 @@ def enrich_product_intel(produto: dict) -> dict:
         p['shipping_type'] = 'Flex'
         
     # 4. Vendas Estimadas & Faturamento
-    multiplier = 14 if is_cat else 9
-    estimated_sales = max(reviews * multiplier, 50 if price < 300 else 15)
+    multiplier = 15 if is_cat else 8
+    estimated_sales = max(reviews * multiplier, 60 if is_cat else 20)
     p['estimated_sales'] = estimated_sales
     p['estimated_revenue'] = float(estimated_sales * price)
     
@@ -262,9 +268,13 @@ def enrich_product_intel(produto: dict) -> dict:
     else:
         p['platform_commission'] = float((price * 0.13) + (6.0 if price < 79.0 else 0.0))
         
-    # 6. Concorrentes no catálogo
-    p['sellers_count'] = max(int(reviews / 30), 5) if is_cat else 1
-    
+    # 6. Concorrentes no catálogo (BuyBox)
+    if is_cat:
+        # Se for catálogo, calcula estimativa de concorrentes com base em reviews ou usa 6 como base
+        p['sellers_count'] = max(int(reviews / 15), 4)
+    else:
+        p['sellers_count'] = 1
+        
     # 7. Idade estimada (dias)
     p['age_days'] = min(max(reviews * 3, 60), 730)
     
