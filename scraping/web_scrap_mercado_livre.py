@@ -314,11 +314,9 @@ class MercadoLivreScraper:
                     except:
                         pass
                     
-                    # 5. NOME DA LOJA
-                    store_selectors = [
-                        "span.poly-component__seller",
                     # 5. LOJA/VENDEDOR OFICIAL (GANHADOR DA BUYBOX)
                     store_selectors = [
+                        "span.poly-component__seller",
                         ".poly-component__seller",
                         ".ui-search-item__group__element--seller",
                         ".ui-search-item__brand-title",
