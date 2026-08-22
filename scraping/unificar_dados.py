@@ -172,6 +172,11 @@ def padronizar_colunas_ml(df: pd.DataFrame) -> pd.DataFrame:
         'REVIEWS': 'NUM_AVALIACOES',
         'IMAGE_URL': 'IMAGEM_URL',
         'PRODUCT_URL': 'PRODUTO_URL',
+        'STORE_NAME': 'LOJA_OFICIAL',
+        'IS_CATALOG': 'IS_CATALOG',
+        'SHIPPING_TYPE': 'ETIQUETAS',
+        'INSTALLMENTS': 'OFERTAS_ESPECIAIS',
+        'OLD_PRICE': 'PRECO_ANTIGO',
         'SEARCH_TERM': 'TERMO_BUSCA',
         'SCRAPY_DATETIME': 'DATA_SCRAPING',
         'MARKETPLACE': 'MARKETPLACE'
@@ -189,6 +194,11 @@ def padronizar_colunas_ml(df: pd.DataFrame) -> pd.DataFrame:
         'NUM_AVALIACOES': 0,
         'IMAGEM_URL': '',
         'PRODUTO_URL': '',
+        'LOJA_OFICIAL': '',
+        'IS_CATALOG': False,
+        'ETIQUETAS': 'Frete Grátis',
+        'OFERTAS_ESPECIAIS': '',
+        'PRECO_ANTIGO': '',
         'TERMO_BUSCA': '',
         'DATA_SCRAPING': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'MARKETPLACE': 'MercadoLivre'

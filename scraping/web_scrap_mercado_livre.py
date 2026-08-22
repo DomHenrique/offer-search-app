@@ -418,11 +418,59 @@ class MercadoLivreScraper:
                         except:
                             pass
                     
+                    # 8. DETECÇÃO DE CATÁLOGO / BUYBOX / OPÇÕES DE COMPRA
+                    is_catalog = False
+                    try:
+                        # Verifica se possui elemento de buybox ou opções de compra de múltiplos sellers
+                        buybox_elems = container.find_elements(By.CSS_SELECTOR, 
+                            ".poly-component__buybox, .poly-phrase-buybox, a[href*='/s#polycard_client'], a[href*='/s?'], span[class*='buybox'], .ui-search-item__group__element--buybox"
+                        )
+                        for b_el in buybox_elems:
+                            if b_el.is_displayed() and b_el.text.strip():
+                                is_catalog = True
+                                break
+                    except Exception:
+                        pass
+                    product_data['is_catalog'] = is_catalog
+
+                    # 9. FRETE / LOGÍSTICA (FULL, Flex, Grátis)
+                    shipping_type = "Frete Grátis"
+                    try:
+                        container_text = container.text.lower()
+                        if 'full' in container_text or container.find_elements(By.CSS_SELECTOR, "svg[class*='full'], .poly-component__shipping--full, .ui-search-item__fulfillment"):
+                            shipping_type = "FULL"
+                        elif 'chegará hoje' in container_text or 'flex' in container_text:
+                            shipping_type = "Flex"
+                    except Exception:
+                        pass
+                    product_data['shipping_type'] = shipping_type
+
+                    # 10. PARCELAMENTO
+                    installments = ""
+                    try:
+                        inst_elem = container.find_element(By.CSS_SELECTOR, ".poly-price__installments, span[class*='installments']")
+                        if inst_elem:
+                            installments = inst_elem.text.strip()
+                    except Exception:
+                        pass
+                    product_data['installments'] = installments
+
+                    # 11. PREÇO ANTIGO (RISCADO)
+                    old_price = ""
+                    try:
+                        old_p_elem = container.find_element(By.CSS_SELECTOR, "s.andes-money-amount--previous .andes-money-amount__fraction, s[class*='previous'] .andes-money-amount__fraction")
+                        if old_p_elem:
+                            old_price = f"R$ {old_p_elem.text.strip()}"
+                    except Exception:
+                        pass
+                    product_data['old_price'] = old_price
+
                     # Só adiciona se tem dados mínimos (título e preço)
                     if product_data['title'] and product_data['price']:
                         products.append(product_data)
                         review_info = f"{product_data['rating']}⭐ ({product_data['review_count']} reviews)" if product_data['rating'] > 0 or product_data['review_count'] > 0 else "Sem avaliações"
-                        print(f"✅ Produto {len(products)}: {product_data['title'][:40]}... | {product_data['store_name'] or 'Loja não identificada'} | {review_info}")
+                        cat_tag = "[CATÁLOGO]" if is_catalog else "[INDIVIDUAL]"
+                        print(f"✅ Produto {len(products)}: {cat_tag} {product_data['title'][:35]}... | {product_data['store_name'] or 'Loja'} | {product_data['price']} | {review_info}")
                     
                 except Exception as e:
                     print(f"❌ Erro ao processar produto {i+1}: {e}")
@@ -526,6 +574,10 @@ class MercadoLivreScraper:
                     'PRODUCT_URL': product['product_url'],
                     'STORE_NAME': product['store_name'],
                     'SEARCH_TERM': search_term,
+                    'IS_CATALOG': product.get('is_catalog', False),
+                    'SHIPPING_TYPE': product.get('shipping_type', 'Frete Grátis'),
+                    'INSTALLMENTS': product.get('installments', ''),
+                    'OLD_PRICE': product.get('old_price', ''),
                     'SCRAPY_DATETIME': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     'MARKETPLACE': 'MercadoLivre'
                 })
