@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Offer Search - ML Session Sync",
-  "version": "1.0.0",
-  "description": "Sincroniza a sessão ativa do Mercado Livre com a sua aplicação Offer Search App.",
+  "name": "Offer Search - Session Sync",
+  "version": "1.1.0",
+  "description": "Sincroniza as sessões ativas do Mercado Livre e Amazon com a sua aplicação Offer Search App.",
   "action": {
     "default_popup": "popup.html",
-    "default_title": "ML Session Sync",
+    "default_title": "Offer Search Session Sync",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
@@ -25,6 +25,8 @@
     "*://*.mercadolivre.com.br/*",
     "*://*.mercadolivre.com/*",
     "*://*.mercadolibre.com/*",
+    "*://*.amazon.com.br/*",
+    "*://*.amazon.com/*",
     "http://localhost/*",
     "http://127.0.0.1/*",
     "https://*/*"

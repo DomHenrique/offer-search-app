@@ -20,83 +20,99 @@
 </head>
 <body>
      Navigation 
+     Navigation 
     {% if session.user_id %}
-    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient-primary fixed-top">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
-                <i class="fas fa-search-dollar me-2"></i>
-                Traffic AI Search-offer-App Busca Ofertas
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom fixed-top">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand-custom me-4" href="{{ url_for('dashboard') }}">
+                <i class="fas fa-search-dollar text-warning"></i>
+                <span>Traffic AI</span>
+                <span class="navbar-brand-badge">Busca Ofertas</span>
             </a>
             
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-expanded="false" aria-controls="navbarNav">
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-expanded="false" aria-controls="navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard') }}">
-                            <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                            <i class="fas fa-tachometer-alt"></i>Dashboard
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('search.search_page') }}">
-                            <i class="fas fa-search me-1"></i>Buscar
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('search.') %}active{% endif %}" href="{{ url_for('search.search_page') }}">
+                            <i class="fas fa-search"></i>Buscar
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('approval.approved_products') }}">
-                            <i class="fas fa-heart me-1"></i>Aprovados
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('catalog.') %}active{% endif %}" href="{{ url_for('catalog.catalog_list') }}">
+                            <i class="fas fa-store text-warning"></i>Catálogos
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('approval.') %}active{% endif %}" href="{{ url_for('approval.approved_products') }}">
+                            <i class="fas fa-heart"></i>Aprovados
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint and request.endpoint.startswith('inventory.') %}active{% endif %}" href="{{ url_for('inventory.inventory_list') }}">
-                            <i class="fas fa-boxes-stacked me-1"></i>Estoque & Pedidos
+                            <i class="fas fa-boxes-stacked"></i>Estoque & Pedidos
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint and request.endpoint.startswith('schedule.') %}active{% endif %}" href="{{ url_for('schedule.schedule_page') }}">
-                            <i class="fas fa-clock me-1"></i>Agendamentos
+                            <i class="fas fa-clock"></i>Agendamentos
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint and request.endpoint.startswith('history.') %}active{% endif %}" href="{{ url_for('history.history_page') }}">
-                            <i class="fas fa-history me-1"></i>Histórico
+                            <i class="fas fa-history"></i>Histórico
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint and request.endpoint.startswith('logs.') %}active{% endif %}" href="{{ url_for('logs.logs_page') }}">
-                            <i class="fas fa-satellite-dish me-1"></i>Logs
+                            <i class="fas fa-satellite-dish"></i>Logs
                         </a>
                     </li>
                 </ul>
                 
-                <ul class="navbar-nav align-items-center">
-                    <!-- Badge de Sessão Mercado Livre -->
-                    <li class="nav-item me-3">
-                        <div id="navMlSessionBadge" class="d-flex align-items-center gap-2 px-3 py-1 rounded-pill" 
-                             style="background: rgba(255,255,255,0.08); font-size: 0.8rem; cursor: pointer;"
-                             data-bs-toggle="modal" data-bs-target="#mlExtensionModal"
-                             title="Clique para ver instruções de sincronização da extensão Chrome">
-                            <span id="navMlDot" style="width: 8px; height: 8px; border-radius: 50%; background: #64748b; display: inline-block;"></span>
-                            <span id="navMlText" class="text-white-50">Sessão ML: Verificando...</span>
+                <ul class="navbar-nav align-items-center gap-2">
+                    <!-- Badges de Sessão dos Marketplaces -->
+                    <li class="nav-item">
+                        <div class="d-flex align-items-center gap-2">
+                            <!-- ML Badge -->
+                            <div id="navMlSessionBadge" class="nav-session-pill" 
+                                 data-bs-toggle="modal" data-bs-target="#sessionExtensionModal"
+                                 title="Clique para ver status de sincronização do Mercado Livre">
+                                <span id="navMlDot" class="status-dot"></span>
+                                <span id="navMlText">ML: ...</span>
+                            </div>
+                            <!-- Amazon Badge -->
+                            <div id="navAmzSessionBadge" class="nav-session-pill" 
+                                 data-bs-toggle="modal" data-bs-target="#sessionExtensionModal"
+                                 title="Clique para ver status de sincronização da Amazon">
+                                <span id="navAmzDot" class="status-dot"></span>
+                                <span id="navAmzText">Amz: ...</span>
+                            </div>
                         </div>
                     </li>
 
-                    <li class="nav-item dropdown">
+                    <li class="nav-item dropdown ms-2">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-user-circle me-1"></i>
+                            <i class="fas fa-user-circle"></i>
                             {{ session.user_name }}
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">
-                                <i class="fas fa-user me-2"></i>Perfil
+                        <ul class="dropdown-menu dropdown-menu-end shadow-md border-0" style="border-radius: 8px;">
+                            <li><a class="dropdown-item py-2" href="{{ url_for('auth.profile') }}">
+                                <i class="fas fa-user me-2 text-muted"></i>Perfil
                             </a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('settings.settings_page') }}">
-                                <i class="fas fa-cog me-2"></i>Configurações
+                            <li><a class="dropdown-item py-2" href="{{ url_for('settings.settings_page') }}">
+                                <i class="fas fa-cog me-2 text-muted"></i>Configurações
                             </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                            <li><hr class="dropdown-divider my-1"></li>
+                            <li><a class="dropdown-item py-2 text-danger" href="{{ url_for('auth.logout') }}">
                                 <i class="fas fa-sign-out-alt me-2"></i>Sair
                             </a></li>
                         </ul>
@@ -107,34 +123,39 @@
     </nav>
     {% endif %}
 
-    <!-- Modal de Instruções da Extensão Chrome -->
-    <div class="modal fade" id="mlExtensionModal" tabindex="-1" aria-labelledby="mlExtensionModalLabel" aria-hidden="true">
+    <!-- Modal de Instruções da Extensão Chrome (Multi-Marketplace) -->
+    <div class="modal fade" id="sessionExtensionModal" tabindex="-1" aria-labelledby="sessionExtensionModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content" style="border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,214,0,0.3);">
                 <div class="modal-header bg-dark text-white" style="background: linear-gradient(135deg, #1e1b4b, #312e81) !important;">
-                    <h5 class="modal-title fs-6 fw-bold" id="mlExtensionModalLabel">
-                        <i class="fas fa-bolt text-warning me-2"></i> Sincronização de Sessão Mercado Livre
+                    <h5 class="modal-title fs-6 fw-bold" id="sessionExtensionModalLabel">
+                        <i class="fas fa-bolt text-warning me-2"></i> Sincronização de Sessões de Marketplaces
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <div id="modalMlStatusDetail" class="p-3 mb-3 rounded-3 bg-light border text-center">
-                        <span class="spinner-border spinner-border-sm text-primary me-2"></span> Carregando status...
+                    <!-- Status ML -->
+                    <div id="modalMlStatusDetail" class="p-3 mb-2 rounded-3 bg-light border">
+                        <span class="spinner-border spinner-border-sm text-primary me-2"></span> Carregando status Mercado Livre...
+                    </div>
+                    <!-- Status Amazon -->
+                    <div id="modalAmzStatusDetail" class="p-3 mb-3 rounded-3 bg-light border">
+                        <span class="spinner-border spinner-border-sm text-warning me-2"></span> Carregando status Amazon...
                     </div>
 
                     <h6 class="fw-bold mb-2 text-dark"><i class="fab fa-chrome text-primary me-2"></i>Como sincronizar em 1 clique:</h6>
                     <ol class="small text-secondary ps-3 mb-3">
-                        <li class="mb-1">Instale a extensão na pasta <code>extension/</code> via <code>chrome://extensions</code>.</li>
-                        <li class="mb-1">Faça login na sua conta do <a href="https://www.mercadolivre.com.br" target="_blank" class="fw-semibold text-primary">Mercado Livre</a>.</li>
-                        <li class="mb-1">Abra a extensão <strong>ML Session Sync</strong> no topo do Chrome e clique em <strong>"Sincronizar Sessão"</strong>.</li>
+                        <li class="mb-1">Instale a extensão na pasta <code>extension/</code> via <code>chrome://extensions</code> no modo desenvolvedor.</li>
+                        <li class="mb-1">Faça login nas suas contas do <a href="https://www.mercadolivre.com.br" target="_blank" class="fw-semibold text-primary">Mercado Livre</a> e da <a href="https://www.amazon.com.br" target="_blank" class="fw-semibold text-warning">Amazon Brasil</a>.</li>
+                        <li class="mb-1">Abra a extensão <strong>Session Sync</strong> no topo do Chrome e clique em <strong>"Sincronizar Sessões"</strong>.</li>
                     </ol>
                     <div class="alert alert-info py-2 px-3 small mb-0">
-                        <i class="fas fa-shield-alt me-1"></i> Isso permite que o robô navegue autenticado nas páginas de concorrentes e catálogos sem sofrer bloqueios de Captcha/2FA.
+                        <i class="fas fa-shield-alt me-1"></i> Isso permite que os robôs da Amazon e do Mercado Livre naveguem autenticados, evitando 100% dos bloqueios de WAF/CAPTCHA e exibindo preços e estoques reais.
                     </div>
                 </div>
                 <div class="modal-footer bg-light py-2">
                     <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                    <button type="button" class="btn btn-sm btn-warning fw-bold" onclick="checkMlNavbarStatus()">
+                    <button type="button" class="btn btn-sm btn-primary fw-bold" onclick="checkAllNavbarSessions()">
                         <i class="fas fa-sync-alt me-1"></i> Atualizar Status
                     </button>
                 </div>
@@ -162,12 +183,11 @@
         {% block content %}{% endblock %}
     </main>
     
-     <!- Footer !--> 
-    <footer class="footer mt-auto py-3 bg-light">
-        <div class="container text-center">
-            <span class="text-muted">
-                &copy; 2025 Traffic AI Search-offer-App. Desenvolvido com 
-                <i class="fas fa-heart text-danger"></i>
+    <!-- Footer -->
+    <footer class="app-footer mt-auto py-3">
+        <div class="container-fluid px-4 text-center">
+            <span>
+                &copy; 2026 Traffic AI — Inteligência e Busca de Ofertas
             </span>
         </div>
     </footer>
@@ -175,56 +195,103 @@
      
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-    async function checkMlNavbarStatus() {
-        const dot = document.getElementById('navMlDot');
-        const text = document.getElementById('navMlText');
-        const detail = document.getElementById('modalMlStatusDetail');
-        if (!dot || !text) return;
-
-        try {
-            const res = await fetch('/api/auth/ml-session-status');
-            const data = await res.json();
-
-            if (data.connected && data.status === 'active') {
-                dot.style.background = '#10b981';
-                dot.style.boxShadow = '0 0 8px rgba(16, 185, 129, 0.8)';
-                text.className = 'text-success fw-semibold';
-                text.textContent = 'Sessão ML: Ativa';
-                if (detail) {
-                    detail.innerHTML = `
-                        <div class="text-success fw-bold mb-1"><i class="fas fa-check-circle me-1"></i> Sessão ML Conectada e Ativa</div>
-                        <small class="text-muted">Total de ${data.total_cookies || 0} cookies salvos. Atualizado em: ${data.updated_at ? new Date(data.updated_at).toLocaleString('pt-BR') : 'N/D'}</small>
-                    `;
+    async function checkAllNavbarSessions() {
+        // 1. Mercado Livre
+        const mlDot = document.getElementById('navMlDot');
+        const mlText = document.getElementById('navMlText');
+        const mlDetail = document.getElementById('modalMlStatusDetail');
+        if (mlDot && mlText) {
+            try {
+                const resML = await fetch('/api/auth/ml-session-status');
+                const dataML = await resML.json();
+                if (dataML.connected && dataML.status === 'active') {
+                    mlDot.style.background = '#10b981';
+                    mlDot.style.boxShadow = '0 0 8px rgba(16, 185, 129, 0.8)';
+                    mlText.className = 'text-success fw-semibold';
+                    mlText.textContent = 'ML: Ativo';
+                    if (mlDetail) {
+                        mlDetail.innerHTML = `
+                            <div class="text-success fw-bold mb-1"><i class="fas fa-check-circle me-1"></i> Mercado Livre: Conectado e Ativo</div>
+                            <small class="text-muted">${dataML.total_cookies || 0} cookies salvos (${dataML.updated_at ? new Date(dataML.updated_at).toLocaleString('pt-BR') : 'N/D'})</small>
+                        `;
+                    }
+                } else if (dataML.connected) {
+                    mlDot.style.background = '#f59e0b';
+                    mlDot.style.boxShadow = '0 0 8px rgba(245, 158, 11, 0.8)';
+                    mlText.className = 'text-warning fw-semibold';
+                    mlText.textContent = 'ML: >48h';
+                    if (mlDetail) {
+                        mlDetail.innerHTML = `
+                            <div class="text-warning fw-bold mb-1"><i class="fas fa-exclamation-triangle me-1"></i> Mercado Livre: Sessão Antiga (>48h)</div>
+                            <small class="text-muted">Recomendamos abrir a extensão no Chrome e sincronizar.</small>
+                        `;
+                    }
+                } else {
+                    mlDot.style.background = '#ef4444';
+                    mlDot.style.boxShadow = 'none';
+                    mlText.className = 'text-danger-emphasis';
+                    mlText.textContent = 'ML: Off';
+                    if (mlDetail) {
+                        mlDetail.innerHTML = `
+                            <div class="text-danger fw-bold mb-1"><i class="fas fa-times-circle me-1"></i> Mercado Livre: Desconectado</div>
+                            <small class="text-muted">Faça login no ML e clique em sincronizar na extensão.</small>
+                        `;
+                    }
                 }
-            } else if (data.connected) {
-                dot.style.background = '#f59e0b';
-                dot.style.boxShadow = '0 0 8px rgba(245, 158, 11, 0.8)';
-                text.className = 'text-warning fw-semibold';
-                text.textContent = 'Sessão ML: Desatualizada';
-                if (detail) {
-                    detail.innerHTML = `
-                        <div class="text-warning fw-bold mb-1"><i class="fas fa-exclamation-triangle me-1"></i> Sessão Desatualizada (>48h)</div>
-                        <small class="text-muted">Recomendamos abrir a extensão no Chrome e clicar em "Sincronizar Sessão".</small>
-                    `;
-                }
-            } else {
-                dot.style.background = '#ef4444';
-                dot.style.boxShadow = 'none';
-                text.className = 'text-danger-emphasis';
-                text.textContent = 'Sessão ML: Desconectado';
-                if (detail) {
-                    detail.innerHTML = `
-                        <div class="text-danger fw-bold mb-1"><i class="fas fa-times-circle me-1"></i> Nenhuma sessão sincronizada</div>
-                        <small class="text-muted">Instale a extensão no Chrome para sincronizar com 1 clique.</small>
-                    `;
-                }
+            } catch (e) {
+                console.error('Erro status ML:', e);
             }
-        } catch (e) {
-            console.error('Erro ao verificar status da sessão ML:', e);
+        }
+
+        // 2. Amazon
+        const amzDot = document.getElementById('navAmzDot');
+        const amzText = document.getElementById('navAmzText');
+        const amzDetail = document.getElementById('modalAmzStatusDetail');
+        if (amzDot && amzText) {
+            try {
+                const resAmz = await fetch('/api/auth/amazon-session-status');
+                const dataAmz = await resAmz.json();
+                if (dataAmz.connected && dataAmz.status === 'active') {
+                    amzDot.style.background = '#10b981';
+                    amzDot.style.boxShadow = '0 0 8px rgba(16, 185, 129, 0.8)';
+                    amzText.className = 'text-success fw-semibold';
+                    amzText.textContent = 'Amz: Ativo';
+                    if (amzDetail) {
+                        amzDetail.innerHTML = `
+                            <div class="text-success fw-bold mb-1"><i class="fas fa-check-circle me-1"></i> Amazon Brasil: Conectada e Ativa</div>
+                            <small class="text-muted">${dataAmz.total_cookies || 0} cookies salvos (${dataAmz.updated_at ? new Date(dataAmz.updated_at).toLocaleString('pt-BR') : 'N/D'})</small>
+                        `;
+                    }
+                } else if (dataAmz.connected) {
+                    amzDot.style.background = '#f59e0b';
+                    amzDot.style.boxShadow = '0 0 8px rgba(245, 158, 11, 0.8)';
+                    amzText.className = 'text-warning fw-semibold';
+                    amzText.textContent = 'Amz: >48h';
+                    if (amzDetail) {
+                        amzDetail.innerHTML = `
+                            <div class="text-warning fw-bold mb-1"><i class="fas fa-exclamation-triangle me-1"></i> Amazon: Sessão Antiga (>48h)</div>
+                            <small class="text-muted">Recomendamos abrir a extensão no Chrome e sincronizar.</small>
+                        `;
+                    }
+                } else {
+                    amzDot.style.background = '#ef4444';
+                    amzDot.style.boxShadow = 'none';
+                    amzText.className = 'text-danger-emphasis';
+                    amzText.textContent = 'Amz: Off';
+                    if (amzDetail) {
+                        amzDetail.innerHTML = `
+                            <div class="text-danger fw-bold mb-1"><i class="fas fa-times-circle me-1"></i> Amazon Brasil: Desconectada</div>
+                            <small class="text-muted">Faça login na Amazon e clique em sincronizar na extensão.</small>
+                        `;
+                    }
+                }
+            } catch (e) {
+                console.error('Erro status Amazon:', e);
+            }
         }
     }
 
-    document.addEventListener('DOMContentLoaded', checkMlNavbarStatus);
+    document.addEventListener('DOMContentLoaded', checkAllNavbarSessions);
     </script>
     
     <script src="{{ url_for('static', filename='js/app.js') }}?v=2"></script>

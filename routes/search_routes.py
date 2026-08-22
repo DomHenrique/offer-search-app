@@ -126,7 +126,7 @@ def _execute_search_thread(search_id, user_id, user_email, termo_pesquisa, pagin
             
             # Executa busca
             start_time = time.time()
-            results = buscar_e_salvar_ofertas(termo_pesquisa, paginas_ml)
+            results = buscar_e_salvar_ofertas(termo_pesquisa, paginas_ml, user_id=str(user_id))
             execution_time = int(time.time() - start_time)
             print(f"⏱️ Busca concluída em {execution_time} segundos, {len(results)} resultados")
             

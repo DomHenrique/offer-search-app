@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Offer Search ML Sync</title>
+  <title>Offer Search - Multi Sync</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -13,24 +13,40 @@
       <div class="logo">
         <span class="logo-icon">⚡</span>
         <div>
-          <h2>ML Session Sync</h2>
+          <h2>Session Sync</h2>
           <span class="subtitle">Offer Search App</span>
         </div>
       </div>
-      <span class="badge" id="mlStatusBadge">Verificando...</span>
+      <span class="badge" id="overallStatusBadge">Multi-Marketplace</span>
     </header>
 
     <!-- Card de Status do Mercado Livre -->
     <div class="card" id="mlCard">
       <div class="card-title">
-        <span>🛒 Sessão Mercado Livre</span>
+        <span>🟡 Mercado Livre</span>
+        <span class="badge" id="mlStatusBadge">Verificando...</span>
       </div>
       <div class="status-row">
-        <span class="status-dot" id="statusDot"></span>
-        <span id="mlStatusText" class="status-text">Buscando cookies ativos...</span>
+        <span class="status-dot" id="mlStatusDot"></span>
+        <span id="mlStatusText" class="status-text">Buscando cookies ML...</span>
       </div>
-      <div class="info-row" id="cookiesCountRow">
-        <small id="cookiesCount">0 cookies encontrados</small>
+      <div class="info-row">
+        <small id="mlCookiesCount">0 cookies encontrados</small>
+      </div>
+    </div>
+
+    <!-- Card de Status da Amazon -->
+    <div class="card" id="amazonCard">
+      <div class="card-title">
+        <span>🟠 Amazon Brasil</span>
+        <span class="badge" id="amazonStatusBadge">Verificando...</span>
+      </div>
+      <div class="status-row">
+        <span class="status-dot" id="amazonStatusDot"></span>
+        <span id="amazonStatusText" class="status-text">Buscando cookies Amazon...</span>
+      </div>
+      <div class="info-row">
+        <small id="amazonCookiesCount">0 cookies encontrados</small>
       </div>
     </div>
 
@@ -49,7 +65,7 @@
     <!-- Botão de Sincronização -->
     <button class="btn-sync" id="btnSync">
       <span class="btn-icon">⚡</span>
-      <span id="btnText">Sincronizar Sessão</span>
+      <span id="btnText">Sincronizar Sessões</span>
     </button>
 
     <!-- Feedback e Timestamp -->

@@ -2,10 +2,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const apiUrlInput = document.getElementById('apiUrl');
   const btnSync = document.getElementById('btnSync');
   const btnText = document.getElementById('btnText');
-  const mlStatusDot = document.getElementById('statusDot');
+  
+  // Elementos Mercado Livre
+  const mlStatusDot = document.getElementById('mlStatusDot');
   const mlStatusText = document.getElementById('mlStatusText');
   const mlStatusBadge = document.getElementById('mlStatusBadge');
-  const cookiesCount = document.getElementById('cookiesCount');
+  const mlCookiesCount = document.getElementById('mlCookiesCount');
+
+  // Elementos Amazon
+  const amazonStatusDot = document.getElementById('amazonStatusDot');
+  const amazonStatusText = document.getElementById('amazonStatusText');
+  const amazonStatusBadge = document.getElementById('amazonStatusBadge');
+  const amazonCookiesCount = document.getElementById('amazonCookiesCount');
+
   const feedback = document.getElementById('feedback');
   const lastSyncText = document.getElementById('lastSyncText');
 
@@ -35,41 +44,79 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cookiesCom = await chrome.cookies.getAll({ domain: 'mercadolivre.com' });
     const cookiesLibre = await chrome.cookies.getAll({ domain: 'mercadolibre.com' });
 
-    // Deduplica por nome e domínio
-    const map = new Map();
+    const mapML = new Map();
     [...cookiesBr, ...cookiesCom, ...cookiesLibre].forEach(c => {
-      map.set(`${c.domain}:${c.name}`, c);
+      mapML.set(`${c.domain}:${c.name}`, c);
     });
-    mlCookies = Array.from(map.values());
+    mlCookies = Array.from(mapML.values());
 
-    const hasAuthCookie = mlCookies.some(c => ['ssid', 'org_client_id', '_d2id', 'c_d2id'].includes(c.name));
+    const hasMLAuth = mlCookies.some(c => ['ssid', 'org_client_id', '_d2id', 'c_d2id'].includes(c.name));
 
-    if (mlCookies.length > 0 && hasAuthCookie) {
+    if (mlCookies.length > 0 && hasMLAuth) {
       mlStatusDot.className = 'status-dot online';
       mlStatusText.textContent = 'Conta ML Conectada';
       mlStatusBadge.className = 'badge active';
       mlStatusBadge.textContent = 'Autenticado';
-      cookiesCount.textContent = `${mlCookies.length} cookies de sessão detectados`;
+      mlCookiesCount.textContent = `${mlCookies.length} cookies de sessão detectados`;
     } else if (mlCookies.length > 0) {
       mlStatusDot.className = 'status-dot online';
-      mlStatusText.textContent = 'Cookies Detectados (Visitante)';
+      mlStatusText.textContent = 'Cookies ML Detectados (Visitante)';
       mlStatusBadge.className = 'badge';
       mlStatusBadge.textContent = 'Parcial';
-      cookiesCount.textContent = `${mlCookies.length} cookies encontrados (Faça login no ML se necessário)`;
+      mlCookiesCount.textContent = `${mlCookies.length} cookies encontrados`;
     } else {
       mlStatusDot.className = 'status-dot offline';
-      mlStatusText.textContent = 'Nenhum cookie encontrado';
+      mlStatusText.textContent = 'Nenhum cookie ML encontrado';
       mlStatusBadge.className = 'badge inactive';
       mlStatusBadge.textContent = 'Desconectado';
-      cookiesCount.textContent = 'Abra o mercadolivre.com.br e faça login';
+      mlCookiesCount.textContent = 'Abra mercadolivre.com.br e faça login';
     }
   } catch (err) {
-    console.error('Erro ao ler cookies:', err);
-    mlStatusText.textContent = 'Erro ao ler cookies';
-    cookiesCount.textContent = err.message;
+    console.error('Erro ao ler cookies ML:', err);
+    mlStatusText.textContent = 'Erro ao ler cookies ML';
+    mlCookiesCount.textContent = err.message;
   }
 
-  // 3. Ação do Botão de Sincronização
+  // 3. Busca cookies da Amazon
+  let amazonCookies = [];
+  try {
+    const cookiesAmazonBr = await chrome.cookies.getAll({ domain: 'amazon.com.br' });
+    const cookiesAmazonCom = await chrome.cookies.getAll({ domain: 'amazon.com' });
+
+    const mapAmz = new Map();
+    [...cookiesAmazonBr, ...cookiesAmazonCom].forEach(c => {
+      mapAmz.set(`${c.domain}:${c.name}`, c);
+    });
+    amazonCookies = Array.from(mapAmz.values());
+
+    const hasAmazonAuth = amazonCookies.some(c => ['at-acbbr', 'sess-at-acbbr', 'ubid-acbbr', 'session-id'].includes(c.name));
+
+    if (amazonCookies.length > 0 && hasAmazonAuth) {
+      amazonStatusDot.className = 'status-dot online';
+      amazonStatusText.textContent = 'Conta Amazon Conectada';
+      amazonStatusBadge.className = 'badge active';
+      amazonStatusBadge.textContent = 'Autenticado';
+      amazonCookiesCount.textContent = `${amazonCookies.length} cookies de sessão detectados`;
+    } else if (amazonCookies.length > 0) {
+      amazonStatusDot.className = 'status-dot online';
+      amazonStatusText.textContent = 'Cookies Amazon Detectados (Visitante)';
+      amazonStatusBadge.className = 'badge';
+      amazonStatusBadge.textContent = 'Parcial';
+      amazonCookiesCount.textContent = `${amazonCookies.length} cookies encontrados`;
+    } else {
+      amazonStatusDot.className = 'status-dot offline';
+      amazonStatusText.textContent = 'Nenhum cookie Amazon encontrado';
+      amazonStatusBadge.className = 'badge inactive';
+      amazonStatusBadge.textContent = 'Desconectado';
+      amazonCookiesCount.textContent = 'Abra amazon.com.br e faça login';
+    }
+  } catch (err) {
+    console.error('Erro ao ler cookies Amazon:', err);
+    amazonStatusText.textContent = 'Erro ao ler cookies Amazon';
+    amazonCookiesCount.textContent = err.message;
+  }
+
+  // 4. Ação do Botão de Sincronização Unificada
   btnSync.addEventListener('click', async () => {
     const targetUrl = apiUrlInput.value.trim().replace(/\/+$/, '');
     if (!targetUrl) {
@@ -77,8 +124,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    if (mlCookies.length === 0) {
-      showFeedback('Nenhum cookie do Mercado Livre encontrado para sincronizar.', 'error');
+    if (mlCookies.length === 0 && amazonCookies.length === 0) {
+      showFeedback('Nenhum cookie de marketplace encontrado para sincronizar.', 'error');
       return;
     }
 
@@ -86,50 +133,80 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnText.textContent = 'Sincronizando...';
     hideFeedback();
 
-    try {
-      // Formata lista limpa de cookies para o backend
-      const payloadCookies = mlCookies.map(c => ({
-        name: c.name,
-        value: c.value,
-        domain: c.domain,
-        path: c.path || '/',
-        secure: c.secure || false,
-        httpOnly: c.httpOnly || false,
-        sameSite: c.sameSite || 'lax'
-      }));
+    let successMessages = [];
+    let errorMessages = [];
 
-      const endpoint = `${targetUrl}/api/auth/sync-ml-session`;
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          cookies: payloadCookies,
-          total_cookies: payloadCookies.length,
-          synced_from: 'chrome-extension',
-          timestamp: new Date().toISOString()
-        })
-      });
+    const formatCookies = (cookies) => cookies.map(c => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain,
+      path: c.path || '/',
+      secure: c.secure || false,
+      httpOnly: c.httpOnly || false,
+      sameSite: c.sameSite || 'lax'
+    }));
 
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        const now = new Date().toISOString();
-        await chrome.storage.local.set({ lastSync: now, apiUrl: targetUrl });
-        lastSyncText.textContent = `Último sync: ${new Date(now).toLocaleTimeString('pt-BR')}`;
-        showFeedback(`✅ ${data.message || 'Sessão sincronizada com sucesso!'}`, 'success');
-      } else {
-        showFeedback(`❌ Erro da API: ${data.error || 'Falha ao sincronizar'}`, 'error');
+    // Sincroniza Mercado Livre
+    if (mlCookies.length > 0) {
+      try {
+        const payloadML = formatCookies(mlCookies);
+        const resML = await fetch(`${targetUrl}/api/auth/sync-ml-session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({
+            cookies: payloadML,
+            total_cookies: payloadML.length,
+            synced_from: 'chrome-extension',
+            timestamp: new Date().toISOString()
+          })
+        });
+        const dataML = await resML.json();
+        if (resML.ok && dataML.success) {
+          successMessages.push(`Mercado Livre (${payloadML.length} cookies)`);
+        } else {
+          errorMessages.push(`ML: ${dataML.error || 'Falha'}`);
+        }
+      } catch (err) {
+        errorMessages.push(`ML: ${err.message}`);
       }
-    } catch (err) {
-      console.error('Erro ao enviar cookies:', err);
-      showFeedback(`❌ Não foi possível conectar a ${targetUrl}. Verifique se o app está ativo.`, 'error');
-    } finally {
-      btnSync.disabled = false;
-      btnText.textContent = 'Sincronizar Sessão';
     }
+
+    // Sincroniza Amazon
+    if (amazonCookies.length > 0) {
+      try {
+        const payloadAmazon = formatCookies(amazonCookies);
+        const resAmz = await fetch(`${targetUrl}/api/auth/sync-amazon-session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({
+            cookies: payloadAmazon,
+            total_cookies: payloadAmazon.length,
+            synced_from: 'chrome-extension',
+            timestamp: new Date().toISOString()
+          })
+        });
+        const dataAmz = await resAmz.json();
+        if (resAmz.ok && dataAmz.success) {
+          successMessages.push(`Amazon (${payloadAmazon.length} cookies)`);
+        } else {
+          errorMessages.push(`Amazon: ${dataAmz.error || 'Falha'}`);
+        }
+      } catch (err) {
+        errorMessages.push(`Amazon: ${err.message}`);
+      }
+    }
+
+    if (successMessages.length > 0) {
+      const now = new Date().toISOString();
+      await chrome.storage.local.set({ lastSync: now, apiUrl: targetUrl });
+      lastSyncText.textContent = `Último sync: ${new Date(now).toLocaleTimeString('pt-BR')}`;
+      showFeedback(`✅ Sincronizado: ${successMessages.join(' e ')}!` + (errorMessages.length ? ` (Avisos: ${errorMessages.join(', ')})` : ''), 'success');
+    } else {
+      showFeedback(`❌ Falha ao sincronizar: ${errorMessages.join(', ')}`, 'error');
+    }
+
+    btnSync.disabled = false;
+    btnText.textContent = 'Sincronizar Sessões';
   });
 
   function showFeedback(msg, type) {

@@ -4,13 +4,13 @@ import traceback
 from database.supabase_client import SupabaseDB
 from scraping.unificar_dados import unificar_dados_amazon_mercadolivre, buscar_ofertas_do_dia  
 
-def buscar_e_salvar_ofertas(termo, paginas_ml=1):
+def buscar_e_salvar_ofertas(termo, paginas_ml=1, user_id=None):
     """Função que busca e salva ofertas para um termo específico"""
     
-    print(f"🔎 Buscando ofertas para: {termo}")
+    print(f"🔎 Buscando ofertas para: {termo} (user_id: {user_id or 'default'})")
 
-    # 1) Buscar dados unificados (Amazon + Mercado Livre)
-    df = unificar_dados_amazon_mercadolivre(termo, paginas_ml=paginas_ml)
+    # 1) Buscar dados unificados (Amazon + Mercado Livre) com injeção de sessão
+    df = unificar_dados_amazon_mercadolivre(termo, paginas_ml=paginas_ml, user_id=user_id)
 
     if df.empty:
         print("⚠️ Nenhum dado encontrado.")

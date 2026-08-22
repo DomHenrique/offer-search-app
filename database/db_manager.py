@@ -804,6 +804,59 @@ class DatabaseManager:
             print(f"Erro ao buscar sessão ML: {e}")
             return None
 
+    # === MÉTODOS DE SESSÃO DA AMAZON ===
+
+    def save_amazon_session(self, cookies: List[Dict], user_email: Optional[str] = None, user_id: Optional[str] = None) -> bool:
+        """
+        Salva ou atualiza a sessão de cookies da Amazon na tabela configuracoes.
+        """
+        try:
+            now = datetime.now().isoformat()
+            payload = {
+                "cookies": cookies,
+                "total_cookies": len(cookies),
+                "user_email": user_email or "default",
+                "updated_at": now,
+                "status": "active"
+            }
+            # Upsert na tabela de configurações sob a chave 'amazon_session_cookies'
+            response = self.supabase.table("configuracoes").upsert({
+                "user_id": user_id or "1",
+                "chave": "amazon_session_cookies",
+                "valor": payload,
+                "descricao": "Cookies de sessão ativa da Amazon Brasil",
+                "tipo": "json"
+            }, on_conflict="user_id, chave").execute()
+            return len(response.data) > 0
+        except Exception as e:
+            print(f"Erro ao salvar sessão Amazon: {e}")
+            return False
+
+    def get_amazon_session(self, user_id: Optional[str] = None) -> Optional[Dict]:
+        """
+        Recupera a sessão de cookies da Amazon salva no Supabase.
+        """
+        try:
+            import json
+            query = self.supabase.table("configuracoes").select("valor, atualizado_em").eq("chave", "amazon_session_cookies")
+            if user_id:
+                query = query.eq("user_id", user_id)
+            
+            response = query.limit(1).execute()
+            if response.data and response.data[0].get("valor"):
+                val = response.data[0]["valor"]
+                if isinstance(val, str):
+                    try:
+                        return json.loads(val)
+                    except Exception:
+                        return None
+                elif isinstance(val, dict):
+                    return val
+            return None
+        except Exception as e:
+            print(f"Erro ao buscar sessão Amazon: {e}")
+            return None
+
     # === MÉTODOS DE PEDIDOS DE COMPRA E ESTOQUE CONSOLIDADO ===
 
     def create_purchase_order(self, user_id: str, numero_pedido: str, fornecedor: Optional[str] = None, 

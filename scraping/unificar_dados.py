@@ -505,25 +505,27 @@ def relax_search_query(term: str, max_words: int = 5) -> str:
 def unificar_dados_amazon_mercadolivre(
     termo: str,
     paginas_ml: int = 1,
-    salvar_supabase: bool = True
+    salvar_supabase: bool = True,
+    user_id: Optional[str] = None
 ) -> pd.DataFrame:
     """
-    Unifica dados de Amazon (via SerpApi) e Mercado Livre (via Selenium).
-    Com auto-recuperação progressiva (Query Relaxation) caso a busca inicial venha vazia.
+    Unifica dados de Amazon (via Firefox Headless / SerpApi) e Mercado Livre (via Firefox Headless).
+    Com auto-recuperação progressiva (Query Relaxation) e injeção de sessão da extensão.
     
     Args:
         termo (str): Termo de busca
         paginas_ml (int): Número de páginas do ML para buscar
         salvar_supabase (bool): Se deve salvar no Supabase
+        user_id (str, optional): ID do usuário para injeção de cookies
         
     Returns:
         pd.DataFrame: DataFrame unificado com produtos filtrados
     """
-    print(f"🔍 Iniciando busca unificada para: '{termo}'")
+    print(f"🔍 Iniciando busca unificada para: '{termo}' (user_id: {user_id or 'default'})")
     print("="*50)
     
     # ── 1ª TENTATIVA: Termo original ──────────────────────────────────
-    df_final = _executar_busca_marketplaces(termo, paginas_ml, salvar_supabase=False)
+    df_final = _executar_busca_marketplaces(termo, paginas_ml, salvar_supabase=False, user_id=user_id)
 
     # ── 2ª TENTATIVA: Se vazio, tenta Query Relaxation (5 palavras) ────
     relaxed_used = None
@@ -532,7 +534,7 @@ def unificar_dados_amazon_mercadolivre(
         if relaxed_term and relaxed_term.lower() != termo.lower() and len(relaxed_term) >= 3:
             print(f"\n🔄 [Auto-Recuperação] Termo '{termo}' retornou 0 resultados.")
             print(f"   Tentando busca relaxada (5 palavras): '{relaxed_term}'...")
-            df_final = _executar_busca_marketplaces(relaxed_term, paginas_ml, salvar_supabase=False)
+            df_final = _executar_busca_marketplaces(relaxed_term, paginas_ml, salvar_supabase=False, user_id=user_id)
             if df_final is not None and not df_final.empty:
                 print(f"🎉 Auto-recuperação bem-sucedida! {len(df_final)} produtos encontrados com '{relaxed_term}'")
                 relaxed_used = relaxed_term
@@ -544,13 +546,12 @@ def unificar_dados_amazon_mercadolivre(
         relaxed_short = relax_search_query(termo, max_words=3)
         if relaxed_short and relaxed_short.lower() != termo.lower() and relaxed_short != relaxed_used:
             print(f"\n🔄 [Auto-Recuperação Nível 2] Tentando busca relaxada ampla: '{relaxed_short}'...")
-            df_final = _executar_busca_marketplaces(relaxed_short, paginas_ml, salvar_supabase=False)
+            df_final = _executar_busca_marketplaces(relaxed_short, paginas_ml, salvar_supabase=False, user_id=user_id)
             if df_final is not None and not df_final.empty:
                 print(f"🎉 Auto-recuperação Nível 2 bem-sucedida! {len(df_final)} produtos com '{relaxed_short}'")
                 relaxed_used = relaxed_short
                 df_final['TERMO_BUSCA'] = termo
                 df_final['RELAXED_QUERY_USED'] = relaxed_short
-                df_final['RELAXED_QUERY_USED'] = relaxed_term
 
     if df_final is None or df_final.empty:
         print("❌ Nenhum produto encontrado (nem no termo original, nem no relaxado)")
@@ -567,13 +568,24 @@ def unificar_dados_amazon_mercadolivre(
 def _executar_busca_marketplaces(
     termo: str,
     paginas_ml: int = 1,
-    salvar_supabase: bool = False
+    salvar_supabase: bool = False,
+    user_id: Optional[str] = None
 ) -> pd.DataFrame:
     """Executa a coleta bruta nos marketplaces para um termo específico."""
-    # Busca dados do Amazon
+    # Busca dados da Amazon
     print(f"🛒 Buscando produtos na Amazon para '{termo}'...")
     try:
-        df_amazon = get_amazon_direct_data(termo)
+        df_amazon = get_amazon_direct_data(termo, user_id=user_id)
+        
+        # Se a Amazon retornar 0 para o termo original, tenta auto-recuperação específica
+        if df_amazon is None or df_amazon.empty:
+            relaxed_amz = relax_search_query(termo, max_words=5)
+            if relaxed_amz and relaxed_amz.lower() != termo.lower() and len(relaxed_amz) >= 3:
+                print(f"🔄 [Amazon Auto-Recuperação] Termo original veio vazio na Amazon.")
+                print(f"   Tentando na Amazon com termo otimizado: '{relaxed_amz}'...")
+                df_amazon = get_amazon_direct_data(relaxed_amz, user_id=user_id)
+
+        # Fallback de contingência via SerpApi caso ainda esteja vazio
         if df_amazon is None or df_amazon.empty:
             print("⚠️ Tentando via SerpApi (Fallback)...")
             df_amazon = buscar_produtos_amazon(termo)
