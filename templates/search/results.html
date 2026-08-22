@@ -638,15 +638,15 @@
                                         {% endif %}
                                     {% endfor %}
                                 </div>
-                                <span class="fw-bold text-dark">{{ prod.avaliacao or '4.6' }}</span>
-                                <span class="text-muted">({{ prod.avaliacoes or prod.num_avaliacoes or '1.240' }})</span>
+                                <span class="fw-bold text-dark">{{ prod.avaliacao or '4.8' }}</span>
+                                <span class="text-muted">({{ prod.avaliacoes or prod.num_avaliacoes or '50' }})</span>
                             </div>
 
                             <!-- Grid de Inteligência de Mercado 2x4 -->
                             <div class="avantpro-metrics-grid">
                                 <div class="metric-col">
-                                    <span class="metric-label">Atual ganhador</span>
-                                    <span class="metric-value" title="{{ prod.store_name }}">{{ prod.store_name[:12] }}...</span>
+                                    <span class="metric-label">{% if prod.is_catalog %}Atual ganhador{% else %}Vendedor{% endif %}</span>
+                                    <span class="metric-value" title="{{ prod.store_name }}">{{ prod.store_name[:14] }}</span>
                                 </div>
                                 <div class="metric-col">
                                     <span class="metric-label">Vendas estimadas</span>
@@ -665,8 +665,14 @@
                                     <span class="metric-value warning">R$ {{ "%.2f"|format(prod.platform_commission)|replace('.', ',') }}</span>
                                 </div>
                                 <div class="metric-col">
-                                    <span class="metric-label">Concorrentes</span>
-                                    <span class="metric-value text-indigo">👥 {{ prod.sellers_count }} sellers</span>
+                                    <span class="metric-label">{% if prod.is_catalog %}Concorrentes{% else %}Estrutura{% endif %}</span>
+                                    <span class="metric-value {% if prod.is_catalog %}text-indigo{% else %}text-secondary{% endif %}">
+                                        {% if prod.is_catalog %}
+                                            👥 {{ prod.sellers_count }} sellers
+                                        {% else %}
+                                            <i class="fas fa-tag"></i> Individual
+                                        {% endif %}
+                                    </span>
                                 </div>
                                 <div class="metric-col">
                                     <span class="metric-label">Marca</span>
@@ -680,7 +686,7 @@
 
                             <!-- Barra de Concorrência -->
                             <div class="concurrency-meter">
-                                <div class="concurrency-fill" style="width: {{ [prod.sellers_count * 10, 100]|min }}%; background: {% if prod.sellers_count <= 5 %}#10b981{% elif prod.sellers_count <= 15 %}#f59e0b{% else %}#ef4444{% endif %};"></div>
+                                <div class="concurrency-fill" style="width: {% if prod.is_catalog %}{{ [prod.sellers_count * 10, 100]|min }}%{% else %}15%{% endif %}; background: {% if prod.is_catalog %}{% if prod.sellers_count <= 5 %}#10b981{% elif prod.sellers_count <= 15 %}#f59e0b{% else %}#ef4444{% endif %}{% else %}#3b82f6{% endif %};"></div>
                             </div>
 
                             <!-- Preços e Condições -->

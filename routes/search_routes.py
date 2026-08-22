@@ -212,12 +212,18 @@ def enrich_product_intel(produto: dict) -> dict:
     price = float(p.get('preco_numerico') or 0)
     reviews = int(p.get('avaliacoes') or p.get('num_avaliacoes') or 0)
     
-    # 1. Detecção de Catálogo
-    is_cat = '/p/MLB' in url or '/p/' in url or p.get('is_catalog') or 'catalogo' in str(p.get('categoria_preco', '')).lower()
+    # 1. Detecção Precisa de Catálogo (BuyBox com múltiplos vendedores)
+    # Anúncios normais possuem vendedor único (não são catálogo)
+    # Catálogos reais possuem indicação explícita ou padrão /p/MLB.../s ou flag is_catalog
+    has_explicit_catalog = bool(p.get('is_catalog')) or p.get('origem') == 'catalogo' or bool(p.get('tem_buybox'))
+    has_buybox_sellers = int(p.get('sellers_count') or 0) > 1
+    has_catalog_url = bool(re.search(r'/p/MLB\d+/s', url)) or ('type=product' in url and bool(p.get('opcoes_compra')))
+    
+    is_cat = has_explicit_catalog or has_buybox_sellers or has_catalog_url
     p['is_catalog'] = bool(is_cat)
     
     cat_match = re.search(r'(MLB\d+)', url)
-    p['catalog_id'] = cat_match.group(1) if cat_match else ''
+    p['catalog_id'] = cat_match.group(1) if (cat_match and is_cat) else ''
     
     # 2. Vendedor e Medalha
     store = p.get('loja_oficial') or p.get('store_name') or ''
@@ -246,7 +252,7 @@ def enrich_product_intel(produto: dict) -> dict:
         
     # 4. Vendas Estimadas & Faturamento
     multiplier = 14 if is_cat else 9
-    estimated_sales = max(reviews * multiplier, 60 if price < 200 else 20)
+    estimated_sales = max(reviews * multiplier, 50 if price < 300 else 15)
     p['estimated_sales'] = estimated_sales
     p['estimated_revenue'] = float(estimated_sales * price)
     
