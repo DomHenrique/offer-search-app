@@ -317,11 +317,19 @@ class MercadoLivreScraper:
                     # 5. NOME DA LOJA
                     store_selectors = [
                         "span.poly-component__seller",
+                    # 5. LOJA/VENDEDOR OFICIAL (GANHADOR DA BUYBOX)
+                    store_selectors = [
+                        ".poly-component__seller",
+                        ".ui-search-item__group__element--seller",
+                        ".ui-search-item__brand-title",
                         ".ui-search-item__group__element--stores__name",
                         "span.ui-search-item__store-name",
                         "span[class*='seller']",
                         "div[class*='seller'] span",
                         ".ui-search-item__store-name a",
+                        "a[href*='/loja/']",
+                        "span.ui-pdp-seller__link-trigger",
+                        ".ui-seller-data-header__title-container",
                         "span.ui-search-color--BLACK"
                     ]
                     
@@ -330,18 +338,15 @@ class MercadoLivreScraper:
                             store_elem = container.find_element(By.CSS_SELECTOR, selector)
                             if not self.is_element_ignored(store_elem):
                                 store_text = store_elem.text.strip()
-                                # Filtra textos que parecem ser nome de loja
-                                if (store_text and 
-                                    len(store_text) > 2 and 
-                                    len(store_text) < 100 and
-                                    not store_text.lower().startswith(('r', 'por', 'de', 'em', 'até')) and
-                                    not store_text.isdigit() and
-                                    'vendido por' not in store_text.lower()):
-                                    # Remove prefixos comuns
-                                    store_text = re.sub(r'^(por\s+|vendido\s+por\s+)', '', store_text, flags=re.IGNORECASE).strip()
-                                    if store_text:
-                                        product_data['store_name'] = store_text
-                                        break
+                                # Remove prefixos comuns como "Vendido por", "Por", "Loja oficial"
+                                clean_store = re.sub(r'^(vendido\s+por\s+|por\s+|loja\s+oficial\s+)', '', store_text, flags=re.IGNORECASE).strip()
+                                if (clean_store and 
+                                    len(clean_store) > 1 and 
+                                    len(clean_store) < 100 and
+                                    not clean_store.lower().startswith(('r$', 'em ', 'até ', 'de R$')) and
+                                    not clean_store.isdigit()):
+                                    product_data['store_name'] = clean_store
+                                    break
                         except:
                             continue
                     
@@ -420,6 +425,8 @@ class MercadoLivreScraper:
                     
                     # 8. DETECÇÃO DE CATÁLOGO / BUYBOX / OPÇÕES DE COMPRA
                     is_catalog = False
+                    sellers_count = 1
+                    buybox_min_price = 0.0
                     try:
                         # Verifica se a URL do produto já é de catálogo (/p/MLB...)
                         prod_link = product_data.get('product_url', '')
@@ -427,23 +434,45 @@ class MercadoLivreScraper:
                             is_catalog = True
                         
                         # Verifica se possui elemento de buybox ou opções de compra de múltiplos sellers
-                        if not is_catalog:
-                            buybox_elems = container.find_elements(By.CSS_SELECTOR, 
-                                ".poly-component__buybox, .poly-phrase-buybox, a[href*='/s#polycard_client'], a[href*='/s?'], a[href*='/s'], span[class*='buybox'], .ui-search-item__group__element--buybox, .ui-pdp-products, .ui-pdp-products__list, .ui-pdp-products__button"
-                            )
-                            for b_el in buybox_elems:
-                                if b_el.is_displayed() and b_el.text.strip():
-                                    is_catalog = True
-                                    break
+                        buybox_elems = container.find_elements(By.CSS_SELECTOR, 
+                            ".poly-component__buybox, .poly-phrase-buybox, a[href*='/s#polycard_client'], a[href*='/s?'], a[href*='/s'], span[class*='buybox'], .ui-search-item__group__element--buybox, .ui-pdp-products, .ui-pdp-products__list, .ui-pdp-products__button"
+                        )
+                        for b_el in buybox_elems:
+                            if b_el.is_displayed() and b_el.text.strip():
+                                is_catalog = True
+                                b_text = b_el.text.strip()
+                                # Extrai quantidade de produtos/sellers (ex: "22 produtos novos a partir de R$ 699")
+                                m_count = re.search(r'(\d+)\s+produtos?\s+novos?', b_text, re.IGNORECASE)
+                                if m_count:
+                                    sellers_count = int(m_count.group(1))
+                                m_price = re.search(r'a partir de\s*R\$\s*([\d\.,]+)', b_text, re.IGNORECASE)
+                                if m_price:
+                                    try:
+                                        buybox_min_price = float(m_price.group(1).replace('.', '').replace(',', '.'))
+                                    except:
+                                        pass
+                                break
                         
                         # Verifica textos explícitos de opções de compra no container
-                        if not is_catalog:
-                            c_text = container.text.lower()
-                            if 'opções de compra' in c_text or 'produtos novos a partir de' in c_text or 'outras opções' in c_text:
+                        if not is_catalog or sellers_count == 1:
+                            c_text = container.text
+                            if 'opções de compra' in c_text.lower() or 'produtos novos a partir de' in c_text.lower():
                                 is_catalog = True
+                                m_count = re.search(r'(\d+)\s+produtos?\s+novos?', c_text, re.IGNORECASE)
+                                if m_count:
+                                    sellers_count = int(m_count.group(1))
+                                m_price = re.search(r'a partir de\s*R\$\s*([\d\.,]+)', c_text, re.IGNORECASE)
+                                if m_price:
+                                    try:
+                                        buybox_min_price = float(m_price.group(1).replace('.', '').replace(',', '.'))
+                                    except:
+                                        pass
                     except Exception:
                         pass
+
                     product_data['is_catalog'] = is_catalog
+                    product_data['sellers_count'] = sellers_count
+                    product_data['buybox_min_price'] = buybox_min_price
 
                     # 9. FRETE / LOGÍSTICA (FULL, Flex, Grátis)
                     shipping_type = "Frete Grátis"
@@ -587,6 +616,8 @@ class MercadoLivreScraper:
                     'STORE_NAME': product['store_name'],
                     'SEARCH_TERM': search_term,
                     'IS_CATALOG': product.get('is_catalog', False),
+                    'SELLERS_COUNT': product.get('sellers_count', 1),
+                    'BUYBOX_MIN_PRICE': product.get('buybox_min_price', 0.0),
                     'SHIPPING_TYPE': product.get('shipping_type', 'Frete Grátis'),
                     'INSTALLMENTS': product.get('installments', ''),
                     'OLD_PRICE': product.get('old_price', ''),
