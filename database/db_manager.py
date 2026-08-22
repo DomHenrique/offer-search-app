@@ -1098,4 +1098,96 @@ class DatabaseManager:
             print(f"Aviso ao buscar identificadores anteriores para diff: {e}")
             return set()
 
+    # ─── Sistema de Logs de Busca e Auditoria ─────────────────────────────────
+
+    def save_search_log(self, log_data: Dict[str, Any]) -> bool:
+        """
+        Registra um log de auditoria de busca no banco de dados.
+        Campos esperados:
+          - user_id: str
+          - user_email: str
+          - termo_original: str
+          - termo_utilizado: str
+          - status: 'SUCCESS' | 'EMPTY' | 'ERROR' | 'FALLBACK_RECOVERED'
+          - total_ofertas: int
+          - ml_ofertas: int
+          - amazon_ofertas: int
+          - tempo_execucao_segundos: float
+          - error_message: str (opcional)
+        """
+        try:
+            payload = {
+                'user_id': log_data.get('user_id'),
+                'user_email': log_data.get('user_email') or 'admin@local',
+                'termo_original': str(log_data.get('termo_original') or '').strip(),
+                'termo_utilizado': str(log_data.get('termo_utilizado') or '').strip(),
+                'status': log_data.get('status') or 'SUCCESS',
+                'total_ofertas': int(log_data.get('total_ofertas') or 0),
+                'ml_ofertas': int(log_data.get('ml_ofertas') or 0),
+                'amazon_ofertas': int(log_data.get('amazon_ofertas') or 0),
+                'tempo_execucao_segundos': float(log_data.get('tempo_execucao_segundos') or 0.0),
+                'error_message': log_data.get('error_message'),
+                'created_at': datetime.utcnow().isoformat()
+            }
+
+            res = self.supabase.table("search_logs").insert(payload).execute()
+            return bool(res.data)
+        except Exception as e:
+            print(f"ℹ️ Erro ao gravar search_logs no Supabase: {e}")
+            return False
+
+    def get_search_logs(self, user_id: Optional[str] = None, status_filter: Optional[str] = None, limit: int = 50, offset: int = 0) -> List[Dict]:
+        """
+        Retorna a lista de logs de busca com paginação e filtros.
+        """
+        try:
+            query = self.supabase.table("search_logs").select("*")
+            if user_id:
+                query = query.eq("user_id", user_id)
+            if status_filter and status_filter != 'ALL':
+                query = query.eq("status", status_filter)
+
+            res = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+            return res.data or []
+        except Exception as e:
+            print(f"Erro ao buscar search_logs: {e}")
+            return []
+
+    def get_search_logs_stats(self, user_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Retorna estatísticas consolidadas de logs de busca.
+        """
+        try:
+            query = self.supabase.table("search_logs").select("status, total_ofertas, tempo_execucao_segundos")
+            if user_id:
+                query = query.eq("user_id", user_id)
+            res = query.limit(500).execute()
+            data = res.data or []
+
+            total = len(data)
+            success_count = sum(1 for d in data if d.get('status') in ['SUCCESS', 'FALLBACK_RECOVERED'])
+            empty_count = sum(1 for d in data if d.get('status') == 'EMPTY' or (d.get('total_ofertas') or 0) == 0)
+            error_count = sum(1 for d in data if d.get('status') == 'ERROR')
+            recovered_count = sum(1 for d in data if d.get('status') == 'FALLBACK_RECOVERED')
+            avg_time = (sum(d.get('tempo_execucao_segundos', 0) for d in data) / total) if total > 0 else 0.0
+
+            success_rate = (success_count / total * 100) if total > 0 else 100.0
+
+            return {
+                'total_buscas': total,
+                'sucesso_count': success_count,
+                'empty_count': empty_count,
+                'error_count': error_count,
+                'recovered_count': recovered_count,
+                'taxa_sucesso': round(success_rate, 1),
+                'tempo_medio': round(avg_time, 1)
+            }
+        except Exception as e:
+            print(f"Erro ao calcular stats de search_logs: {e}")
+            return {
+                'total_buscas': 0, 'sucesso_count': 0, 'empty_count': 0,
+                'error_count': 0, 'recovered_count': 0, 'taxa_sucesso': 100.0, 'tempo_medio': 0.0
+            }
+
+
 

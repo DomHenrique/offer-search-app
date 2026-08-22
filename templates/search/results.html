@@ -550,6 +550,16 @@
         <!-- ─── 2. GRADE DE CARDS RICOS (AVANT PRO GRID) ────────────── -->
         <div class="col-lg-9 col-md-8">
             
+            {% if stats and stats.relaxed_query_used %}
+            <div class="alert alert-info border-info border-opacity-25 rounded-4 d-flex align-items-center gap-3 p-3 mb-3 shadow-sm">
+                <i class="fas fa-magic fs-4 text-info"></i>
+                <div>
+                    <div class="fw-bold text-dark">Busca Recuperada com Termo Otimizado</div>
+                    <div class="small text-muted">O termo original continha sufixos ou especificações de fábrica que resultaram em 0 anúncios. Exibindo ofertas encontradas para: <strong class="text-primary">"{{ stats.relaxed_query_used }}"</strong></div>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Abas de Marketplaces (Todos, Catálogo, Mercado Livre, Amazon) -->
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border-bottom pb-2 mb-3">
                 <ul class="nav nav-pills gap-2" id="marketplaceTabs">

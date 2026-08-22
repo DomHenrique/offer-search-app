@@ -467,6 +467,41 @@ def salvar_no_supabase(df: pd.DataFrame, termo_busca: str) -> bool:
         return False
 
 
+def relax_search_query(term: str) -> str:
+    """
+    Relaxa e higieniza termos de busca que falharam por excesso de especificidade.
+    Remove ruídos como '-eu', '-br', '220v-eu', parênteses, códigos de lote e palavras de preenchimento.
+    """
+    if not term:
+        return ""
+
+    t = str(term).strip()
+
+    # 1. Remove voltagens compostas com país (ex: '220v-eu', '110v-br', '127v_br', '220v eu')
+    t = re.sub(r'\b\d+v[-_\s]?(eu|br|us|uk)\b', '', t, flags=re.IGNORECASE)
+
+    # 2. Remove sufixos isolados de país/região/tomada quando forem tokens independentes
+    t = re.sub(r'\b(eu|br|us|uk|brasil)\b', '', t, flags=re.IGNORECASE)
+    t = re.sub(r'\b(tomada|plugue|painel|versao|versão)\b', '', t, flags=re.IGNORECASE)
+
+    # 3. Simplifica nomes longos de categoria para palavras-chave essenciais
+    t = re.sub(r'\b(estação de energia portátil|estacao de energia portatil|gerador de energia portátil|gerador de energia portatil)\b', 'gerador', t, flags=re.IGNORECASE)
+    t = re.sub(r'\b(modo|ate|até|com|kit|novo|original|oficial)\b', '', t, flags=re.IGNORECASE)
+
+    # 4. Remove pontuações e símbolos estranhos
+    t = re.sub(r'[()\[\]{}"\'/,+_\-]', ' ', t)
+
+    # 5. Filtra palavras com mais de 1 caractere
+    words = [w.strip() for w in t.split() if len(w.strip()) > 1]
+
+    # Se ainda tiver mais de 5 palavras, pega as primeiras 4 ou 5
+    if len(words) > 5:
+        words = words[:5]
+
+    relaxed = ' '.join(words).strip()
+    return relaxed
+
+
 def unificar_dados_amazon_mercadolivre(
     termo: str,
     paginas_ml: int = 1,
@@ -474,6 +509,7 @@ def unificar_dados_amazon_mercadolivre(
 ) -> pd.DataFrame:
     """
     Unifica dados de Amazon (via SerpApi) e Mercado Livre (via Selenium).
+    Com auto-recuperação (Query Relaxation) caso a busca inicial venha vazia.
     
     Args:
         termo (str): Termo de busca
@@ -486,13 +522,48 @@ def unificar_dados_amazon_mercadolivre(
     print(f"🔍 Iniciando busca unificada para: '{termo}'")
     print("="*50)
     
+    # ── 1ª TENTATIVA: Termo original ──────────────────────────────────
+    df_final = _executar_busca_marketplaces(termo, paginas_ml, salvar_supabase=False)
+
+    # ── 2ª TENTATIVA: Se vazio, tenta Query Relaxation (Fallback) ─────
+    relaxed_used = None
+    if df_final is None or df_final.empty:
+        relaxed_term = relax_search_query(termo)
+        if relaxed_term and relaxed_term.lower() != termo.lower() and len(relaxed_term) >= 3:
+            print(f"\n🔄 [Auto-Recuperação] Termo '{termo}' retornou 0 resultados.")
+            print(f"   Tentando busca relaxada com: '{relaxed_term}'...")
+            df_final = _executar_busca_marketplaces(relaxed_term, paginas_ml, salvar_supabase=False)
+            if df_final is not None and not df_final.empty:
+                print(f"🎉 Auto-recuperação bem-sucedida! {len(df_final)} produtos encontrados com '{relaxed_term}'")
+                relaxed_used = relaxed_term
+                # Mantém o termo_pesquisa original vinculado
+                df_final['TERMO_BUSCA'] = termo
+                df_final['RELAXED_QUERY_USED'] = relaxed_term
+
+    if df_final is None or df_final.empty:
+        print("❌ Nenhum produto encontrado (nem no termo original, nem no relaxado)")
+        return pd.DataFrame()
+
+    # Salva no Supabase se solicitado
+    if salvar_supabase:
+        salvar_no_supabase(df_final, termo)
+
+    print(f"\n✅ Busca finalizada! Total de {len(df_final)} produtos unificados")
+    return df_final
+
+
+def _executar_busca_marketplaces(
+    termo: str,
+    paginas_ml: int = 1,
+    salvar_supabase: bool = False
+) -> pd.DataFrame:
+    """Executa a coleta bruta nos marketplaces para um termo específico."""
     # Busca dados do Amazon
-    print("🛒 Buscando produtos na Amazon (Tentativa Scraping Direto)...")
+    print(f"🛒 Buscando produtos na Amazon para '{termo}'...")
     try:
         df_amazon = get_amazon_direct_data(termo)
-        
         if df_amazon is None or df_amazon.empty:
-            print("⚠️ Scraping direto retornou vazio ou foi bloqueado. Tentando via SerpApi (Fallback)...")
+            print("⚠️ Tentando via SerpApi (Fallback)...")
             df_amazon = buscar_produtos_amazon(termo)
             
         if df_amazon is not None and not df_amazon.empty:
@@ -503,20 +574,15 @@ def unificar_dados_amazon_mercadolivre(
             
     except Exception as e:
         print(f"❌ Erro na busca Amazon Direta: {e}")
-        print("⚠️ Tentando via SerpApi (Fallback)...")
         try:
             df_amazon = buscar_produtos_amazon(termo)
-            if df_amazon is not None and not df_amazon.empty:
-                print(f"✅ Amazon (Fallback): {len(df_amazon)} produtos encontrados")
-            else:
-                print("⚠️ Amazon: Nenhum produto encontrado (nem no fallback)")
+            if df_amazon is None:
                 df_amazon = pd.DataFrame()
-        except Exception as e2:
-            print(f"❌ Erro no Fallback Amazon: {e2}")
+        except Exception:
             df_amazon = pd.DataFrame()
     
     # Busca dados do Mercado Livre
-    print("🛒 Buscando produtos no Mercado Livre...")
+    print(f"🛒 Buscando produtos no Mercado Livre para '{termo}'...")
     try:
         df_ml = get_mercado_livre_data(termo, paginas_ml)
         if df_ml is not None and not df_ml.empty:
@@ -529,48 +595,31 @@ def unificar_dados_amazon_mercadolivre(
         df_ml = pd.DataFrame()
     
     # Padroniza colunas
-    print("🔧 Padronizando dados...")
     df_amazon_padronizado = padronizar_colunas_amazon(df_amazon)
     df_ml_padronizado = padronizar_colunas_ml(df_ml)
     
-    # Combina DataFrames
     dfs_validos = [df for df in [df_amazon_padronizado, df_ml_padronizado] 
                    if df is not None and not df.empty]
     
     if not dfs_validos:
-        print("❌ Nenhum dado válido encontrado")
         return pd.DataFrame()
     
     df_unificado = pd.concat(dfs_validos, ignore_index=True)
-    
-    # Filtra produtos válidos (apenas remove sem preço)
-    print("🔍 Filtrando produtos válidos...")
     df_filtrado = filtrar_produtos_validos(df_unificado)
     
     if df_filtrado.empty:
-        print("❌ Nenhum produto válido após filtros")
         return pd.DataFrame()
     
-    # Adiciona métricas de comparação
-    print("📊 Calculando métricas...")
     df_final = adicionar_metricas_comparacao(df_filtrado)
     
-    # Ordena por score se disponível
     if 'SCORE_PRODUTO' in df_final.columns:
         df_final = df_final.sort_values('SCORE_PRODUTO', ascending=False).reset_index(drop=True)
     else:
         df_final = df_final.sort_values('PRECO_NUM', ascending=True).reset_index(drop=True)
     
-    # Gera relatório
     gerar_relatorio_unificado(df_final, termo)
-    
-    # Salva no Supabase se solicitado
-    if salvar_supabase:
-        salvar_no_supabase(df_final, termo)
-    
-    print(f"\n✅ Busca concluída! {len(df_final)} produtos encontrados")
-    
     return df_final
+
 
 
 def comparar_produto_especifico(df: pd.DataFrame, termo_produto: str) -> pd.DataFrame:

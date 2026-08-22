@@ -136,15 +136,47 @@ def _execute_search_thread(search_id, user_id, termo_pesquisa, paginas_ml):
             })
             print(f"📊 Progresso atualizado para 80%: {search_status[search_id]}")
             
+            # Verifica se foi utilizado termo relaxado
+            relaxed_used = None
+            if hasattr(results, 'columns') and 'RELAXED_QUERY_USED' in results.columns:
+                non_empty = results['RELAXED_QUERY_USED'].dropna()
+                if not non_empty.empty:
+                    relaxed_used = str(non_empty.iloc[0])
+
+            # Determina status do log
+            log_status = 'SUCCESS'
+            if len(results) == 0:
+                log_status = 'EMPTY'
+            elif relaxed_used:
+                log_status = 'FALLBACK_RECOVERED'
+
             # Calcula estatísticas
+            amazon_count = int(len([r for r in (results.to_dict('records') if hasattr(results, 'to_dict') else results) if r.get('marketplace') == 'Amazon']) or 0)
+            ml_count = int(len([r for r in (results.to_dict('records') if hasattr(results, 'to_dict') else results) if r.get('marketplace') == 'MercadoLivre']) or 0)
+            total_count = int(len(results) or 0)
+
+            # Grava log estruturado no banco
+            db_manager.save_search_log({
+                'user_id': user_id,
+                'user_email': session.get('user_email') or 'usuario@sistema',
+                'termo_original': termo_pesquisa,
+                'termo_utilizado': relaxed_used or termo_pesquisa,
+                'status': log_status,
+                'total_ofertas': total_count,
+                'ml_ofertas': ml_count,
+                'amazon_ofertas': amazon_count,
+                'tempo_execucao_segundos': round(execution_time, 2)
+            })
+
             stats = {
-                'total_produtos': int(len(results) or 0),
-                'amazon_produtos': int(len([r for r in results if r.get('marketplace') == 'Amazon']) or 0),
-                'ml_produtos': int(len([r for r in results if r.get('marketplace') == 'MercadoLivre']) or 0),
-                'preco_medio': float(sum(r.get('preco_numerico', 0) or 0 for r in results) / len(results)) if results else 0.0,
-                'preco_minimo': float(min((r.get('preco_numerico', 0) or 0) for r in results)) if results else 0.0,
-                'preco_maximo': float(max((r.get('preco_numerico', 0) or 0) for r in results)) if results else 0.0,
-                'tempo_execucao': int(execution_time or 0)
+                'total_produtos': total_count,
+                'amazon_produtos': amazon_count,
+                'ml_produtos': ml_count,
+                'preco_medio': float(sum(r.get('preco_numerico', 0) or 0 for r in (results.to_dict('records') if hasattr(results, 'to_dict') else results)) / total_count) if total_count > 0 else 0.0,
+                'preco_minimo': float(min((r.get('preco_numerico', 0) or 0) for r in (results.to_dict('records') if hasattr(results, 'to_dict') else results))) if total_count > 0 else 0.0,
+                'preco_maximo': float(max((r.get('preco_numerico', 0) or 0) for r in (results.to_dict('records') if hasattr(results, 'to_dict') else results))) if total_count > 0 else 0.0,
+                'tempo_execucao': int(execution_time or 0),
+                'relaxed_query_used': relaxed_used
             }
             print(f"📈 Estatísticas: {stats}")
             
@@ -163,9 +195,10 @@ def _execute_search_thread(search_id, user_id, termo_pesquisa, paginas_ml):
             search_status[search_id].update({
                 'status': 'concluida',
                 'progress': 100,
-                'message': f'Busca concluída! {len(ofertas)} produtos encontrados.',
+                'message': f'Busca concluída! {len(ofertas)} produtos encontrados.' + (f' (Termo otimizado: "{relaxed_used}")' if relaxed_used else ''),
                 'results': ofertas,
                 'stats': stats,
+                'relaxed_query_used': relaxed_used,
                 'completed': True
             })
             # Salva no cache
@@ -185,6 +218,24 @@ def _execute_search_thread(search_id, user_id, termo_pesquisa, paginas_ml):
         print(f"❌ Erro na thread de busca: {e}")
         import traceback
         traceback.print_exc()
+
+        # Grava log de erro no banco
+        try:
+            db_manager.save_search_log({
+                'user_id': user_id,
+                'user_email': session.get('user_email') or 'usuario@sistema',
+                'termo_original': termo_pesquisa,
+                'termo_utilizado': termo_pesquisa,
+                'status': 'ERROR',
+                'total_ofertas': 0,
+                'ml_ofertas': 0,
+                'amazon_ofertas': 0,
+                'tempo_execucao_segundos': 0.0,
+                'error_message': str(e)
+            })
+        except Exception:
+            pass
+
         search_status[search_id].update({
             'status': 'erro',
             'error': str(e),

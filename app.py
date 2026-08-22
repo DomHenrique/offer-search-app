@@ -27,6 +27,7 @@ from routes.history_routes import history_bp
 from routes.alert_routes import alert_bp
 from routes.catalog_routes import catalog_bp
 from routes.inventory_routes import inventory_bp
+from routes.logs_routes import logs_bp
 from utils.scheduler import SchedulerManager
 from utils.helpers import format_currency, time_ago
 from utils.decorators import login_required
@@ -51,6 +52,7 @@ app.register_blueprint(history_bp, url_prefix='/history')
 app.register_blueprint(alert_bp, url_prefix='/alert')
 app.register_blueprint(catalog_bp, url_prefix='/catalog')
 app.register_blueprint(inventory_bp, url_prefix='/inventory')
+app.register_blueprint(logs_bp, url_prefix='/logs')
 
 # Inicializa gerenciador de banco de dados
 db_manager = DatabaseManager()
