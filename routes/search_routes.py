@@ -212,21 +212,26 @@ def enrich_product_intel(produto: dict) -> dict:
     price = float(p.get('preco_numerico') or 0)
     reviews = int(p.get('avaliacoes') or p.get('num_avaliacoes') or 0)
     
-    # 1. Classificação Precisa de Catálogo vs Anúncio Individual no Mercado Livre
-    # Anúncios de Catálogo (/p/MLB...) possuem BuyBox e múltiplos vendedores
-    # Anúncios Individuais (/up/MLBU... ou links diretos de usuário) possuem vendedor único
+    # 1. Classificação Precisa de Catálogo com Concorrência de Sellers vs Anúncio de Vendedor Único
+    # No Mercado Livre, um item só é considerado catálogo concorrencial se tiver múltiplos vendedores
+    # disputando a BuyBox ("Opções de compra: X produtos novos").
+    # Anúncios com vendedor único (ex: ECOMANIAS) são anúncios individuais.
     is_user_post = '/up/' in url or 'MLBU' in url
-    is_catalog_url = ('/p/MLB' in url or 'type=product' in url) and not is_user_post
-    is_explicit_cat = bool(p.get('is_catalog')) or p.get('origem') == 'catalogo'
     
-    is_cat = (is_catalog_url or is_explicit_cat) and not is_user_post
+    # Extrai o Catalog ID se houver
+    cat_match = re.search(r'/p/(MLB\d+)', url)
+    raw_cat_id = cat_match.group(1) if cat_match else ''
+    
+    # Verifica se tem concorrência confirmada
+    has_buybox_sellers = int(p.get('sellers_count') or 0) > 1
+    has_options_link = bool(re.search(r'/p/MLB\d+/s', url)) or ('type=product' in url and bool(p.get('opcoes_compra')))
+    is_explicit_cat = p.get('origem') == 'catalogo' and bool(p.get('tem_concorrentes'))
+    
+    # Para ser considerado catálogo ativo no card:
+    is_cat = (has_buybox_sellers or has_options_link or is_explicit_cat) and not is_user_post
     p['is_catalog'] = bool(is_cat)
     
-    # Extrai o Catalog ID (/p/MLB...) e o Winner ID (wid=MLB...)
-    cat_match = re.search(r'/p/(MLB\d+)', url)
-    if not cat_match:
-        cat_match = re.search(r'(MLB\d+)', url)
-    p['catalog_id'] = cat_match.group(1) if (cat_match and is_cat) else ''
+    p['catalog_id'] = raw_cat_id if (raw_cat_id and is_cat) else ''
     
     wid_match = re.search(r'wid=(MLB\d+)', url)
     p['winner_item_id'] = wid_match.group(1) if wid_match else ''
@@ -270,8 +275,7 @@ def enrich_product_intel(produto: dict) -> dict:
         
     # 6. Concorrentes no catálogo (BuyBox)
     if is_cat:
-        # Se for catálogo, calcula estimativa de concorrentes com base em reviews ou usa 6 como base
-        p['sellers_count'] = max(int(reviews / 15), 4)
+        p['sellers_count'] = max(int(p.get('sellers_count') or (reviews / 15)), 2)
     else:
         p['sellers_count'] = 1
         
