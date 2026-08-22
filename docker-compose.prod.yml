@@ -20,6 +20,7 @@ services:
       - SERPAPI_KEY=defc49145dee59efd53c9db61a682417bfa2993a
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=rede_gridd"
       - "traefik.http.routers.offer-search.rule=Host(`offer-search.hnperformancedigital.com.br`)"
       - "traefik.http.routers.offer-search.entrypoints=websecure"
       - "traefik.http.routers.offer-search.tls=true"
