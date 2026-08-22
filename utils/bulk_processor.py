@@ -53,7 +53,7 @@ class BulkProcessor:
                 print(f"🔍 Buscando termo ({index+1}/{len(itens)}): {termo}")
                 
                 try:
-                    df = unificar_dados_amazon_mercadolivre(termo, paginas_ml=1, salvar_supabase=False)
+                    df = unificar_dados_amazon_mercadolivre(termo, paginas_ml=1, salvar_supabase=True)
                     
                     if df is not None and not df.empty and 'PRECO_NUM' in df.columns:
                         # Filtrar preços maiores que zero
@@ -74,6 +74,22 @@ class BulkProcessor:
                                 "top_5_caros": caros_json,
                                 "concluido_em": datetime.now().isoformat()
                             }).eq("id", item['id']).execute()
+
+                            # Grava no histórico individual de buscas
+                            try:
+                                stats = {
+                                    'total_produtos': int(len(df_valid)),
+                                    'amazon_produtos': int(len(df_valid[df_valid['MARKETPLACE'] == 'Amazon'])),
+                                    'ml_produtos': int(len(df_valid[df_valid['MARKETPLACE'] == 'MercadoLivre'])),
+                                    'preco_medio': float(df_valid['PRECO_NUM'].mean() or 0),
+                                    'preco_minimo': float(df_valid['PRECO_NUM'].min() or 0),
+                                    'preco_maximo': float(df_valid['PRECO_NUM'].max() or 0),
+                                    'origem': 'busca_em_lote',
+                                    'lote_id': lote_id
+                                }
+                                self.db_manager.save_search_history(user_id, termo, stats)
+                            except Exception as hist_err:
+                                print(f"⚠️ Erro ao salvar histórico individual do lote para {termo}: {hist_err}")
                         else:
                             self.db_manager.supabase.table("lote_itens").update({
                                 "status": "erro",

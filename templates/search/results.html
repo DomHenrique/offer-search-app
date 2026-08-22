@@ -531,24 +531,50 @@
         <!-- ─── 2. GRADE DE CARDS RICOS (AVANT PRO GRID) ────────────── -->
         <div class="col-lg-9 col-md-8">
             
-            <!-- Barra de Controles Rápidos -->
-            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                <div class="form-check d-flex align-items-center gap-2">
-                    <input class="form-check-input" type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)">
-                    <label class="form-check-label fw-bold small text-dark" for="selectAllCheckbox">
-                        Selecionar Todos (<span id="visibleProductsCount">{{ results|length }}</span>)
-                    </label>
-                </div>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-secondary" onclick="sortCards('revenue_desc')">
-                        <i class="fas fa-sort-amount-down me-1"></i> Maior Faturamento
+            <!-- Abas de Marketplaces (Todos, Mercado Livre, Amazon) -->
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border-bottom pb-2 mb-3">
+                <ul class="nav nav-pills gap-2" id="marketplaceTabs">
+                    <li class="nav-item">
+                        <button class="nav-link active fw-bold rounded-pill px-3 py-1 text-sm mp-tab-btn" data-marketplace="all" onclick="setMarketplaceTab('all', this)">
+                            <i class="fas fa-globe me-1"></i> Todos (<span id="mpCountAll">{{ results|length }}</span>)
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold rounded-pill px-3 py-1 text-sm mp-tab-btn bg-light text-dark border" data-marketplace="MercadoLivre" onclick="setMarketplaceTab('MercadoLivre', this)">
+                            <i class="fas fa-store text-warning me-1"></i> Mercado Livre (<span id="mpCountML">0</span>)
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold rounded-pill px-3 py-1 text-sm mp-tab-btn bg-light text-dark border" data-marketplace="Amazon" onclick="setMarketplaceTab('Amazon', this)">
+                            <i class="fab fa-amazon text-warning me-1"></i> Amazon (<span id="mpCountAmazon">0</span>)
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Ações de Ordenação -->
+                <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill" onclick="sortCards('revenue_desc')" title="Ordenar por Maior Faturamento">
+                        <i class="fas fa-chart-line me-1"></i> Faturamento
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="sortCards('price_asc')">
-                        <i class="fas fa-sort-numeric-down me-1"></i> Menor Preço
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill" onclick="sortCards('price_asc')" title="Ordenar por Menor Preço">
+                        <i class="fas fa-dollar-sign me-1"></i> Menor Preço
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="sortCards('sales_desc')">
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill" onclick="sortCards('sales_desc')" title="Ordenar por Mais Vendidos">
                         <i class="fas fa-fire me-1"></i> Mais Vendidos
                     </button>
+                </div>
+            </div>
+
+            <!-- Barra de Seleção em Lote -->
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 bg-light p-2 rounded-3 border">
+                <div class="form-check d-flex align-items-center gap-2 m-0">
+                    <input class="form-check-input" type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)">
+                    <label class="form-check-label fw-bold small text-dark" for="selectAllCheckbox">
+                        Selecionar Todos Visíveis (<span id="visibleProductsCount">{{ results|length }}</span>)
+                    </label>
+                </div>
+                <div class="text-muted small">
+                    Exibindo ofertas auditadas em tempo real
                 </div>
             </div>
 
@@ -556,6 +582,7 @@
             <div class="row row-cols-1 row-cols-sm-2 row-cols-xl-3 g-3" id="avantproResultsGrid">
                 {% for prod in results %}
                 <div class="col product-card-col"
+                     data-marketplace="{{ prod.marketplace or 'MercadoLivre' }}"
                      data-catalog="{{ 'true' if prod.is_catalog else 'false' }}"
                      data-medal="{{ prod.seller_medal }}"
                      data-shipping="{{ prod.shipping_type }}"
@@ -564,7 +591,8 @@
                      data-revenue="{{ prod.estimated_revenue }}"
                      data-price="{{ prod.preco_numerico }}"
                      data-sales="{{ prod.estimated_sales }}"
-                     data-product-id="{{ prod.id }}">
+                     data-product-id="{{ prod.id }}"
+                     data-sku="{{ prod.loja or '' }}">
                     
                     <div class="avantpro-card">
                         
@@ -594,6 +622,11 @@
                                         <i class="fas fa-users"></i>
                                     </a>
                                 {% endif %}
+                                <button class="btn-action-icon text-success border-success" 
+                                        onclick="openPurchaseOrderModal('{{ prod.titulo|escape }}', '{{ prod.store_name|escape }}', '{{ prod.preco_numerico }}', '{{ prod.url_produto }}', '{{ prod.marketplace }}')" 
+                                        title="Criar Pedido de Compra no Inventário">
+                                    <i class="fas fa-shopping-cart"></i>
+                                </button>
                                 <a href="{{ prod.url_produto }}" target="_blank" class="btn-action-icon btn-act-blue" title="Abrir página oficial">
                                     <i class="fas fa-external-link-alt"></i>
                                 </a>
@@ -668,7 +701,7 @@
                                     <span class="metric-label">{% if prod.is_catalog %}Concorrentes{% else %}Estrutura{% endif %}</span>
                                     <span class="metric-value {% if prod.is_catalog %}text-indigo{% else %}text-secondary{% endif %}">
                                         {% if prod.is_catalog %}
-                                            👥 {{ prod.sellers_count }} sellers
+                                             {{ prod.sellers_count }} sellers
                                         {% else %}
                                             <i class="fas fa-tag"></i> Individual
                                         {% endif %}
@@ -705,14 +738,20 @@
                                         em 12x R$ {{ "%.2f"|format(prod.installment_val)|replace('.', ',') }} sem juros
                                     </div>
                                 {% endif %}
-                                <div class="shipping-badge-line">
-                                    {% if prod.shipping_type == 'FULL' %}
-                                        <i class="fas fa-bolt text-warning"></i> Chegará grátis amanhã (FULL)
-                                    {% elif prod.shipping_type == 'Flex' %}
-                                        <i class="fas fa-motorcycle text-primary"></i> Chegará hoje (Flex)
-                                    {% else %}
-                                        <i class="fas fa-truck text-success"></i> Frete Grátis
-                                    {% endif %}
+                                <div class="d-flex justify-content-between align-items-center mt-1">
+                                    <div class="shipping-badge-line">
+                                        {% if prod.shipping_type == 'FULL' %}
+                                            <i class="fas fa-bolt text-warning"></i> Chegará amanhã (FULL)
+                                        {% elif prod.shipping_type == 'Flex' %}
+                                            <i class="fas fa-motorcycle text-primary"></i> Chegará hoje (Flex)
+                                        {% else %}
+                                            <i class="fas fa-truck text-success"></i> Frete Grátis
+                                        {% endif %}
+                                    </div>
+                                    <button class="btn btn-xs btn-outline-success rounded-pill px-2 py-0" style="font-size:0.7rem;" 
+                                            onclick="openPurchaseOrderModal('{{ prod.titulo|escape }}', '{{ prod.store_name|escape }}', '{{ prod.preco_numerico }}', '{{ prod.url_produto }}', '{{ prod.marketplace }}')">
+                                        <i class="fas fa-cart-plus me-1"></i> Comprar
+                                    </button>
                                 </div>
                             </div>
 
@@ -734,17 +773,113 @@
     </div>
 
 </div>
+
+<!-- Modal: Criar Pedido de Compra a partir da Oferta -->
+<div class="modal fade" id="createPurchaseOrderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header bg-gradient-primary text-white">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-shopping-bag me-2"></i> Criar Pedido de Compra
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="purchaseOrderForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark small">Produto / Descrição</label>
+                        <input type="text" class="form-control rounded-3" id="poProdutoTitulo" readonly>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold text-dark small">Fornecedor / Seller</label>
+                            <input type="text" class="form-control rounded-3" id="poFornecedor">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold text-dark small">Marketplace</label>
+                            <input type="text" class="form-control rounded-3" id="poMarketplace" readonly>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold text-dark small">Preço Unitário (R$)</label>
+                            <input type="number" step="0.01" class="form-control rounded-3" id="poPrecoUnitario" oninput="recalcPOTotal()">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold text-dark small">Quantidade (un)</label>
+                            <input type="number" min="1" value="1" class="form-control rounded-3" id="poQuantidade" oninput="recalcPOTotal()">
+                        </div>
+                    </div>
+                    <div class="p-3 bg-light rounded-3 mb-3 border">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Valor Total do Pedido:</span>
+                            <strong class="text-success fs-5" id="poValorTotal">R$ 0,00</strong>
+                        </div>
+                    </div>
+                    <input type="hidden" id="poUrlProduto">
+                    <button type="button" class="btn btn-success w-100 fw-bold py-2 rounded-pill shadow-sm" onclick="submitPurchaseOrder()">
+                        <i class="fas fa-check-circle me-1"></i> Confirmar Pedido de Compra
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-// ─── Estado dos Filtros da Sidebar ────────────────────────────────
+// ─── Estado dos Filtros e Abas ────────────────────────────────────
+let activeMarketplaceTab = 'all';
 let activeFilters = {
     medal: null,
     shipping: null,
     sellers: null,
     age: null
 };
+
+// Inicialização de Contadores das Abas
+document.addEventListener('DOMContentLoaded', () => {
+    updateMarketplaceCounters();
+});
+
+function updateMarketplaceCounters() {
+    const cards = document.querySelectorAll('.product-card-col');
+    let countAll = cards.length;
+    let countML = 0;
+    let countAmazon = 0;
+
+    cards.forEach(c => {
+        const mp = c.getAttribute('data-marketplace');
+        if (mp === 'Amazon') {
+            countAmazon++;
+        } else {
+            countML++;
+        }
+    });
+
+    const elAll = document.getElementById('mpCountAll');
+    const elML = document.getElementById('mpCountML');
+    const elAmazon = document.getElementById('mpCountAmazon');
+
+    if (elAll) elAll.textContent = countAll;
+    if (elML) elML.textContent = countML;
+    if (elAmazon) elAmazon.textContent = countAmazon;
+}
+
+function setMarketplaceTab(mp, btn) {
+    activeMarketplaceTab = mp;
+
+    document.querySelectorAll('.mp-tab-btn').forEach(b => {
+        b.classList.remove('active', 'btn-primary');
+        b.classList.add('bg-light', 'text-dark', 'border');
+    });
+
+    btn.classList.add('active');
+    btn.classList.remove('bg-light', 'text-dark', 'border');
+
+    applySidebarFilters();
+}
 
 function toggleSidebarFilter(el) {
     const filterType = el.getAttribute('data-filter');
@@ -767,12 +902,19 @@ function applySidebarFilters() {
     let visibleCount = 0;
 
     cards.forEach(card => {
+        const mp = card.getAttribute('data-marketplace') || 'MercadoLivre';
         const medal = card.getAttribute('data-medal');
         const shipping = card.getAttribute('data-shipping');
         const sellers = parseInt(card.getAttribute('data-sellers') || '1');
         const age = parseInt(card.getAttribute('data-age') || '90');
 
         let match = true;
+
+        // Filtro por Aba de Marketplace
+        if (activeMarketplaceTab !== 'all') {
+            if (activeMarketplaceTab === 'MercadoLivre' && mp === 'Amazon') match = false;
+            if (activeMarketplaceTab === 'Amazon' && mp !== 'Amazon') match = false;
+        }
 
         if (activeFilters.medal && medal !== activeFilters.medal) match = false;
         if (activeFilters.shipping && shipping !== activeFilters.shipping) match = false;
@@ -798,7 +940,8 @@ function applySidebarFilters() {
         }
     });
 
-    document.getElementById('visibleProductsCount').textContent = visibleCount;
+    const vCountEl = document.getElementById('visibleProductsCount');
+    if (vCountEl) vCountEl.textContent = visibleCount;
     document.getElementById('noResultsState').style.display = visibleCount === 0 ? 'block' : 'none';
 }
 
@@ -849,6 +992,56 @@ function updateSelectedCount() {
     if (btn) btn.disabled = count === 0;
 }
 
+// ─── Modal de Pedido de Compra ────────────────────────────────────
+let poModalInstance = null;
+
+function openPurchaseOrderModal(title, store, price, url, mp) {
+    document.getElementById('poProdutoTitulo').value = title;
+    document.getElementById('poFornecedor').value = store || 'Mercado Livre / Fornecedor';
+    document.getElementById('poMarketplace').value = mp || 'MercadoLivre';
+    document.getElementById('poPrecoUnitario').value = parseFloat(price || 0).toFixed(2);
+    document.getElementById('poQuantidade').value = 1;
+    document.getElementById('poUrlProduto').value = url || '';
+    
+    recalcPOTotal();
+
+    if (!poModalInstance) {
+        poModalInstance = new bootstrap.Modal(document.getElementById('createPurchaseOrderModal'));
+    }
+    poModalInstance.show();
+}
+
+function recalcPOTotal() {
+    const price = parseFloat(document.getElementById('poPrecoUnitario').value) || 0;
+    const qty = parseInt(document.getElementById('poQuantidade').value) || 1;
+    const total = price * qty;
+    document.getElementById('poValorTotal').textContent = 'R$ ' + total.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+async function submitPurchaseOrder() {
+    const payload = {
+        produto_titulo: document.getElementById('poProdutoTitulo').value,
+        fornecedor: document.getElementById('poFornecedor').value,
+        marketplace: document.getElementById('poMarketplace').value,
+        preco_unitario: parseFloat(document.getElementById('poPrecoUnitario').value) || 0,
+        quantidade: parseInt(document.getElementById('poQuantidade').value) || 1,
+        url_produto: document.getElementById('poUrlProduto').value
+    };
+
+    try {
+        const res = await fetch('/search/create-purchase-order', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('🎉 Pedido de Compra gerado com sucesso! Número do Pedido: #' + (data.numero_pedido || data.pedido_id));
+            if (poModalInstance) poModalInstance.hide();
+        } else {
+            alert('Erro ao criar pedido: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (e) {
 document.getElementById('approveSelectedBtn').addEventListener('click', async function() {
     const selected = Array.from(document.querySelectorAll('.item-checkbox:checked')).map(cb => cb.value);
     if (!selected.length) return;

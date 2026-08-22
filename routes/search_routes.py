@@ -4,6 +4,8 @@ import threading
 from datetime import datetime
 import sys
 import os
+import re
+import pandas as pd
 
 # Adiciona o diretório raiz ao path para importar módulos de scraping
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -465,36 +467,181 @@ def _invalidate_user_search_cache(user_id):
         for key in keys_to_invalidate:
             cache.invalidate(key)
 
+@search_bp.route('/create-purchase-order', methods=['POST'])
+def create_purchase_order_from_search():
+    """Cria um pedido de compra no inventário diretamente a partir de uma oferta encontrada"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+        
+    try:
+        user_id = session['user_id']
+        data = request.get_json() or {}
+        
+        produto_titulo = data.get('produto_titulo') or 'Produto sem título'
+        fornecedor = data.get('fornecedor') or 'Fornecedor Marketplace'
+        marketplace = data.get('marketplace') or 'MercadoLivre'
+        preco_unitario = float(data.get('preco_unitario') or 0)
+        quantidade = int(data.get('quantidade') or 1)
+        url_produto = data.get('url_produto') or ''
+        
+        # Gera SKU automático ou simplificado
+        clean_name = re.sub(r'[^a-zA-Z0-9]', '', produto_titulo[:10]).upper()
+        sku = f"{clean_name}-{int(time.time()) % 10000}"
+        numero_pedido = f"PED-SRCH-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
+        itens = [{
+            'sku': sku,
+            'descricao': produto_titulo,
+            'ncm': '',
+            'quantidade': quantidade,
+            'preco_revenda': preco_unitario,
+            'preco_site_pix': preco_unitario * 0.95,
+            'link_produto': url_produto
+        }]
+        
+        observacoes = f"Gerado automaticamente a partir da busca no marketplace {marketplace}. Vendedor: {fornecedor}"
+        
+        order = db_manager.create_purchase_order(
+            user_id=user_id,
+            numero_pedido=numero_pedido,
+            fornecedor=fornecedor,
+            observacoes=observacoes,
+            itens=itens
+        )
+        
+        if order:
+            return jsonify({
+                'success': True,
+                'pedido_id': order.get('id'),
+                'numero_pedido': numero_pedido,
+                'message': 'Pedido de Compra gerado com sucesso no inventário!'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Não foi possível salvar o pedido no banco de dados.'}), 500
+            
+    except Exception as e:
+        print(f"❌ Erro ao criar pedido de compra da busca: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@search_bp.route('/batch/preview', methods=['POST'])
+def batch_preview():
+    """Lê arquivo ou texto e retorna lista estruturada para conferência prévia do lote"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+        
+    try:
+        itens = []
+        
+        # Processa arquivo CSV, XLSX ou TXT
+        if 'arquivo_csv' in request.files and request.files['arquivo_csv'].filename:
+            file = request.files['arquivo_csv']
+            filename = file.filename.lower()
+            
+            if filename.endswith('.xlsx') or filename.endswith('.xls'):
+                import io
+                df_file = pd.read_excel(io.BytesIO(file.read()))
+                # Tenta localizar a coluna de produto/termo
+                col_name = None
+                for col in df_file.columns:
+                    c_low = str(col).lower()
+                    if any(k in c_low for k in ['termo', 'produto', 'nome', 'descricao', 'title', 'item']):
+                        col_name = col
+                        break
+                if col_name is None:
+                    col_name = df_file.columns[0]
+                    
+                for idx, row in df_file.iterrows():
+                    val = str(row[col_name]).strip()
+                    if val and val != 'nan':
+                        sku_val = str(row.get('sku', '')).strip() if 'sku' in [str(c).lower() for c in df_file.columns] else ''
+                        itens.append({
+                            'id': len(itens) + 1,
+                            'termo': val,
+                            'sku': sku_val,
+                            'selected': True
+                        })
+            else:
+                content = file.read().decode('utf-8', errors='ignore').splitlines()
+                for line in content:
+                    line_str = line.strip()
+                    if line_str:
+                        parts = line_str.split(',')
+                        term = parts[0].strip().strip('"').strip("'")
+                        sku_val = parts[1].strip() if len(parts) > 1 else ''
+                        if term and term.lower() not in ['termo', 'produto', 'nome']:
+                            itens.append({
+                                'id': len(itens) + 1,
+                                'termo': term,
+                                'sku': sku_val,
+                                'selected': True
+                            })
+                            
+        # Processa texto colado
+        elif 'termos_texto' in request.form and request.form['termos_texto'].strip():
+            lines = request.form['termos_texto'].split('\n')
+            for line in lines:
+                val = line.strip()
+                if val:
+                    itens.append({
+                        'id': len(itens) + 1,
+                        'termo': val,
+                        'sku': '',
+                        'selected': True
+                    })
+                    
+        # Remove termos duplicados mantendo a ordem
+        vistos = set()
+        itens_unicos = []
+        for it in itens:
+            if it['termo'].lower() not in vistos:
+                vistos.add(it['termo'].lower())
+                itens_unicos.append(it)
+                
+        return jsonify({
+            'success': True,
+            'total': len(itens_unicos),
+            'itens': itens_unicos
+        })
+        
+    except Exception as e:
+        print(f"❌ Erro ao gerar preview do lote: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @search_bp.route('/bulk', methods=['POST'])
 def execute_bulk_search():
-    """Inicia busca em lote"""
+    """Inicia busca em lote a partir dos termos confirmados"""
     if 'user_id' not in session:
         return jsonify({'error': 'Não autenticado'}), 401
     
     user_id = session['user_id']
     termos = []
     
-    # Processa textarea
-    if 'termos_texto' in request.form and request.form['termos_texto'].strip():
-        termos_brutos = request.form['termos_texto'].split('\n')
-        termos.extend([t.strip() for t in termos_brutos if t.strip()])
-    
-    # Processa arquivo CSV/TXT
-    if 'arquivo_csv' in request.files:
-        file = request.files['arquivo_csv']
-        if file.filename:
-            content = file.read().decode('utf-8').splitlines()
-            for line in content:
-                # Se for CSV, pode ter múltiplas colunas, pegaremos a primeira
-                term = line.split(',')[0].strip()
-                if term:
-                    termos.append(term)
-                    
+    # Se veio lista confirmada em JSON
+    if request.is_json:
+        data = request.get_json() or {}
+        termos = data.get('termos', [])
+    else:
+        # Processa textarea ou form tradicional
+        if 'termos_texto' in request.form and request.form['termos_texto'].strip():
+            termos_brutos = request.form['termos_texto'].split('\n')
+            termos.extend([t.strip() for t in termos_brutos if t.strip()])
+        
+        if 'arquivo_csv' in request.files:
+            file = request.files['arquivo_csv']
+            if file.filename:
+                content = file.read().decode('utf-8', errors='ignore').splitlines()
+                for line in content:
+                    term = line.split(',')[0].strip()
+                    if term and term.lower() not in ['termo', 'produto', 'nome']:
+                        termos.append(term)
+                        
     # Remove duplicatas
-    termos = list(dict.fromkeys(termos))
+    termos = list(dict.fromkeys([t for t in termos if t and str(t).strip()]))
     
     if not termos:
-        return jsonify({'error': 'Nenhum termo de busca fornecido'}), 400
+        return jsonify({'error': 'Nenhum termo de busca selecionado'}), 400
         
     try:
         # Cria lote
@@ -510,7 +657,7 @@ def execute_bulk_search():
         itens_data = [{"lote_id": lote_id, "termo": t} for t in termos]
         db_manager.supabase.table("lote_itens").insert(itens_data).execute()
         
-        # Inicia processador
+        # Inicia processador com gravação de histórico individual
         processor = BulkProcessor(db_manager)
         processor.start_bulk_search(lote_id, user_id)
         

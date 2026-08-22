@@ -80,26 +80,27 @@
 
                     <!-- Aba Busca em Lote -->
                     <div class="tab-pane fade" id="bulk" role="tabpanel">
-                        <form id="bulkSearchForm">
+                        <form id="bulkSearchForm" enctype="multipart/form-data">
                             <div class="row g-3">
                                 <div class="col-md-12">
-                                    <label class="form-label"><i class="fas fa-file-csv me-2"></i> Fazer Upload de CSV/TXT</label>
-                                    <input type="file" class="form-control" name="arquivo_csv" accept=".csv,.txt">
+                                    <label class="form-label fw-bold text-dark"><i class="fas fa-file-excel text-success me-2"></i> Upload de Planilha (XLSX, CSV ou TXT)</label>
+                                    <input type="file" class="form-control form-control-lg rounded-3" id="arquivo_csv" name="arquivo_csv" accept=".xlsx,.xls,.csv,.txt">
+                                    <div class="form-text small">Suporta colunas como "Termo", "Produto", "SKU" ou "Nome".</div>
                                 </div>
-                                <div class="col-md-12 text-center my-2">
-                                    <span class="text-muted small">OU</span>
+                                <div class="col-md-12 text-center my-1">
+                                    <span class="badge bg-light text-secondary border px-3 py-1">OU DIGITE ABAIXO</span>
                                 </div>
                                 <div class="col-md-12">
-                                    <label class="form-label"><i class="fas fa-keyboard me-2"></i> Digite a lista (um produto por linha)</label>
-                                    <textarea class="form-control" name="termos_texto" rows="5" placeholder="Ex:\nIphone 13\nMacbook Air M1\nGalaxy S22"></textarea>
+                                    <label class="form-label fw-bold text-dark"><i class="fas fa-keyboard text-primary me-2"></i> Digite a lista de produtos (um por linha)</label>
+                                    <textarea class="form-control rounded-3" id="termos_texto" name="termos_texto" rows="4" placeholder="Ex:&#10;Ecoflow River 3&#10;Ecoflow River 3 Plus 286wh&#10;Painel Solar Ecoflow 60w"></textarea>
                                 </div>
                             </div>
                             
                             <div class="row mt-4">
                                 <div class="col">
-                                    <button type="submit" class="btn btn-primary btn-lg w-100">
-                                        <i class="fas fa-play me-2"></i>
-                                        Iniciar Busca em Lote
+                                    <button type="button" class="btn btn-primary btn-lg w-100 rounded-pill shadow-sm fw-bold" onclick="previewBulkSearch()">
+                                        <i class="fas fa-search-plus me-2"></i>
+                                        1. Conferir e Pré-visualizar Itens
                                     </button>
                                 </div>
                             </div>
@@ -108,11 +109,11 @@
                 </div>
             </div>
             
-                Buscas Recentes
-            <div class="card border-0 shadow-md mt-4">
-                <div class="card-header bg-light">
-                    <h6 class="mb-0">
-                        <i class="fas fa-history me-2"></i>
+            <!-- Buscas Recentes -->
+            <div class="card border-0 shadow-md mt-4 rounded-4">
+                <div class="card-header bg-light border-0 py-3">
+                    <h6 class="mb-0 fw-bold text-dark">
+                        <i class="fas fa-history text-primary me-2"></i>
                         Buscas Recentes
                     </h6>
                 </div>
@@ -126,7 +127,60 @@
     </div>
 </div>
 
- 
+<!-- Modal: Etapa de Conferência e Confirmação de Itens do Lote -->
+<div class="modal fade" id="bulkConfirmModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header bg-gradient-primary text-white">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-tasks me-2"></i> 2. Conferência de Produtos do Lote
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-info py-2 d-flex justify-content-between align-items-center mb-3 rounded-3 border-0">
+                    <span class="small"><i class="fas fa-info-circle me-1"></i> Desmarque os itens que não deseja pesquisar agora.</span>
+                    <span class="badge bg-primary fs-6" id="bulkSelectedBadge">0 selecionados</span>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="form-check m-0">
+                        <input class="form-check-input" type="checkbox" id="bulkSelectAll" checked onchange="toggleAllBulkCheckboxes(this)">
+                        <label class="form-check-label fw-bold small text-dark" for="bulkSelectAll">
+                            Marcar / Desmarcar Todos
+                        </label>
+                    </div>
+                    <small class="text-muted" id="bulkTotalCountText">Total: 0 produtos</small>
+                </div>
+
+                <!-- Tabela de Conferência com Rolagem -->
+                <div class="table-responsive border rounded-3" style="max-height: 320px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th style="width: 40px;"></th>
+                                <th>Termo de Pesquisa</th>
+                                <th style="width: 140px;">SKU (Opcional)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bulkPreviewTableBody">
+                            <!-- Preenchido via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer bg-light p-3">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">
+                    Voltar
+                </button>
+                <button type="button" class="btn btn-success rounded-pill px-4 fw-bold shadow-sm" id="confirmAndRunBulkBtn" onclick="executeConfirmedBulkSearch()">
+                    <i class="fas fa-rocket me-2"></i> Confirmar e Iniciar Busca (<span id="bulkConfirmBtnCount">0</span>)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="searchOverlay" class="search-overlay" style="display: none;">
     <div class="search-overlay-content">
         <div class="search-animation">
@@ -149,7 +203,7 @@
         </div>
         
         <small class="text-muted" id="searchDetails">
-            Isso pode levar alguns minutos...
+            Isso pode levar alguns instantes...
         </small>
         
         <!-- Para busca em lote -->
@@ -303,47 +357,133 @@ document.getElementById('searchForm').addEventListener('submit', async function(
 
 let currentBulkLoteId = null;
 let bulkStatusCheckInterval = null;
+let bulkConfirmModalInstance = null;
+let bulkParsedItems = [];
 
-document.getElementById('bulkSearchForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const formData = new FormData(this);
-    const termo_texto = formData.get('termos_texto').trim();
+async function previewBulkSearch() {
+    const form = document.getElementById('bulkSearchForm');
+    const formData = new FormData(form);
+    const termo_texto = (formData.get('termos_texto') || '').trim();
     const arquivo = formData.get('arquivo_csv');
-    
+
     if (!termo_texto && (!arquivo || !arquivo.name)) {
-        showNotification('Forneça um arquivo ou digite os termos de busca.', 'warning');
+        showNotification('Envie uma planilha (XLSX/CSV) ou digite a lista de produtos.', 'warning');
         return;
     }
-    
+
     try {
-        // Mostra overlay preparado para bulk
-        showSearchOverlay();
-        document.getElementById('searchTitle').textContent = 'Iniciando Busca em Lote...';
-        document.getElementById('downloadBulkReport').style.display = 'none';
-        
-        // Inicia busca
-        const response = await fetch('/search/bulk', {
+        const response = await fetch('/search/batch/preview', {
             method: 'POST',
             body: formData
         });
-        
         const data = await response.json();
-        
+
+        if (!data.success || !data.itens || data.itens.length === 0) {
+            showNotification(data.error || 'Nenhum produto válido encontrado no arquivo ou texto.', 'error');
+            return;
+        }
+
+        bulkParsedItems = data.itens;
+        renderBulkPreviewTable();
+
+        if (!bulkConfirmModalInstance) {
+            bulkConfirmModalInstance = new bootstrap.Modal(document.getElementById('bulkConfirmModal'));
+        }
+        bulkConfirmModalInstance.show();
+
+    } catch (e) {
+        showNotification('Erro ao processar arquivo: ' + e.message, 'error');
+    }
+}
+
+function renderBulkPreviewTable() {
+    const tbody = document.getElementById('bulkPreviewTableBody');
+    tbody.innerHTML = '';
+
+    bulkParsedItems.forEach((item, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <input type="checkbox" class="form-check-input bulk-item-check" data-index="${index}" ${item.selected ? 'checked' : ''} onchange="updateBulkItemSelection(${index}, this.checked)">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm" value="${item.termo}" oninput="updateBulkItemTerm(${index}, this.value)">
+            </td>
+            <td>
+                <span class="badge bg-light text-secondary border small">${item.sku || 'Sem SKU'}</span>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    updateBulkSelectionSummary();
+}
+
+function updateBulkItemSelection(index, isChecked) {
+    bulkParsedItems[index].selected = isChecked;
+    updateBulkSelectionSummary();
+}
+
+function updateBulkItemTerm(index, newTerm) {
+    bulkParsedItems[index].termo = newTerm.trim();
+}
+
+function toggleAllBulkCheckboxes(masterCheckbox) {
+    const isChecked = masterCheckbox.checked;
+    bulkParsedItems.forEach(item => item.selected = isChecked);
+    document.querySelectorAll('.bulk-item-check').forEach(cb => cb.checked = isChecked);
+    updateBulkSelectionSummary();
+}
+
+function updateBulkSelectionSummary() {
+    const selectedCount = bulkParsedItems.filter(it => it.selected && it.termo).length;
+    const totalCount = bulkParsedItems.length;
+
+    document.getElementById('bulkSelectedBadge').textContent = `${selectedCount} selecionados`;
+    document.getElementById('bulkTotalCountText').textContent = `Total: ${totalCount} produtos`;
+    document.getElementById('bulkConfirmBtnCount').textContent = selectedCount;
+
+    const btn = document.getElementById('confirmAndRunBulkBtn');
+    btn.disabled = selectedCount === 0;
+}
+
+async function executeConfirmedBulkSearch() {
+    const selectedTerms = bulkParsedItems.filter(it => it.selected && it.termo).map(it => it.termo);
+
+    if (selectedTerms.length === 0) {
+        showNotification('Selecione pelo menos um produto para pesquisar.', 'warning');
+        return;
+    }
+
+    if (bulkConfirmModalInstance) {
+        bulkConfirmModalInstance.hide();
+    }
+
+    try {
+        showSearchOverlay();
+        document.getElementById('searchTitle').textContent = 'Iniciando Busca em Lote...';
+        document.getElementById('downloadBulkReport').style.display = 'none';
+
+        const response = await fetch('/search/bulk', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({termos: selectedTerms})
+        });
+
+        const data = await response.json();
+
         if (!response.ok) {
             throw new Error(data.error || 'Erro na busca em lote');
         }
-        
+
         currentBulkLoteId = data.lote_id;
-        
-        // Inicia monitoramento do status
         bulkStatusCheckInterval = setInterval(checkBulkStatus, 2000);
-        
+
     } catch (error) {
         hideSearchOverlay();
         showNotification(error.message, 'error');
     }
-});
+}
 
 async function checkSearchStatus() {
     if (!currentSearchId) return;
