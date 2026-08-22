@@ -635,7 +635,23 @@ function fillSearchTerm(term) {
     document.getElementById('termo_pesquisa').focus();
 }
 
-// Carrega buscas recentes ao carregar a página
-document.addEventListener('DOMContentLoaded', loadRecentSearches);
+// Carrega buscas recentes e verifica parâmetros de auto-busca na URL
+document.addEventListener('DOMContentLoaded', () => {
+    loadRecentSearches();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryTerm = urlParams.get('q') || urlParams.get('termo');
+    const autoSubmit = urlParams.get('auto') === '1' || urlParams.has('q');
+
+    if (queryTerm) {
+        document.getElementById('termo_pesquisa').value = queryTerm;
+        if (autoSubmit) {
+            console.log("Iniciando busca automática para:", queryTerm);
+            setTimeout(() => {
+                document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+            }, 300);
+        }
+    }
+});
 </script>
 {% endblock %}

@@ -50,11 +50,11 @@ def execute_search():
     user_id = session['user_id']
     search_id = f"{user_id}_{int(time.time())}"
 
-    # Verifica cache antes de iniciar nova busca
+    # Verifica cache antes de iniciar nova busca (apenas se tiver resultados)
     cache_key = f"search:{user_id}:{termo_pesquisa}"
     cached = cache.get(cache_key)
-    if cached:
-        # Se houver cache válido, retorna o search_id e marca como concluído
+    if cached and cached.get('results') and len(cached['results']) > 0:
+        # Se houver cache válido com resultados, retorna o search_id e marca como concluído
         search_status[search_id] = {
             'status': 'concluida',
             'progress': 100,
@@ -186,10 +186,22 @@ def _execute_search_thread(search_id, user_id, termo_pesquisa, paginas_ml):
             
             # Busca resultados do banco para exibir
             print(f"🔍 Buscando ofertas do banco para termo: {termo_pesquisa}")
-            ofertas_response = db_manager.supabase.table("ofertas").select("*").eq("termo_pesquisa", termo_pesquisa).order("score_produto", desc=True).limit(50).execute()
-            
-            ofertas = ofertas_response.data or []
-            print(f"✅ Encontradas {len(ofertas)} ofertas no banco de dados")
+            ofertas = []
+            try:
+                ofertas_response = db_manager.supabase.table("ofertas").select("*").eq("termo_pesquisa", termo_pesquisa).order("score_produto", desc=True).limit(50).execute()
+                ofertas = ofertas_response.data or []
+                if not ofertas and relaxed_used:
+                    ofertas_resp_relaxed = db_manager.supabase.table("ofertas").select("*").eq("termo_pesquisa", relaxed_used).order("score_produto", desc=True).limit(50).execute()
+                    ofertas = ofertas_resp_relaxed.data or []
+            except Exception as e_fetch:
+                print(f"Aviso ao consultar ofertas salvas: {e_fetch}")
+
+            # Se o banco ainda não retornou mas o scraper coletou dados, usa os dados do scraper diretamente
+            if not ofertas and results:
+                print("ℹ️ Usando resultados diretos do scraper para exibição imediata")
+                ofertas = results if isinstance(results, list) else results.to_dict('records')
+
+            print(f"✅ Encontradas {len(ofertas)} ofertas para exibição")
             
             # Finaliza busca
             search_status[search_id].update({
@@ -201,9 +213,10 @@ def _execute_search_thread(search_id, user_id, termo_pesquisa, paginas_ml):
                 'relaxed_query_used': relaxed_used,
                 'completed': True
             })
-            # Salva no cache
-            cache_key = f"search:{user_id}:{termo_pesquisa}"
-            cache.set(cache_key, {'results': ofertas, 'stats': stats})
+            # Salva no cache apenas se houver ofertas reais
+            if ofertas:
+                cache_key = f"search:{user_id}:{termo_pesquisa}"
+                cache.set(cache_key, {'results': ofertas, 'stats': stats})
             print(f"🎉 Busca concluída com sucesso: {search_status[search_id]}")
             
         finally:
