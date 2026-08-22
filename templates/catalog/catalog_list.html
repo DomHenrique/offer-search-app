@@ -174,10 +174,11 @@
 
                                     <!-- Rodapé e Ações Rápidas -->
                                     <div class="saas-card-footer d-flex gap-2">
-                                        <a href="{{ url_for('catalog.catalog_detail', catalog_id=cat.catalog_id) }}"
-                                           class="btn btn-sm btn-primary flex-grow-1">
+                                        <button type="button"
+                                                class="btn btn-sm btn-primary flex-grow-1"
+                                                onclick="openCompetitorsDrawer('{{ cat.catalog_id }}', '{{ (cat.nome or '')|replace('\'', '\\\'')|replace('\"', '&quot;') }}', '{{ cat.imagem or '' }}')">
                                             <i class="fas fa-users"></i> Concorrentes
-                                        </a>
+                                        </button>
                                         <a href="https://www.mercadolivre.com.br/p/{{ cat.catalog_id }}"
                                            target="_blank"
                                            class="btn btn-sm btn-secondary px-2"
@@ -221,7 +222,43 @@
     {% endif %}
 </div>
 
-<!-- Overlay de busca -->
+<!-- ========================================================================= -->
+<!-- DRAWER LATERAL DE CONCORRENTES ML (Offcanvas Lateral Automático)         -->
+<!-- ========================================================================= -->
+<div class="offcanvas offcanvas-end offcanvas-competitors" tabindex="-1" id="competitorsDrawer" aria-labelledby="competitorsDrawerLabel">
+    <div class="offcanvas-header p-3">
+        <div class="drawer-product-card">
+            <div class="drawer-product-img">
+                <img id="drawerProductImg" src="" alt="Produto"
+                     onerror="this.src='https://via.placeholder.com/64x64/ffffff/94a3b8?text=ML'">
+            </div>
+            <div class="drawer-product-info">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="catalog-chip" id="drawerCatalogIdChip">
+                        <i class="fas fa-barcode text-warning"></i> <span id="drawerCatalogId">MLB...</span>
+                    </span>
+                    <a id="drawerMlLlink" href="#" target="_blank" class="btn btn-xs btn-secondary py-0 px-2" style="font-size: 0.72rem;">
+                        <i class="fas fa-external-link-alt me-1"></i> Ver no ML
+                    </a>
+                </div>
+                <h6 class="drawer-product-title mb-0" id="drawerProductTitle">Nome do Produto</h6>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 ms-2">
+            <button type="button" class="btn btn-sm btn-secondary" id="btnDrawerSync" onclick="refreshDrawerSellers()" title="Recarregar concorrentes agora">
+                <i class="fas fa-sync-alt" id="drawerSyncIcon"></i>
+            </button>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+        </div>
+    </div>
+
+    <div class="offcanvas-body p-4" id="drawerBody">
+        <!-- O conteúdo será injetado dinamicamente aqui -->
+        <div id="drawerDynamicContent"></div>
+    </div>
+</div>
+
+<!-- Overlay de busca de novos catálogos -->
 <div id="catalogOverlay" class="search-overlay" style="display:none;">
     <div class="search-overlay-box">
         <div class="spinner-ml"></div>
@@ -245,6 +282,341 @@
 <script>
 let currentCatalogSearchId = null;
 let catalogStatusInterval = null;
+let activeDrawerCatalogId = null;
+let drawerSellersPollingInterval = null;
+let competitorsDrawerInstance = null;
+
+// Inicializa a instância do Drawer quando a página carregar
+document.addEventListener('DOMContentLoaded', () => {
+    const drawerEl = document.getElementById('competitorsDrawer');
+    if (drawerEl && typeof bootstrap !== 'undefined') {
+        competitorsDrawerInstance = bootstrap.Offcanvas.getOrCreateInstance(drawerEl);
+    }
+});
+
+// ─── Abre o Drawer e Inicia Análise Automática de Concorrentes ───────
+function openCompetitorsDrawer(catalogId, catalogTitle, catalogImage) {
+    activeDrawerCatalogId = catalogId;
+
+    // Atualiza cabeçalho do produto no Drawer
+    const titleEl = document.getElementById('drawerProductTitle');
+    const idEl = document.getElementById('drawerCatalogId');
+    const imgEl = document.getElementById('drawerProductImg');
+    const mlLink = document.getElementById('drawerMlLlink');
+
+    if (titleEl) titleEl.textContent = catalogTitle || ('Catálogo ' + catalogId);
+    if (idEl) idEl.textContent = catalogId;
+    if (imgEl) {
+        imgEl.src = catalogImage || 'https://via.placeholder.com/64x64/ffffff/94a3b8?text=ML';
+        imgEl.alt = catalogTitle || catalogId;
+    }
+    if (mlLink) mlLink.href = `https://www.mercadolivre.com.br/p/${catalogId}/s?`;
+
+    // Abre o Drawer lateral
+    const drawerEl = document.getElementById('competitorsDrawer');
+    if (drawerEl && typeof bootstrap !== 'undefined') {
+        const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(drawerEl);
+        offcanvas.show();
+    }
+
+    // Inicia verificação / busca automática de concorrentes
+    checkAndLoadSellers(catalogId, false);
+}
+
+// ─── Sincronização / Forçar Recoleta ───────────────────────────────
+function refreshDrawerSellers() {
+    if (!activeDrawerCatalogId) return;
+    checkAndLoadSellers(activeDrawerCatalogId, true);
+}
+
+// ─── Carrega Concorrentes ou Dispara Scraping Automático ───────────
+async function checkAndLoadSellers(catalogId, forceScrape = false) {
+    if (drawerSellersPollingInterval) {
+        clearInterval(drawerSellersPollingInterval);
+        drawerSellersPollingInterval = null;
+    }
+
+    const content = document.getElementById('drawerDynamicContent');
+    const syncIcon = document.getElementById('drawerSyncIcon');
+    if (syncIcon) syncIcon.classList.add('fa-spin');
+
+    // Se NÃO for forçado, verifica primeiro se já existem sellers no Supabase
+    if (!forceScrape) {
+        content.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary spinner-border-sm mb-2" role="status"></div>
+                <div class="text-muted small">Carregando dados do catálogo...</div>
+            </div>`;
+
+        try {
+            const res = await fetch(`/catalog/api/${catalogId}/sellers`);
+            const data = await res.json();
+
+            if (data.success && data.sellers && data.sellers.length > 0) {
+                if (syncIcon) syncIcon.classList.remove('fa-spin');
+                renderDrawerSellers(data);
+                return;
+            }
+            // Se não houver sellers salvos, inicia a busca AUTOMATICAMENTE
+            console.log(`ℹ️ [Catalog ${catalogId}] Nenhum seller no banco. Iniciando raspagem automática...`);
+            startDrawerSellersScrape(catalogId);
+        } catch (err) {
+            console.error('Erro ao consultar API de sellers:', err);
+            // Fallback: tenta disparar raspagem automática
+            startDrawerSellersScrape(catalogId);
+        }
+    } else {
+        // Forçar nova varredura
+        startDrawerSellersScrape(catalogId);
+    }
+}
+
+// ─── Dispara Scraping Assíncrono no Mercado Livre ──────────────────
+async function startDrawerSellersScrape(catalogId) {
+    const content = document.getElementById('drawerDynamicContent');
+    const syncIcon = document.getElementById('drawerSyncIcon');
+    if (syncIcon) syncIcon.classList.add('fa-spin');
+
+    // Renderiza o Estado de Loading com Barra de Progresso no Drawer
+    content.innerHTML = `
+        <div class="drawer-loader-box">
+            <div class="drawer-spinner-ring"></div>
+            <h6 class="fw-bold text-dark mb-1">Buscando Concorrentes no Mercado Livre...</h6>
+            <p class="text-muted small mb-3" id="drawerScrapeStatusMsg">Iniciando robô de busca nas opções de compra deste produto...</p>
+            <div class="progress mb-3" style="height: 8px; border-radius: 4px;">
+                <div class="progress-bar bg-primary progress-bar-striped progress-bar-animated"
+                     id="drawerScrapeProgress"
+                     style="width: 25%; transition: width 0.4s ease;"></div>
+            </div>
+            <div class="d-flex align-items-center justify-content-center gap-2 text-muted" style="font-size: 0.78rem;">
+                <i class="fas fa-shield-alt text-success"></i>
+                <span>Navegação autenticada com cookies ML</span>
+            </div>
+        </div>`;
+
+    try {
+        const res = await fetch(`/catalog/${catalogId}/scrape-sellers`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.scrape_id) {
+            throw new Error(data.error || 'Não foi possível iniciar o scraping');
+        }
+
+        const scrapeId = data.scrape_id;
+
+        // Inicia polling de progresso da raspagem
+        drawerSellersPollingInterval = setInterval(() => {
+            pollDrawerSellersStatus(scrapeId, catalogId);
+        }, 1800);
+
+    } catch (err) {
+        if (syncIcon) syncIcon.classList.remove('fa-spin');
+        content.innerHTML = `
+            <div class="table-saas-card text-center py-5 px-3">
+                <i class="fas fa-exclamation-triangle text-danger fa-2x mb-3"></i>
+                <h6 class="fw-bold text-dark mb-1">Erro ao Iniciar Busca</h6>
+                <p class="text-muted small mb-3">${escHtml(err.message)}</p>
+                <button class="btn btn-sm btn-secondary" onclick="checkAndLoadSellers('${catalogId}', true)">
+                    <i class="fas fa-redo me-1"></i> Tentar Novamente
+                </button>
+            </div>`;
+    }
+}
+
+// ─── Polling do Status de Raspagem dos Sellers ─────────────────────
+async function pollDrawerSellersStatus(scrapeId, catalogId) {
+    try {
+        const res = await fetch(`/catalog/sellers-status/${scrapeId}`);
+        const status = await res.json();
+
+        const progressEl = document.getElementById('drawerScrapeProgress');
+        const msgEl = document.getElementById('drawerScrapeStatusMsg');
+
+        if (progressEl && status.progress) {
+            progressEl.style.width = Math.max(status.progress, 30) + '%';
+        }
+        if (msgEl && status.message) {
+            msgEl.textContent = status.message;
+        }
+
+        if (status.completed) {
+            clearInterval(drawerSellersPollingInterval);
+            drawerSellersPollingInterval = null;
+
+            const syncIcon = document.getElementById('drawerSyncIcon');
+            if (syncIcon) syncIcon.classList.remove('fa-spin');
+
+            if (status.status === 'concluida') {
+                // Busca os sellers persistidos no banco
+                const finalRes = await fetch(`/catalog/api/${catalogId}/sellers`);
+                const finalData = await finalRes.json();
+                renderDrawerSellers(finalData);
+                showToast(`Varredura concluída! ${status.sellers ? status.sellers.length : 0} vendedores encontrados.`);
+            } else {
+                const content = document.getElementById('drawerDynamicContent');
+                content.innerHTML = `
+                    <div class="table-saas-card text-center py-5 px-3">
+                        <i class="fas fa-store-slash text-warning fa-2x mb-3"></i>
+                        <h6 class="fw-bold text-dark mb-1">Nenhum Vendedor Encontrado</h6>
+                        <p class="text-muted small mb-3">${escHtml(status.error || 'O catálogo não possui vendedores ativos ou a página de opções está indisponível.')}</p>
+                        <div class="d-flex justify-content-center gap-2">
+                            <button class="btn btn-sm btn-primary" onclick="checkAndLoadSellers('${catalogId}', true)">
+                                <i class="fas fa-redo me-1"></i> Tentar Novamente
+                            </button>
+                            <a href="https://www.mercadolivre.com.br/p/${catalogId}/s?" target="_blank" class="btn btn-sm btn-secondary">
+                                <i class="fas fa-external-link-alt me-1"></i> Abrir Opções no ML
+                            </a>
+                        </div>
+                    </div>`;
+            }
+        }
+    } catch (err) {
+        console.error('Erro no polling do drawer:', err);
+    }
+}
+
+// ─── Renderiza KPIs e Tabela de Concorrentes no Drawer ─────────────
+function renderDrawerSellers(data) {
+    const content = document.getElementById('drawerDynamicContent');
+    const sellers = data.sellers || [];
+    const catalogId = data.catalog_id || activeDrawerCatalogId;
+
+    if (!sellers.length) {
+        content.innerHTML = `
+            <div class="table-saas-card text-center py-5 px-3">
+                <i class="fas fa-users-slash text-muted fa-2x mb-3 opacity-50"></i>
+                <h6 class="fw-bold text-dark mb-1">Nenhum concorrente cadastrado</h6>
+                <p class="text-muted small mb-3">Clique abaixo para buscar ofertas dos concorrentes neste catálogo.</p>
+                <button class="btn btn-sm btn-primary" onclick="checkAndLoadSellers('${catalogId}', true)">
+                    <i class="fas fa-sync-alt me-1"></i> Buscar Concorrentes Agora
+                </button>
+            </div>`;
+        return;
+    }
+
+    // Calcula KPIs
+    const validPrices = sellers.map(s => parseFloat(s.preco) || 0).filter(p => p > 0);
+    const minPrice = validPrices.length ? Math.min(...validPrices) : 0;
+    const maxPrice = validPrices.length ? Math.max(...validPrices) : 0;
+    const fullCount = sellers.filter(s => s.frete_full).length;
+
+    let kpisHtml = `
+        <div class="drawer-kpis-grid">
+            <div class="drawer-kpi-card">
+                <div class="kpi-label text-success"><i class="fas fa-crown me-1"></i>Menor Preço</div>
+                <div class="kpi-val text-success">R$ ${minPrice > 0 ? minPrice.toFixed(2).replace('.', ',') : '--'}</div>
+            </div>
+            <div class="drawer-kpi-card">
+                <div class="kpi-label"><i class="fas fa-arrow-up me-1"></i>Maior Preço</div>
+                <div class="kpi-val text-danger">R$ ${maxPrice > 0 ? maxPrice.toFixed(2).replace('.', ',') : '--'}</div>
+            </div>
+            <div class="drawer-kpi-card">
+                <div class="kpi-label"><i class="fas fa-users me-1"></i>Vendedores</div>
+                <div class="kpi-val text-primary">${sellers.length}</div>
+            </div>
+            <div class="drawer-kpi-card">
+                <div class="kpi-label text-warning"><i class="fas fa-bolt me-1"></i>Envio FULL</div>
+                <div class="kpi-val text-warning">${fullCount}</div>
+            </div>
+        </div>`;
+
+    let rowsHtml = sellers.map((s, index) => {
+        const isBest = (index === 0 && s.preco > 0);
+        const priceFormatted = (s.preco && s.preco > 0) ? `R$ ${parseFloat(s.preco).toFixed(2).replace('.', ',')}` : (s.preco_str || 'A consultar');
+        const sellerInitials = s.seller_name ? s.seller_name.substring(0, 2).toUpperCase() : 'ML';
+        const sellerProfileUrl = `https://www.mercadolivre.com.br/perfil/${encodeURIComponent(s.seller_name || '')}`;
+        const buyUrl = s.buy_url || `https://www.mercadolivre.com.br/p/${catalogId}/s?`;
+
+        let shippingHtml = '';
+        if (s.entrega_texto) {
+            shippingHtml += `<div class="shipping-bullet"><i class="fas fa-truck text-success mt-1" style="font-size:0.75rem;"></i><span>${escHtml(s.entrega_texto)}</span></div>`;
+        } else if (s.frete_gratis) {
+            shippingHtml += `<div class="shipping-bullet"><i class="fas fa-truck text-success mt-1" style="font-size:0.75rem;"></i><span class="shipping-green-highlight">Chegará grátis</span></div>`;
+        } else {
+            shippingHtml += `<div class="shipping-bullet text-muted"><i class="fas fa-truck text-muted mt-1" style="font-size:0.75rem;"></i><span>Frete a calcular</span></div>`;
+        }
+
+        if (s.retirada_texto) {
+            shippingHtml += `<div class="shipping-bullet"><i class="fas fa-store text-primary mt-1" style="font-size:0.75rem;"></i><span>${escHtml(s.retirada_texto)}</span></div>`;
+        }
+
+        if (s.frete_full) {
+            shippingHtml += `<div class="mt-1"><span class="shipping-badge-full"><i class="fas fa-bolt"></i> FULL</span></div>`;
+        }
+
+        let installmentHtml = '';
+        if (s.parcelamento) {
+            const isSemJuros = s.parcelamento.toLowerCase().includes('sem juros');
+            installmentHtml = `<div class="${isSemJuros ? 'price-installment-green' : 'price-installment-gray'}"><i class="far fa-credit-card me-1"></i>${escHtml(s.parcelamento)}</div>`;
+        } else if (s.preco && s.preco > 0) {
+            installmentHtml = `<div class="price-installment-gray"><i class="far fa-credit-card me-1"></i>12x R$ ${(s.preco / 12).toFixed(2).replace('.', ',')}</div>`;
+        }
+
+        return `
+            <tr class="${isBest ? 'best-offer-row' : ''}">
+                <td style="width: 28%;">
+                    <div class="d-flex align-items-baseline gap-1">
+                        <div class="price-display-main" style="font-size: 1.15rem;">${priceFormatted}</div>
+                        ${isBest ? '<span class="badge bg-success text-white" style="font-size: 0.6rem; padding: 2px 5px;"><i class="fas fa-crown"></i> LÍDER</span>' : ''}
+                    </div>
+                    ${installmentHtml}
+                </td>
+                <td style="width: 32%;">
+                    ${shippingHtml}
+                </td>
+                <td style="width: 25%;">
+                    <div class="d-flex align-items-center gap-2">
+                        <div style="width: 32px; height: 32px; border-radius: var(--radius-sm); background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #475569; font-size: 0.8rem; border: 1px solid #e2e8f0; flex-shrink: 0;">
+                            ${sellerInitials}
+                        </div>
+                        <div class="text-truncate">
+                            <a href="${sellerProfileUrl}" target="_blank" class="seller-name-link" style="font-size: 0.85rem;" title="${escHtml(s.seller_name || '')}">
+                                ${escHtml(s.seller_name || 'Vendedor ML')}
+                                <i class="fas fa-check-circle seller-verified-icon"></i>
+                            </a>
+                            <div class="seller-reputation-text" style="font-size: 0.72rem;">
+                                ${escHtml(s.reputacao || 'Vendedor Ativo')}
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td style="width: 15%; text-align: center;">
+                    <a href="${buyUrl}" target="_blank" class="btn-ml-buy py-1 px-2" style="font-size: 0.75rem;">
+                        Comprar
+                    </a>
+                </td>
+            </tr>`;
+    }).join('');
+
+    content.innerHTML = `
+        ${kpisHtml}
+        <div class="table-saas-card">
+            <div class="p-2 px-3 border-bottom d-flex align-items-center justify-content-between bg-surface">
+                <span class="fw-bold text-dark" style="font-size: 0.82rem;">
+                    <i class="fas fa-list-ol text-primary me-1"></i> Ofertas Ordenadas por Menor Preço
+                </span>
+                <span class="badge-saas badge-saas-neutral font-tabular" style="font-size: 0.72rem;">${sellers.length} Vendedores</span>
+            </div>
+            <div class="table-responsive">
+                <table class="ml-sellers-table">
+                    <thead>
+                        <tr>
+                            <th>Preço</th>
+                            <th>Entrega</th>
+                            <th>Vendedor</th>
+                            <th style="text-align: center;">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+            </div>
+        </div>`;
+}
 
 // ─── Controle de Expandir / Recolher Grupos ───────────────────────
 function toggleGroup(groupId) {
@@ -301,10 +673,8 @@ function filterCatalogsLive() {
             }
         });
 
-        // Se houver itens visíveis no grupo, exibe o grupo; caso contrário, oculta
         if (groupVisibleCount > 0) {
             group.style.display = 'block';
-            // Se estiver filtrando e houver match, garante que o grupo esteja aberto
             if (query && group.classList.contains('collapsed')) {
                 group.classList.remove('collapsed');
                 const body = group.querySelector('.search-group-body');
@@ -360,7 +730,7 @@ async function extractCatalogsFromHistory() {
     }
 }
 
-// ─── Formulário de busca ──────────────────────────────────────────
+// ─── Formulário de busca de novos catálogos ──────────────────────
 document.getElementById('catalogSearchForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
@@ -393,7 +763,7 @@ document.getElementById('catalogSearchForm').addEventListener('submit', async fu
     }
 });
 
-// ─── Polling de status ────────────────────────────────────────────
+// ─── Polling de status da busca de catálogos ──────────────────────
 async function checkCatalogStatus() {
     if (!currentCatalogSearchId) return;
     try {
@@ -442,7 +812,9 @@ function renderCatalogResults(catalogs) {
     }
 
     count.textContent = catalogs.length;
-    grid.innerHTML = catalogs.map(cat => `
+    grid.innerHTML = catalogs.map(cat => {
+        const escapedTitle = (cat.nome || '').replace(/'/g, "\\'").replace(/"/g, "&quot;");
+        return `
         <div class="col">
             <div class="saas-catalog-card">
                 <div class="saas-card-topbar">
@@ -468,16 +840,17 @@ function renderCatalogResults(catalogs) {
                     </div>
                 </div>
                 <div class="saas-card-footer d-flex gap-2">
-                    <a href="/catalog/${cat.catalog_id}" class="btn btn-sm btn-primary flex-grow-1">
+                    <button type="button" class="btn btn-sm btn-primary flex-grow-1"
+                            onclick="openCompetitorsDrawer('${cat.catalog_id}', '${escapedTitle}', '${cat.imagem || ''}')">
                         <i class="fas fa-users"></i> Concorrentes
-                    </a>
+                    </button>
                     <a href="https://www.mercadolivre.com.br/p/${cat.catalog_id}" target="_blank" class="btn btn-sm btn-secondary px-2" title="Abrir no ML">
                         <i class="fas fa-external-link-alt"></i>
                     </a>
                 </div>
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 
     section.style.display = 'block';
     section.scrollIntoView({behavior: 'smooth', block: 'start'});
