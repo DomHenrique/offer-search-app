@@ -3,79 +3,86 @@
 {% block title %}Buscar Ofertas - Offer Search App{% endblock %}
 
 {% block content %}
-<div class="container py-4">
+<div class="app-container">
+
+    <!-- Page Header Limpo -->
+    <div class="page-header-clean">
+        <div class="page-header-left">
+            <span class="page-header-context">
+                <i class="fas fa-search-dollar"></i> Inteligência de Mercado
+            </span>
+            <h1 class="page-header-title">
+                <i class="fas fa-search text-primary"></i> Pesquisa & Extração de Ofertas
+            </h1>
+            <p class="page-header-desc">
+                Busque preços, concorrência e catálogos em tempo real no Mercado Livre e na Amazon Brasil.
+            </p>
+        </div>
+        <div class="page-header-actions">
+            <a href="{{ url_for('history.history_page') }}" class="btn btn-secondary">
+                <i class="fas fa-history"></i> Histórico de Buscas
+            </a>
+        </div>
+    </div>
+
     <div class="row justify-content-center">
-        <div class="col-lg-8">
-             Header 
-            <div class="text-center mb-5">
-                <h1 class="display-5 fw-bold text-gradient mb-3">
-                    <i class="fas fa-search me-3"></i>
-                    Buscar Ofertas
-                </h1>
-                <p class="lead text-muted">
-                    Encontre as melhores ofertas na Amazon e Mercado Livre
-                </p>
-            </div>
+        <div class="col-lg-10 col-xl-9">
             
-             
-            <div class="card border-0 shadow-lg">
-                <div class="card-header bg-gradient-primary text-white p-0">
-                    <ul class="nav nav-tabs nav-fill border-0" id="searchTabs" role="tablist">
+            <div class="table-saas-card mb-4">
+                <!-- Abas Segmentadas -->
+                <div class="p-3 border-bottom bg-white d-flex align-items-center justify-content-between">
+                    <ul class="nav segmented-tabs mb-0" id="searchTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active text-white border-0 bg-transparent py-3" id="single-tab" data-bs-toggle="tab" data-bs-target="#single" type="button" role="tab">
-                                <i class="fas fa-search me-2"></i> Busca Simples
+                            <button class="nav-link active" id="single-tab" data-bs-toggle="tab" data-bs-target="#single" type="button" role="tab">
+                                <i class="fas fa-search"></i> Busca Simples
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link text-white border-0 bg-transparent py-3" id="bulk-tab" data-bs-toggle="tab" data-bs-target="#bulk" type="button" role="tab">
-                                <i class="fas fa-list-ol me-2"></i> Busca em Lote
+                            <button class="nav-link" id="bulk-tab" data-bs-toggle="tab" data-bs-target="#bulk" type="button" role="tab">
+                                <i class="fas fa-list-ol"></i> Busca em Lote (Planilha / Texto)
                             </button>
                         </li>
                     </ul>
                 </div>
-                <div class="card-body p-4 tab-content" id="searchTabsContent">
+
+                <div class="p-4 tab-content" id="searchTabsContent">
                     <!-- Aba Busca Simples -->
                     <div class="tab-pane fade show active" id="single" role="tabpanel">
-                    <form id="searchForm">
-                        <div class="row g-3">
-                            <div class="col-md-8">
-                                <div class="form-floating">
-                                    <input type="text" 
-                                           class="form-control form-control-lg" 
-                                           id="termo_pesquisa" 
-                                           name="termo_pesquisa" 
-                                           placeholder="Ex: smartphone, notebook, fone de ouvido...">
-                                    <label for="termo_pesquisa">
-                                        <i class="fas fa-search me-2"></i>
-                                        O que você está procurando?
+                        <form id="searchForm">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-8">
+                                    <label for="termo_pesquisa" class="form-label small fw-semibold text-secondary mb-1">
+                                        <i class="fas fa-search me-1 text-primary"></i> TERMO DE PESQUISA / PRODUTO
                                     </label>
+                                    <div class="search-input-wrapper">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" 
+                                               class="form-control" 
+                                               id="termo_pesquisa" 
+                                               name="termo_pesquisa" 
+                                               placeholder="Ex: smartphone, notebook, fone de ouvido, ecoflow..."
+                                               required>
+                                    </div>
                                 </div>
-                            </div>
-                            
-                            <div class="col-md-4">
-                                <div class="form-floating">
-                                    <select class="form-select form-select-lg" id="paginas_ml" name="paginas_ml">
-                                        <option value="1">1 página</option>
-                                        <option value="2">2 páginas</option>
-                                        <option value="3">3 páginas</option>
+                                
+                                <div class="col-md-4">
+                                    <label for="paginas_ml" class="form-label small fw-semibold text-secondary mb-1">
+                                        <i class="fas fa-layer-group me-1 text-primary"></i> PÁGINAS ML
+                                    </label>
+                                    <select class="form-select" id="paginas_ml" name="paginas_ml">
+                                        <option value="1">1 página (~50 produtos)</option>
+                                        <option value="2">2 páginas (~100 produtos)</option>
+                                        <option value="3">3 páginas (~150 produtos)</option>
                                     </select>
-                                    <label for="paginas_ml">
-                                        <i class="fas fa-list me-2"></i>
-                                        Páginas ML
-                                    </label>
+                                </div>
+
+                                <div class="col-12 mt-4">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="fas fa-search"></i> Iniciar Pesquisa de Mercado
+                                    </button>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <div class="row mt-4">
-                            <div class="col">
-                                <button type="submit" class="btn btn-primary btn-lg w-100">
-                                    <i class="fas fa-search me-2"></i>
-                                    Buscar Ofertas
-                                </button>
-                            </div>
-                        </div>
-                    </form>
+                        </form>
                     </div>
 
                     <!-- Aba Busca em Lote -->
@@ -83,24 +90,24 @@
                         <form id="bulkSearchForm" enctype="multipart/form-data">
                             <div class="row g-3">
                                 <div class="col-md-12">
-                                    <label class="form-label fw-bold text-dark"><i class="fas fa-file-excel text-success me-2"></i> Upload de Planilha (XLSX, CSV ou TXT)</label>
-                                    <input type="file" class="form-control form-control-lg rounded-3" id="arquivo_csv" name="arquivo_csv" accept=".xlsx,.xls,.csv,.txt">
-                                    <div class="form-text small">Suporta colunas como "Termo", "Produto", "SKU" ou "Nome".</div>
+                                    <label class="form-label small fw-semibold text-secondary mb-1">
+                                        <i class="fas fa-file-excel text-success me-1"></i> Upload de Planilha (XLSX, CSV ou TXT)
+                                    </label>
+                                    <input type="file" class="form-control" id="arquivo_csv" name="arquivo_csv" accept=".xlsx,.xls,.csv,.txt">
+                                    <div class="form-text small text-muted">Suporta planilhas contendo colunas como "Termo", "Produto", "SKU" ou "Nome".</div>
                                 </div>
                                 <div class="col-md-12 text-center my-1">
-                                    <span class="badge bg-light text-secondary border px-3 py-1">OU DIGITE ABAIXO</span>
+                                    <span class="badge-saas badge-saas-neutral px-3 py-1">OU DIGITE ABAIXO</span>
                                 </div>
                                 <div class="col-md-12">
-                                    <label class="form-label fw-bold text-dark"><i class="fas fa-keyboard text-primary me-2"></i> Digite a lista de produtos (um por linha)</label>
-                                    <textarea class="form-control rounded-3" id="termos_texto" name="termos_texto" rows="4" placeholder="Ex:&#10;Ecoflow River 3&#10;Ecoflow River 3 Plus 286wh&#10;Painel Solar Ecoflow 60w"></textarea>
+                                    <label class="form-label small fw-semibold text-secondary mb-1">
+                                        <i class="fas fa-keyboard text-primary me-1"></i> Lista de Produtos (Um termo por linha)
+                                    </label>
+                                    <textarea class="form-control" id="termos_texto" name="termos_texto" rows="4" placeholder="Ex:&#10;Ecoflow River 3&#10;Ecoflow River 3 Plus 286wh&#10;Painel Solar Ecoflow 60w"></textarea>
                                 </div>
-                            </div>
-                            
-                            <div class="row mt-4">
-                                <div class="col">
-                                    <button type="button" class="btn btn-primary btn-lg w-100 rounded-pill shadow-sm fw-bold" onclick="previewBulkSearch()">
-                                        <i class="fas fa-search-plus me-2"></i>
-                                        1. Conferir e Pré-visualizar Itens
+                                <div class="col-12 mt-4">
+                                    <button type="button" class="btn btn-primary w-100" onclick="previewBulkSearch()">
+                                        <i class="fas fa-search-plus"></i> 1. Conferir e Pré-visualizar Itens
                                     </button>
                                 </div>
                             </div>
@@ -110,16 +117,16 @@
             </div>
             
             <!-- Buscas Recentes -->
-            <div class="card border-0 shadow-md mt-4 rounded-4">
-                <div class="card-header bg-light border-0 py-3">
+            <div class="table-saas-card mb-4">
+                <div class="p-3 border-bottom bg-white d-flex align-items-center justify-content-between">
                     <h6 class="mb-0 fw-bold text-dark">
-                        <i class="fas fa-history text-primary me-2"></i>
-                        Buscas Recentes
+                        <i class="fas fa-history text-primary me-2"></i> Buscas Recentes
                     </h6>
+                    <small class="text-muted">Acesso rápido aos últimos termos</small>
                 </div>
-                <div class="card-body">
+                <div class="p-3 bg-white">
                     <div class="d-flex flex-wrap gap-2" id="recentSearches">
-                        
+                        <span class="text-muted small">Carregando histórico recente...</span>
                     </div>
                 </div>
             </div>

@@ -2,258 +2,114 @@
 
 {% block title %}Estoque & Pedidos - Offer Search App{% endblock %}
 
-{% block extra_styles %}
-<style>
-/* ─── Hero Section ─────────────────────────────────────────── */
-.inventory-hero {
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
-    border-radius: 20px;
-    padding: 2.25rem 2.5rem;
-    color: white;
-    margin-bottom: 2rem;
-    position: relative;
-    overflow: hidden;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-.inventory-hero::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -10%;
-    width: 320px;
-    height: 320px;
-    background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, rgba(255, 255, 255, 0) 70%);
-    border-radius: 50%;
-}
-
-/* ─── Cards de Estatísticas ────────────────────────────────── */
-.inv-stat-card {
-    background: #ffffff;
-    border-radius: 16px;
-    border: 1px solid #e2e8f0;
-    padding: 1.5rem;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-    transition: all 0.25s ease;
-}
-.inv-stat-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
-}
-.inv-stat-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.3rem;
-}
-
-/* ─── Abas Modernas ────────────────────────────────────────── */
-.nav-pills-custom .nav-link {
-    border-radius: 12px;
-    padding: 0.75rem 1.5rem;
-    font-weight: 700;
-    color: #64748b;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    margin-right: 0.5rem;
-    transition: all 0.2s ease;
-}
-.nav-pills-custom .nav-link.active {
-    background: #4f46e5 !important;
-    color: white !important;
-    border-color: #4f46e5;
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
-}
-
-/* ─── Tabela de Estoque ────────────────────────────────────── */
-.table-inventory {
-    border-collapse: separate;
-    border-spacing: 0;
-    width: 100%;
-}
-.table-inventory thead th {
-    background: #f8fafc;
-    color: #475569;
-    font-weight: 700;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 1rem;
-    border-bottom: 2px solid #e2e8f0;
-}
-.table-inventory tbody td {
-    padding: 1rem;
-    vertical-align: middle;
-    border-bottom: 1px solid #f1f5f9;
-    font-size: 0.9rem;
-}
-.table-inventory tbody tr:hover td {
-    background: #fafafa;
-}
-
-/* ─── Chips e Badges ───────────────────────────────────────── */
-.sku-badge {
-    font-family: 'Courier New', monospace;
-    font-weight: 700;
-    font-size: 0.85rem;
-    background: #e0e7ff;
-    color: #3730a3;
-    padding: 4px 8px;
-    border-radius: 6px;
-    border: 1px solid #c7d2fe;
-    display: inline-block;
-}
-.stock-qty-badge {
-    font-size: 0.85rem;
-    font-weight: 700;
-    padding: 4px 10px;
-    border-radius: 20px;
-}
-.stock-positive {
-    background: #ecfdf5;
-    color: #059669;
-    border: 1px solid #a7f3d0;
-}
-.stock-zero {
-    background: #fef2f2;
-    color: #dc2626;
-    border: 1px solid #fecaca;
-}
-
-/* ─── Botão Ações ──────────────────────────────────────────── */
-.btn-market-search {
-    background: linear-gradient(135deg, #ffd600, #ff7800);
-    color: #0f172a;
-    font-weight: 700;
-    font-size: 0.8rem;
-    border-radius: 8px;
-    padding: 0.4rem 0.8rem;
-    border: none;
-    transition: all 0.2s ease;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-.btn-market-search:hover {
-    box-shadow: 0 4px 12px rgba(255, 120, 0, 0.35);
-    color: #000;
-    transform: translateY(-1px);
-}
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="container-fluid py-4">
+<div class="app-container">
 
-    <!-- Hero -->
-    <div class="inventory-hero">
-        <div class="row align-items-center g-3">
-            <div class="col-lg-7">
-                <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill bg-white bg-opacity-10 text-warning small fw-bold mb-2">
-                    <i class="fas fa-boxes-stacked"></i> Gestão Interna de Produtos & Lotes
-                </div>
-                <h1 class="fw-bold mb-2 fs-3 text-white">
-                    <i class="fas fa-warehouse me-2 text-indigo-400"></i> Estoque & Pedidos de Compra
-                </h1>
-                <p class="mb-0 text-white-50">
-                    Controle seus SKUs, registre pedidos de compra de fornecedores e dispare pesquisas de mercado para seus produtos em tempo real.
-                </p>
-            </div>
-            <div class="col-lg-5 text-lg-end d-flex gap-2 justify-content-lg-end flex-wrap">
-                <button class="btn btn-primary fw-bold px-3 py-2 shadow-sm rounded-3" data-bs-toggle="modal" data-bs-target="#newOrderModal">
-                    <i class="fas fa-plus-circle me-1"></i> Novo Pedido Manual
-                </button>
-                <button class="btn btn-success fw-bold px-3 py-2 shadow-sm rounded-3" data-bs-toggle="modal" data-bs-target="#importBulkModal">
-                    <i class="fas fa-file-import me-1"></i> Importar Planilha em Massa
-                </button>
-            </div>
+    <!-- Page Header Limpo -->
+    <div class="page-header-clean">
+        <div class="page-header-left">
+            <span class="page-header-context">
+                <i class="fas fa-boxes-stacked"></i> Gestão Interna de Produtos & Lotes
+            </span>
+            <h1 class="page-header-title">
+                <i class="fas fa-warehouse text-primary"></i> Estoque & Pedidos de Compra
+            </h1>
+            <p class="page-header-desc">
+                Controle seus SKUs, registre pedidos de fornecedores e monitore concorrentes de mercado em tempo real.
+            </p>
+        </div>
+        <div class="page-header-actions">
+            <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#importBulkModal">
+                <i class="fas fa-file-import"></i> Importar Planilha
+            </button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newOrderModal">
+                <i class="fas fa-plus"></i> Novo Pedido Manual
+            </button>
         </div>
     </div>
 
-    <!-- Estatísticas Rápidas -->
+    <!-- Estatísticas Rápidas (KPIs) -->
     <div class="row g-3 mb-4">
         <div class="col-md-4">
-            <div class="inv-stat-card d-flex align-items-center gap-3">
-                <div class="inv-stat-icon bg-primary bg-opacity-10 text-primary">
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-indigo-subtle">
                     <i class="fas fa-barcode"></i>
                 </div>
                 <div>
-                    <h3 class="fw-bold text-dark mb-0">{{ total_skus }}</h3>
-                    <span class="text-muted small fw-semibold">SKUs Cadastrados</span>
+                    <div class="metric-value">{{ total_skus }}</div>
+                    <div class="metric-label">SKUs Cadastrados</div>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="inv-stat-card d-flex align-items-center gap-3">
-                <div class="inv-stat-icon bg-success bg-opacity-10 text-success">
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-emerald-subtle">
                     <i class="fas fa-cubes"></i>
                 </div>
                 <div>
-                    <h3 class="fw-bold text-dark mb-0">{{ total_pecas }}</h3>
-                    <span class="text-muted small fw-semibold">Unidades em Estoque Total</span>
+                    <div class="metric-value">{{ total_pecas }}</div>
+                    <div class="metric-label">Unidades em Estoque Total</div>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="inv-stat-card d-flex align-items-center gap-3">
-                <div class="inv-stat-icon bg-warning bg-opacity-10 text-warning">
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-amber-subtle">
                     <i class="fas fa-receipt"></i>
                 </div>
                 <div>
-                    <h3 class="fw-bold text-dark mb-0">{{ total_pedidos }}</h3>
-                    <span class="text-muted small fw-semibold">Pedidos de Compra Registrados</span>
+                    <div class="metric-value">{{ total_pedidos }}</div>
+                    <div class="metric-label">Pedidos de Compra Registrados</div>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Navegação de Abas: Estoque Consolidado vs. Pedidos de Compra -->
-    <ul class="nav nav-pills nav-pills-custom mb-4" id="inventoryTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="tab-stock-btn" data-bs-toggle="pill" data-bs-target="#tab-stock" type="button" role="tab">
-                <i class="fas fa-layer-group me-2"></i> Estoque Consolidado por SKU ({{ total_skus }})
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="tab-orders-btn" data-bs-toggle="pill" data-bs-target="#tab-orders" type="button" role="tab">
-                <i class="fas fa-clipboard-list me-2"></i> Pedidos de Compra / Lotes ({{ total_pedidos }})
-            </button>
-        </li>
-    </ul>
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <ul class="nav segmented-tabs" id="inventoryTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-stock-btn" data-bs-toggle="pill" data-bs-target="#tab-stock" type="button" role="tab">
+                    <i class="fas fa-layer-group"></i> Estoque Consolidado ({{ total_skus }})
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-orders-btn" data-bs-toggle="pill" data-bs-target="#tab-orders" type="button" role="tab">
+                    <i class="fas fa-clipboard-list"></i> Pedidos de Compra ({{ total_pedidos }})
+                </button>
+            </li>
+        </ul>
+    </div>
 
     <div class="tab-content" id="inventoryTabsContent">
         
         <!-- ─── ABA 1: ESTOQUE CONSOLIDADO ───────────────────────────── -->
         <div class="tab-pane fade show active" id="tab-stock" role="tabpanel">
-            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-                <div class="card-header bg-white p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3">
-                    <div class="position-relative" style="min-width: 320px; max-width: 480px; flex-grow: 1;">
-                        <i class="fas fa-search text-muted position-absolute" style="left: 12px; top: 12px;"></i>
-                        <input type="text" id="stockFilterInput" class="form-control ps-5 rounded-3" 
+            <div class="table-saas-card">
+                <div class="p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3 bg-white">
+                    <div class="search-input-wrapper" style="max-width: 440px;">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text" id="stockFilterInput" class="form-control" 
                                placeholder="Filtrar por SKU, Descrição ou NCM..." oninput="filterStockTable()">
                     </div>
                     <div class="text-muted small">
-                        Mostrando <strong id="visibleStockCount">{{ inventory|length }}</strong> produtos
+                        Mostrando <strong id="visibleStockCount" class="text-dark">{{ inventory|length }}</strong> produtos
                     </div>
                 </div>
 
                 <div class="table-responsive">
-                    <table class="table table-inventory mb-0" id="stockTable">
+                    <table class="table table-saas mb-0" id="stockTable">
                         <thead>
                             <tr>
-                                <th>SKU</th>
+                                <th style="width: 140px;">SKU</th>
                                 <th>Descrição do Produto</th>
-                                <th>NCM</th>
-                                <th class="text-center">Qtd Estoque</th>
-                                <th>Preço Revenda</th>
-                                <th>Preço PIX</th>
+                                <th style="width: 110px;">NCM</th>
+                                <th class="text-end" style="width: 110px;">Qtd Estoque</th>
+                                <th class="text-end" style="width: 130px;">Preço Revenda</th>
+                                <th class="text-end" style="width: 130px;">Preço PIX</th>
                                 <th>Catálogos Conectados</th>
                                 <th>Origem (Pedidos)</th>
-                                <th class="text-end">Ações</th>
+                                <th class="text-end" style="width: 120px;">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -261,10 +117,10 @@
                                 {% for item in inventory %}
                                 <tr class="stock-row" data-sku="{{ item.sku|lower }}" data-desc="{{ item.descricao|lower }}" data-ncm="{{ item.ncm|lower }}">
                                     <td>
-                                        <span class="sku-badge">{{ item.sku }}</span>
+                                        <span class="sku-chip">{{ item.sku }}</span>
                                     </td>
                                     <td>
-                                        <div class="fw-bold text-dark">{{ item.descricao }}</div>
+                                        <div class="fw-semibold text-dark">{{ item.descricao }}</div>
                                         {% if item.link_produto %}
                                             <a href="{{ item.link_produto }}" target="_blank" class="small text-decoration-none text-primary opacity-75">
                                                 <i class="fas fa-external-link-alt me-1"></i>Link Fornecedor
@@ -272,23 +128,23 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <span class="badge bg-light text-secondary border font-monospace">{{ item.ncm or '—' }}</span>
+                                        <span class="badge-saas badge-saas-neutral font-tabular">{{ item.ncm or '—' }}</span>
                                     </td>
-                                    <td class="text-center">
+                                    <td class="text-end">
                                         {% if item.quantidade_total > 0 %}
-                                            <span class="stock-qty-badge stock-positive">{{ item.quantidade_total }} UN</span>
+                                            <span class="badge-saas badge-saas-success font-tabular">{{ item.quantidade_total }} UN</span>
                                         {% else %}
-                                            <span class="stock-qty-badge stock-zero">0 UN</span>
+                                            <span class="badge-saas badge-saas-danger font-tabular">0 UN</span>
                                         {% endif %}
                                     </td>
-                                    <td class="fw-semibold text-dark">
+                                    <td class="text-end font-tabular fw-bold text-dark">
                                         {% if item.preco_revenda %}
                                             R$ {{ "%.2f"|format(item.preco_revenda)|replace('.', ',') }}
                                         {% else %}
                                             <span class="text-muted">—</span>
                                         {% endif %}
                                     </td>
-                                    <td class="fw-semibold text-success">
+                                    <td class="text-end font-tabular fw-bold text-success">
                                         {% if item.preco_site_pix %}
                                             R$ {{ "%.2f"|format(item.preco_site_pix)|replace('.', ',') }}
                                         {% else %}
@@ -297,29 +153,29 @@
                                     </td>
                                     <td>
                                         {% if item.catalogs and item.catalogs|length > 0 %}
-                                            <div class="d-flex flex-column gap-1">
+                                            <div class="d-flex flex-wrap gap-1">
                                                 {% for cat in item.catalogs %}
-                                                <div class="d-inline-flex align-items-center justify-content-between gap-2 p-1 px-2 rounded-2 bg-light border text-xs" style="max-width: 220px;">
-                                                    <a href="{{ cat.catalog_url or 'https://www.mercadolivre.com.br/p/' + cat.catalog_id }}" target="_blank" class="text-decoration-none text-indigo fw-bold text-truncate" title="{{ cat.catalog_title }}">
-                                                        <i class="fas fa-layer-group me-1"></i>{{ cat.catalog_id }}
+                                                <div class="d-inline-flex align-items-center gap-1 p-1 px-2 rounded-2 bg-light border text-xs" style="max-width: 220px;">
+                                                    <a href="{{ cat.catalog_url or 'https://www.mercadolivre.com.br/p/' + cat.catalog_id }}" target="_blank" class="text-decoration-none text-primary fw-bold text-truncate" title="{{ cat.catalog_title }}">
+                                                        <i class="fas fa-layer-group me-1 text-warning"></i>{{ cat.catalog_id }}
                                                     </a>
-                                                    <span class="badge bg-purple text-white" style="background:#8b5cf6; font-size:0.65rem;">{{ cat.sellers_count }} op</span>
-                                                    <button type="button" class="btn btn-link p-0 text-danger border-0" style="font-size:0.75rem;" onclick="unlinkCatalogFromSku('{{ item.sku }}', '{{ cat.catalog_id }}')" title="Desvincular Catálogo deste SKU">
+                                                    <span class="badge bg-secondary text-white" style="font-size:0.65rem;">{{ cat.sellers_count }} op</span>
+                                                    <button type="button" class="btn btn-link p-0 text-danger border-0 ms-1" style="font-size:0.75rem; line-height: 1;" onclick="unlinkCatalogFromSku('{{ item.sku }}', '{{ cat.catalog_id }}')" title="Desvincular Catálogo deste SKU">
                                                         <i class="fas fa-times"></i>
                                                     </button>
                                                 </div>
                                                 {% endfor %}
                                             </div>
                                         {% else %}
-                                            <a href="{{ url_for('search.search_page') }}?q={{ item.descricao|urlencode }}" class="badge bg-light text-muted border text-decoration-none">
-                                                <i class="fas fa-plus me-1"></i> Vincular da Busca
+                                            <a href="{{ url_for('search.search_page') }}?q={{ item.descricao|urlencode }}" class="badge-saas badge-saas-neutral text-decoration-none">
+                                                <i class="fas fa-plus"></i> Vincular
                                             </a>
                                         {% endif %}
                                     </td>
                                     <td>
                                         <small class="text-muted">
                                             {% for ped in item.pedidos %}
-                                                <a href="{{ url_for('inventory.order_detail', pedido_id=ped.pedido_id) }}" class="badge bg-secondary text-decoration-none me-1 mb-1">
+                                                <a href="{{ url_for('inventory.order_detail', pedido_id=ped.pedido_id) }}" class="badge bg-light text-dark border text-decoration-none me-1 mb-1">
                                                     {{ ped.numero_pedido }} ({{ ped.quantidade }})
                                                 </a>
                                             {% endfor %}
@@ -327,8 +183,8 @@
                                     </td>
                                     <td class="text-end">
                                         <a href="{{ url_for('search.search_page') }}?q={{ item.descricao|urlencode }}" 
-                                           class="btn-market-search" title="Buscar novas ofertas e concorrentes no Mercado Livre">
-                                            <i class="fas fa-search"></i> Buscar Mercado
+                                           class="btn-action-row" title="Buscar novas ofertas e concorrentes no Mercado Livre">
+                                            <i class="fas fa-search text-warning"></i> Buscar
                                         </a>
                                     </td>
                                 </tr>
@@ -353,25 +209,25 @@
 
         <!-- ─── ABA 2: PEDIDOS DE COMPRA ─────────────────────────────── -->
         <div class="tab-pane fade" id="tab-orders" role="tabpanel">
-            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-                <div class="card-header bg-white p-3 border-bottom d-flex justify-content-between align-items-center">
+            <div class="table-saas-card">
+                <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-white">
                     <h6 class="fw-bold mb-0 text-dark">
                         <i class="fas fa-receipt text-primary me-2"></i> Lotes e Pedidos Cadastrados
                     </h6>
-                    <button class="btn btn-sm btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#newOrderModal">
-                        <i class="fas fa-plus me-1"></i> Cadastrar Pedido
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#newOrderModal">
+                        <i class="fas fa-plus"></i> Cadastrar Pedido
                     </button>
                 </div>
 
                 <div class="table-responsive">
-                    <table class="table table-inventory mb-0">
+                    <table class="table table-saas mb-0">
                         <thead>
                             <tr>
                                 <th>Número / Lote</th>
                                 <th>Fornecedor</th>
                                 <th>Data Cadastro</th>
-                                <th class="text-center">SKUs Distintos</th>
-                                <th class="text-center">Total Peças</th>
+                                <th class="text-end">SKUs Distintos</th>
+                                <th class="text-end">Total Peças</th>
                                 <th>Observações</th>
                                 <th class="text-end">Ações</th>
                             </tr>
@@ -381,28 +237,28 @@
                                 {% for ord in orders %}
                                 <tr>
                                     <td class="fw-bold text-dark">
-                                        <a href="{{ url_for('inventory.order_detail', pedido_id=ord.id) }}" class="text-decoration-none text-primary">
-                                            <i class="fas fa-file-invoice me-1"></i> {{ ord.numero_pedido }}
+                                        <a href="{{ url_for('inventory.order_detail', pedido_id=ord.id) }}" class="text-decoration-none text-primary fw-semibold">
+                                            <i class="fas fa-file-invoice me-1 text-muted"></i> {{ ord.numero_pedido }}
                                         </a>
                                     </td>
                                     <td>{{ ord.fornecedor or '—' }}</td>
                                     <td>
-                                        <small class="text-muted">{{ ord.created_at[:10] if ord.created_at else '—' }}</small>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-light text-dark border">{{ ord.total_itens_diferentes or 0 }} SKUs</span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="stock-qty-badge stock-positive">{{ ord.total_quantidade_produtos or 0 }} UN</span>
-                                    </td>
-                                    <td>
-                                        <small class="text-muted">{{ ord.observacoes or '—' }}</small>
+                                        <small class="text-muted font-tabular">{{ ord.created_at[:10] if ord.created_at else '—' }}</small>
                                     </td>
                                     <td class="text-end">
-                                        <a href="{{ url_for('inventory.order_detail', pedido_id=ord.id) }}" class="btn btn-sm btn-outline-primary me-1">
+                                        <span class="badge-saas badge-saas-neutral font-tabular">{{ ord.total_itens_diferentes or 0 }} SKUs</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <span class="badge-saas badge-saas-success font-tabular">{{ ord.total_quantidade_produtos or 0 }} UN</span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted text-truncate d-inline-block" style="max-width: 250px;">{{ ord.observacoes or '—' }}</small>
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{{ url_for('inventory.order_detail', pedido_id=ord.id) }}" class="btn btn-sm btn-secondary me-1">
                                             <i class="fas fa-eye"></i> Detalhes
                                         </a>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteOrder('{{ ord.id }}', '{{ ord.numero_pedido }}')">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteOrder('{{ ord.id }}', '{{ ord.numero_pedido }}')" title="Excluir pedido">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </td>

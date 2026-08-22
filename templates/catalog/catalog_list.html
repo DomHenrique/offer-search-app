@@ -2,367 +2,60 @@
 
 {% block title %}Catálogos ML - Offer Search App{% endblock %}
 
-{% block extra_styles %}
-<style>
-/* ─── Hero Section ─────────────────────────────────────────── */
-.catalog-hero {
-    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%);
-    border-radius: 20px;
-    padding: 2.25rem 2.5rem;
-    color: white;
-    margin-bottom: 2rem;
-    position: relative;
-    overflow: hidden;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 214, 0, 0.3);
-}
-.catalog-hero::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -20%;
-    width: 300px;
-    height: 300px;
-    background: radial-gradient(circle, rgba(255, 214, 0, 0.15) 0%, rgba(255, 255, 255, 0) 70%);
-    border-radius: 50%;
-}
-
-/* ─── Formulário de Nova Busca ─────────────────────────────── */
-.search-box-catalog {
-    background: #ffffff;
-    border-radius: 16px;
-    padding: 1.5rem;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.04);
-    border: 1px solid #e2e8f0;
-}
-
-/* ─── Barra de Filtro e Busca Rápida na Grade ─────────────── */
-.catalog-toolbar {
-    background: #ffffff;
-    border-radius: 14px;
-    padding: 1rem 1.25rem;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-    margin-bottom: 1.5rem;
-}
-
-.catalog-search-filter {
-    border-radius: 10px;
-    border: 1px solid #cbd5e1;
-    padding: 0.55rem 1rem 0.55rem 2.5rem;
-    font-size: 0.9rem;
-    width: 100%;
-    transition: all 0.2s ease;
-    background: #f8fafc;
-}
-.catalog-search-filter:focus {
-    background: #ffffff;
-    border-color: #6366f1;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
-    outline: none;
-}
-
-/* ─── Card de Catálogo SaaS (Alta Densidade & Respiro) ─────── */
-.saas-catalog-card {
-    background: #ffffff;
-    border-radius: 14px;
-    border: 1px solid #e2e8f0;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    position: relative;
-    overflow: hidden;
-}
-
-.saas-catalog-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 25px -4px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
-    border-color: #ffd600;
-}
-
-/* Header do Card (Badge e ID) */
-.saas-card-topbar {
-    padding: 10px 12px 6px 12px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    background: #fafafa;
-    border-bottom: 1px solid #f1f5f9;
-}
-
-.catalog-id-chip {
-    font-family: 'Courier New', monospace;
-    font-size: 0.72rem;
-    font-weight: 700;
-    background: #ffffff;
-    color: #475569;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    padding: 2px 7px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-.catalog-id-chip:hover {
-    background: #ffd600;
-    color: #0f172a;
-    border-color: #eab308;
-}
-
-.status-badge-saas {
-    font-size: 0.7rem;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 20px;
-    background: #ecfdf5;
-    color: #059669;
-    border: 1px solid #a7f3d0;
-}
-
-/* Moldura da Imagem com Respiro Interno */
-.saas-img-frame {
-    height: 140px;
-    background: #ffffff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 12px 16px;
-    overflow: hidden;
-    position: relative;
-    border-bottom: 1px solid #f8fafc;
-}
-
-.saas-img-frame img {
-    max-height: 116px;
-    max-width: 100%;
-    width: auto;
-    height: auto;
-    object-fit: contain;
-    transition: transform 0.25s ease;
-}
-
-.saas-catalog-card:hover .saas-img-frame img {
-    transform: scale(1.06);
-}
-
-/* Corpo do Card (Título & Informações) */
-.saas-card-body {
-    padding: 12px 14px;
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
-}
-
-.saas-card-title {
-    font-size: 0.86rem;
-    font-weight: 700;
-    color: #0f172a !important;
-    line-height: 1.35;
-    margin-bottom: 6px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    min-height: 2.3em;
-}
-
-.saas-card-search-term {
-    font-size: 0.72rem;
-    color: #64748b;
-    margin-bottom: 10px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* Rodapé e Ações Rápidas */
-.saas-card-footer {
-    padding: 10px 12px 12px 12px;
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    margin-top: auto;
-    border-top: 1px solid #f1f5f9;
-    background: #ffffff;
-}
-
-.btn-saas-primary {
-    background: linear-gradient(135deg, #ffd600, #ff7800);
-    color: #0f172a;
-    border: none;
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 0.8rem;
-    padding: 0.5rem 0.75rem;
-    flex-grow: 1;
-    text-align: center;
-    text-decoration: none;
-    transition: all 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-}
-.btn-saas-primary:hover {
-    box-shadow: 0 4px 12px rgba(255, 120, 0, 0.35);
-    color: #000;
-    transform: translateY(-1px);
-}
-
-.btn-saas-icon {
-    background: #f8fafc;
-    color: #64748b;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 0.5rem;
-    width: 34px;
-    height: 34px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
-    transition: all 0.2s ease;
-    font-size: 0.8rem;
-}
-.btn-saas-icon:hover {
-    background: #e2e8f0;
-    color: #0f172a;
-}
-
-/* ─── Botão de Sincronização Inteligente ─────────────────────── */
-.btn-sync-history {
-    background: linear-gradient(135deg, #10b981, #059669);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    font-weight: 700;
-    padding: 0.65rem 1.25rem;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
-}
-.btn-sync-history:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
-    color: white;
-}
-
-/* ─── Overlay de busca ─────────────────────────────────────── */
-.search-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.85);
-    backdrop-filter: blur(8px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-}
-.search-overlay-box {
-    background: white;
-    border-radius: 24px;
-    padding: 3rem;
-    max-width: 440px;
-    width: 90%;
-    text-align: center;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-}
-.spinner-ml {
-    width: 60px;
-    height: 60px;
-    border: 5px solid #e2e8f0;
-    border-top: 5px solid #ffd600;
-    border-right: 5px solid #ff7800;
-    border-radius: 50%;
-    animation: spinml 0.8s linear infinite;
-    margin: 0 auto 1.5rem;
-}
-@keyframes spinml {
-    to { transform: rotate(360deg); }
-}
-
-/* ─── Toast de Notificação ─────────────────────────────────── */
-.copy-toast {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    background: #0f172a;
-    color: #34d399;
-    border: 1px solid #334155;
-    padding: 0.75rem 1.5rem;
-    border-radius: 10px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    z-index: 10000;
-    opacity: 0;
-    transform: translateY(10px);
-    transition: all 0.3s ease;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-}
-.copy-toast.show {
-    opacity: 1;
-    transform: translateY(0);
-}
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="container-fluid py-4">
+<div class="app-container">
 
-    <!-- Hero -->
-    <div class="catalog-hero">
-        <div class="row align-items-center g-3">
-            <div class="col-lg-8">
-                <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill bg-white bg-opacity-10 text-warning small fw-bold mb-2">
-                    <i class="fas fa-bolt"></i> Monitoramento de Concorrentes ML
-                </div>
-                <h1 class="fw-bold mb-2 fs-3 text-white">
-                    <i class="fas fa-store me-2 text-warning"></i> Catálogos do Mercado Livre
-                </h1>
-                <p class="mb-0 text-white-50">
-                    Descubra quem está competindo em cada catálogo, monitore o menor preço, taxas de envio FULL e acompanhe a reputação dos vendedores em tempo real.
-                </p>
-            </div>
-            <div class="col-lg-4 text-lg-end">
-                <button class="btn btn-sync-history" id="btnSyncHistory" onclick="extractCatalogsFromHistory()">
-                    <i class="fas fa-magic me-2"></i> Extrair do Histórico de Buscas
-                </button>
-            </div>
+    <!-- Page Header Limpo -->
+    <div class="page-header-clean">
+        <div class="page-header-left">
+            <span class="page-header-context">
+                <i class="fas fa-bolt text-warning"></i> Monitoramento de Concorrentes ML
+            </span>
+            <h1 class="page-header-title">
+                <i class="fas fa-store text-warning"></i> Catálogos do Mercado Livre
+            </h1>
+            <p class="page-header-desc">
+                Monitore buybox, menores preços, frete FULL e reputação dos vendedores concorrentes em tempo real.
+            </p>
+        </div>
+        <div class="page-header-actions">
+            <button class="btn btn-secondary" id="btnSyncHistory" onclick="extractCatalogsFromHistory()">
+                <i class="fas fa-sync-alt"></i> Sincronizar do Histórico
+            </button>
         </div>
     </div>
 
     <!-- Formulário de busca rápida de novos catálogos -->
-    <div class="search-box-catalog mb-4">
+    <div class="table-saas-card p-4 mb-4">
         <form id="catalogSearchForm">
             <div class="row g-3 align-items-end">
                 <div class="col-md-7">
-                    <label class="form-label fw-semibold text-secondary small">
+                    <label class="form-label small fw-semibold text-secondary mb-1">
                         <i class="fas fa-search me-1 text-primary"></i> BUSCAR NOVOS CATÁLOGOS NO MERCADO LIVRE
                     </label>
-                    <input type="text"
-                           id="catalogSearchInput"
-                           class="form-control form-control-lg"
-                           placeholder="Ex: EcoFlow River 3, iPhone 14, Fone Bluetooth..."
-                           required
-                           minlength="2">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text"
+                               id="catalogSearchInput"
+                               class="form-control"
+                               placeholder="Ex: EcoFlow River 3, iPhone 14, Fone Bluetooth..."
+                               required
+                               minlength="2">
+                    </div>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label fw-semibold text-secondary small">
+                    <label class="form-label small fw-semibold text-secondary mb-1">
                         <i class="fas fa-layer-group me-1 text-primary"></i> PÁGINAS ML
                     </label>
-                    <select class="form-select form-select-lg" id="catalogNPages">
-                        <option value="1">1 página (~50 produtos)</option>
-                        <option value="2">2 páginas (~100 produtos)</option>
-                        <option value="3">3 páginas (~150 produtos)</option>
+                    <select class="form-select" id="catalogNPages">
+                        <option value="1">1 página (~50 itens)</option>
+                        <option value="2">2 páginas (~100 itens)</option>
+                        <option value="3">3 páginas (~150 itens)</option>
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <button type="submit" class="btn btn-saas-primary btn-lg w-100" id="catalogSearchBtn" style="padding: 0.75rem;">
-                        <i class="fas fa-search me-2"></i> Buscar Novos Catálogos
+                    <button type="submit" class="btn btn-primary w-100" id="catalogSearchBtn">
+                        <i class="fas fa-search"></i> Buscar Novos Catálogos
                     </button>
                 </div>
             </div>
@@ -372,10 +65,10 @@
     <!-- Resultados da busca ao vivo -->
     <div id="searchResults" style="display:none;" class="mb-5">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="fw-bold text-dark mb-0">
+            <h6 class="fw-bold text-dark mb-0">
                 <i class="fas fa-fire text-warning me-2"></i> Catálogos Encontrados na Busca Atual
                 <span class="badge bg-warning text-dark ms-2" id="resultCount">0</span>
-            </h5>
+            </h6>
         </div>
         <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3" id="catalogGrid"></div>
     </div>
@@ -384,28 +77,28 @@
     {% if saved_catalogs %}
     <div class="mt-4">
         <!-- Toolbar com Filtro em Tempo Real e Contador -->
-        <div class="catalog-toolbar">
+        <div class="table-saas-card p-3 mb-3">
             <div class="row align-items-center g-3">
                 <div class="col-md-4">
-                    <h5 class="fw-bold text-dark mb-0 d-flex align-items-center">
+                    <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
                         <i class="fas fa-bookmark text-warning me-2"></i>
                         Catálogos Monitorados
                         <span class="badge bg-secondary ms-2" id="savedCountBadge">{{ saved_catalogs|length }}</span>
-                    </h5>
+                    </h6>
                 </div>
                 <div class="col-md-5">
-                    <div class="position-relative">
-                        <i class="fas fa-search text-muted position-absolute" style="left: 12px; top: 12px; font-size: 0.9rem;"></i>
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search search-icon"></i>
                         <input type="text"
                                id="catalogFilterInput"
-                               class="catalog-search-filter"
+                               class="form-control"
                                placeholder="Filtrar por nome do produto ou ID (ex: EcoFlow, MLB...)"
                                oninput="filterCatalogsLive()">
                     </div>
                 </div>
                 <div class="col-md-3 text-md-end">
-                    <button class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold" onclick="extractCatalogsFromHistory()">
-                        <i class="fas fa-sync-alt me-1"></i> Sincronizar Histórico
+                    <button class="btn btn-sm btn-secondary" onclick="extractCatalogsFromHistory()">
+                        <i class="fas fa-sync-alt"></i> Atualizar Lista
                     </button>
                 </div>
             </div>
@@ -421,12 +114,12 @@
                 <div class="saas-catalog-card">
                     <!-- Topbar do Card -->
                     <div class="saas-card-topbar">
-                        <span class="catalog-id-chip" onclick="copyCatalogId('{{ cat.catalog_id }}')" title="Clique para copiar ID">
+                        <span class="catalog-chip" onclick="copyCatalogId('{{ cat.catalog_id }}')" title="Clique para copiar ID">
                             <i class="fas fa-copy" style="font-size: 0.65rem;"></i>
                             {{ cat.catalog_id }}
                         </span>
-                        <span class="status-badge-saas">
-                            <i class="fas fa-eye me-1"></i> Ativo
+                        <span class="badge-saas badge-saas-success">
+                            <i class="fas fa-eye"></i> Ativo
                         </span>
                     </div>
 
@@ -446,26 +139,26 @@
                             {{ cat.nome }}
                         </h6>
                         {% if cat.termo_pesquisa %}
-                        <div class="saas-card-search-term" title="Busca: {{ cat.termo_pesquisa }}">
+                        <div class="small text-muted text-truncate mb-2" title="Busca: {{ cat.termo_pesquisa }}">
                             <i class="fas fa-tag me-1 text-primary opacity-75"></i> {{ cat.termo_pesquisa }}
                         </div>
                         {% else %}
-                        <div class="saas-card-search-term text-muted">
+                        <div class="small text-muted mb-2">
                             <i class="fas fa-cube me-1"></i> Catálogo ML
                         </div>
                         {% endif %}
                     </div>
 
                     <!-- Rodapé e Ações Rápidas -->
-                    <div class="saas-card-footer">
+                    <div class="saas-card-footer d-flex gap-2">
                         <a href="{{ url_for('catalog.catalog_detail', catalog_id=cat.catalog_id) }}"
-                           class="btn-saas-primary">
+                           class="btn btn-sm btn-primary flex-grow-1">
                             <i class="fas fa-users"></i> Concorrentes
                         </a>
                         <a href="https://www.mercadolivre.com.br/p/{{ cat.catalog_id }}"
                            target="_blank"
-                           class="btn-saas-icon"
-                           title="Abrir página oficial do produto no Mercado Livre">
+                           class="btn btn-sm btn-secondary px-2"
+                           title="Abrir no Mercado Livre">
                             <i class="fas fa-external-link-alt"></i>
                         </a>
                     </div>

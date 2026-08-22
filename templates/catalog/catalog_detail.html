@@ -2,419 +2,136 @@
 
 {% block title %}{{ catalog.nome if catalog and catalog.nome else 'Catálogo ' ~ catalog_id }} - Concorrentes ML{% endblock %}
 
-{% block extra_styles %}
-<style>
-/* ─── Base & Layout ─────────────────────────────────────────── */
-body {
-    background-color: #f1f5f9;
-}
-
-/* ─── Barra Superior Estilo ML ─────────────────────────────── */
-.ml-top-banner {
-    background: #ffe600;
-    height: 6px;
-    border-radius: 6px 6px 0 0;
-}
-
-/* ─── Card Principal do Produto (Header) ───────────────────── */
-.product-hero-card {
-    background: #ffffff;
-    border-radius: 16px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
-    padding: 1.75rem;
-    margin-bottom: 1.5rem;
-    position: relative;
-}
-
-.product-img-box {
-    width: 140px;
-    height: 140px;
-    background: #ffffff;
-    border-radius: 12px;
-    border: 1px solid #f1f5f9;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 8px;
-    overflow: hidden;
-}
-.product-img-box img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-}
-
-/* Título em Alto Contraste (Preto Nítido) */
-.product-title-main {
-    color: #0f172a !important;
-    font-size: 1.45rem;
-    font-weight: 700;
-    line-height: 1.3;
-    margin-bottom: 0.5rem;
-}
-
-.product-meta-sub {
-    font-size: 0.85rem;
-    color: #64748b;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px;
-}
-
-.catalog-pill {
-    background: #f8fafc;
-    color: #334155;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    padding: 3px 10px;
-    font-family: 'Courier New', monospace;
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-/* ─── Botão Atualizar Concorrentes ─────────────────────────── */
-.btn-scrape-sync {
-    background: linear-gradient(135deg, #ffd600, #ff7800);
-    color: #0f172a;
-    border: none;
-    font-weight: 700;
-    padding: 0.65rem 1.25rem;
-    border-radius: 12px;
-    transition: all 0.2s ease;
-    box-shadow: 0 4px 12px rgba(255, 120, 0, 0.25);
-}
-.btn-scrape-sync:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(255, 120, 0, 0.35);
-    color: #000;
-}
-
-/* ─── Métricas Resumidas ───────────────────────────────────── */
-.metric-box {
-    background: #ffffff;
-    border-radius: 14px;
-    border: 1px solid #e2e8f0;
-    padding: 1rem 1.25rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-}
-.metric-label {
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #64748b;
-    margin-bottom: 4px;
-}
-.metric-val {
-    font-size: 1.35rem;
-    font-weight: 800;
-}
-
-/* ─── Tabela de Vendedores (Idêntica ao Mercado Livre) ─────── */
-.ml-sellers-container {
-    background: #ffffff;
-    border-radius: 16px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.04);
-    overflow: hidden;
-}
-
-.ml-sellers-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    margin-bottom: 0;
-}
-
-.ml-sellers-table thead {
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
-}
-
-.ml-sellers-table thead th {
-    padding: 1.1rem 1.5rem;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #475569;
-    border-bottom: 1px solid #e2e8f0;
-}
-
-.ml-sellers-table tbody tr {
-    border-bottom: 1px solid #f1f5f9;
-    transition: background 0.15s ease;
-}
-
-.ml-sellers-table tbody tr:hover {
-    background-color: #f8fafc;
-}
-
-.ml-sellers-table tbody tr.best-offer-row {
-    background-color: #f0fdf4;
-}
-
-.ml-sellers-table td {
-    padding: 1.35rem 1.5rem;
-    vertical-align: middle;
-}
-
-/* Coluna de Preço */
-.price-display-main {
-    font-size: 1.45rem;
-    font-weight: 800;
-    color: #0f172a;
-    line-height: 1.1;
-}
-.price-installment-green {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #00a650;
-    margin-top: 4px;
-}
-.price-installment-gray {
-    font-size: 0.85rem;
-    color: #64748b;
-    margin-top: 4px;
-}
-
-/* Coluna de Entrega */
-.shipping-bullet {
-    font-size: 0.85rem;
-    color: #334155;
-    line-height: 1.4;
-    margin-bottom: 4px;
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-}
-.shipping-green-highlight {
-    color: #00a650;
-    font-weight: 700;
-}
-
-/* Coluna do Vendedor */
-.seller-name-link {
-    color: #3483fa;
-    font-weight: 700;
-    font-size: 0.95rem;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    transition: color 0.15s;
-}
-.seller-name-link:hover {
-    color: #1d4ed8;
-    text-decoration: underline;
-}
-.seller-verified-icon {
-    color: #3483fa;
-    font-size: 0.85rem;
-}
-.seller-reputation-text {
-    font-size: 0.8rem;
-    color: #64748b;
-    margin-top: 3px;
-}
-
-/* Botões de Ação ML */
-.btn-ml-buy {
-    background: #3483fa;
-    color: #ffffff;
-    font-weight: 700;
-    font-size: 0.85rem;
-    border-radius: 8px;
-    padding: 0.55rem 1.25rem;
-    border: none;
-    display: block;
-    width: 100%;
-    text-align: center;
-    text-decoration: none;
-    transition: background 0.15s;
-}
-.btn-ml-buy:hover {
-    background: #2968c8;
-    color: #ffffff;
-}
-
-.btn-ml-cart {
-    background: rgba(65, 137, 230, 0.12);
-    color: #3483fa;
-    font-weight: 700;
-    font-size: 0.82rem;
-    border-radius: 8px;
-    padding: 0.5rem 1rem;
-    border: none;
-    display: block;
-    width: 100%;
-    text-align: center;
-    text-decoration: none;
-    margin-top: 6px;
-    transition: background 0.15s;
-}
-.btn-ml-cart:hover {
-    background: rgba(65, 137, 230, 0.2);
-    color: #1d4ed8;
-}
-
-/* ─── Overlay de Busca ─────────────────────────────────────── */
-.search-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.85);
-    backdrop-filter: blur(8px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-}
-.search-overlay-box {
-    background: white;
-    border-radius: 24px;
-    padding: 3rem;
-    max-width: 440px;
-    width: 90%;
-    text-align: center;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-}
-.spinner-ml {
-    width: 60px;
-    height: 60px;
-    border: 5px solid #e2e8f0;
-    border-top: 5px solid #ffd600;
-    border-right: 5px solid #ff7800;
-    border-radius: 50%;
-    animation: spinml 0.8s linear infinite;
-    margin: 0 auto 1.5rem;
-}
-@keyframes spinml {
-    to { transform: rotate(360deg); }
-}
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="container-fluid py-4">
+<div class="app-container">
 
     <!-- Navegação Voltar -->
-    <div class="mb-3 d-flex align-items-center justify-content-between">
-        <a href="{{ url_for('catalog.catalog_list') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3 fw-semibold">
-            <i class="fas fa-arrow-left me-1"></i> Voltar aos Catálogos
+    <div class="mb-4 d-flex align-items-center justify-content-between">
+        <a href="{{ url_for('catalog.catalog_list') }}" class="btn btn-sm btn-secondary">
+            <i class="fas fa-arrow-left"></i> Voltar aos Catálogos
         </a>
         <div class="d-flex align-items-center gap-2">
-            <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
-                <i class="fas fa-external-link-alt me-1"></i> Ver no Mercado Livre
+            <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}" target="_blank" class="btn btn-sm btn-secondary">
+                <i class="fas fa-external-link-alt"></i> Ver no Mercado Livre
             </a>
-            <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}/s?" target="_blank" class="btn btn-sm btn-outline-warning text-dark rounded-pill px-3 fw-semibold">
-                <i class="fas fa-list-ul me-1"></i> Página de Opções (/s?)
+            <a href="https://www.mercadolivre.com.br/p/{{ catalog_id }}/s?" target="_blank" class="btn btn-sm btn-secondary">
+                <i class="fas fa-list-ul text-warning"></i> Opções (/s?)
             </a>
         </div>
     </div>
 
-    <!-- Card Principal do Produto (Header com Alto Contraste) -->
-    <div class="product-hero-card">
-        <div class="ml-top-banner mb-3"></div>
-        <div class="row align-items-center g-3">
-            <div class="col-auto">
-                <div class="product-img-box">
-                    {% if catalog and catalog.imagem %}
-                        <img src="{{ catalog.imagem }}" alt="{{ catalog.nome }}"
-                             onerror="this.src='https://via.placeholder.com/140x140/ffffff/94a3b8?text=ML+Catalog'">
-                    {% else %}
-                        <i class="fas fa-box" style="font-size: 3.5rem; color: #cbd5e1;"></i>
-                    {% endif %}
-                </div>
+    <!-- Card Principal do Produto (Header) -->
+    <div class="page-header-clean mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <div class="rounded-3 border p-2 bg-white d-flex align-items-center justify-content-center" style="width: 80px; height: 80px; flex-shrink: 0;">
+                {% if catalog and catalog.imagem %}
+                    <img src="{{ catalog.imagem }}" alt="{{ catalog.nome }}" style="max-width: 100%; max-height: 100%; object-fit: contain;"
+                         onerror="this.src='https://via.placeholder.com/80x80/ffffff/94a3b8?text=ML'">
+                {% else %}
+                    <i class="fas fa-box text-muted" style="font-size: 2rem;"></i>
+                {% endif %}
             </div>
-            <div class="col">
-                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                    <span class="catalog-pill">
-                        <i class="fas fa-barcode text-primary me-1"></i> Catálogo: {{ catalog_id }}
+            <div class="page-header-left">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                    <span class="catalog-chip">
+                        <i class="fas fa-barcode text-warning"></i> Catálogo: {{ catalog_id }}
                     </span>
                     {% if sellers and sellers|length > 0 %}
-                    <span class="badge bg-success bg-opacity-10 text-success fw-bold px-3 py-1 rounded-pill">
-                        <i class="fas fa-check-circle me-1"></i> {{ sellers|length }} Vendedores Monitorados
+                    <span class="badge-saas badge-saas-success">
+                        <i class="fas fa-check-circle"></i> {{ sellers|length }} Vendedores
                     </span>
                     {% endif %}
                 </div>
-                
-                <!-- Título em Alto Contraste e Fonte Legível -->
-                <h1 class="product-title-main">
+                <h1 class="page-header-title fs-5">
                     {% if catalog and catalog.nome %}
                         {{ catalog.nome }}
                     {% else %}
                         Catálogo {{ catalog_id }}
                     {% endif %}
                 </h1>
-
-                <div class="product-meta-sub">
-                    <span><strong>Quantidade:</strong> 1 unidade</span>
+                <div class="small text-muted d-flex flex-wrap gap-3 mt-1">
                     {% if catalog and catalog.termo_pesquisa %}
                         <span><i class="fas fa-search me-1 text-primary"></i> Busca: <strong>{{ catalog.termo_pesquisa }}</strong></span>
                     {% endif %}
                     {% if catalog and catalog.coletado_em %}
-                        <span><i class="fas fa-history me-1 text-muted"></i> Última sincronização: <strong>{{ catalog.coletado_em }}</strong></span>
+                        <span><i class="fas fa-history me-1"></i> Sincronizado: {{ catalog.coletado_em }}</span>
                     {% endif %}
                 </div>
             </div>
-            <div class="col-lg-auto text-lg-end">
-                <button class="btn btn-scrape-sync" id="btnScrapeSellers" onclick="startSellersScrape('{{ catalog_id }}')">
-                    <i class="fas fa-sync-alt me-2" id="syncIcon"></i> Atualizar Concorrentes
-                </button>
-            </div>
+        </div>
+        <div class="page-header-actions">
+            <button class="btn btn-primary" id="btnScrapeSellers" onclick="startSellersScrape('{{ catalog_id }}')">
+                <i class="fas fa-sync-alt" id="syncIcon"></i> Atualizar Concorrentes
+            </button>
         </div>
     </div>
 
-    <!-- Métricas Resumidas -->
+    <!-- Métricas Resumidas (KPIs) -->
     {% if sellers and sellers|length > 0 %}
     {% set prices = sellers | map(attribute='preco') | select('gt', 0) | list %}
     {% set full_count = sellers | selectattr('frete_full') | list | length %}
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
-            <div class="metric-box">
-                <div class="metric-label">Menor Preço (Líder)</div>
-                <div class="metric-val text-success">
-                    {% if prices|length > 0 %}
-                        R$ {{ "%.2f"|format(prices|min) }}
-                    {% else %}
-                        --
-                    {% endif %}
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-emerald-subtle">
+                    <i class="fas fa-tag"></i>
+                </div>
+                <div>
+                    <div class="metric-value text-success font-tabular">
+                        {% if prices|length > 0 %}
+                            R$ {{ "%.2f"|format(prices|min) }}
+                        {% else %}
+                            --
+                        {% endif %}
+                    </div>
+                    <div class="metric-label">Menor Preço (Líder)</div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="metric-box">
-                <div class="metric-label">Maior Preço</div>
-                <div class="metric-val text-danger">
-                    {% if prices|length > 0 %}
-                        R$ {{ "%.2f"|format(prices|max) }}
-                    {% else %}
-                        --
-                    {% endif %}
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-rose-subtle">
+                    <i class="fas fa-arrow-up"></i>
+                </div>
+                <div>
+                    <div class="metric-value text-danger font-tabular">
+                        {% if prices|length > 0 %}
+                            R$ {{ "%.2f"|format(prices|max) }}
+                        {% else %}
+                            --
+                        {% endif %}
+                    </div>
+                    <div class="metric-label">Maior Preço</div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="metric-box">
-                <div class="metric-label">Vendedores Ativos</div>
-                <div class="metric-val text-primary">
-                    {{ sellers|length }}
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-indigo-subtle">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div>
+                    <div class="metric-value font-tabular">{{ sellers|length }}</div>
+                    <div class="metric-label">Vendedores Ativos</div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="metric-box">
-                <div class="metric-label">Com Envio FULL</div>
-                <div class="metric-val text-warning">
-                    {{ full_count }}
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-amber-subtle">
+                    <i class="fas fa-bolt"></i>
+                </div>
+                <div>
+                    <div class="metric-value text-warning font-tabular">{{ full_count }}</div>
+                    <div class="metric-label">Com Envio FULL</div>
                 </div>
             </div>
         </div>
     </div>
     {% endif %}
 
-    <!-- Tabela de Concorrentes Idêntica ao Mercado Livre -->
-    <div class="ml-sellers-container">
+    <!-- Tabela de Concorrentes -->
+    <div class="table-saas-card mb-4">
         {% if sellers and sellers|length > 0 %}
         <div class="table-responsive">
             <table class="ml-sellers-table">

@@ -2,179 +2,141 @@
 
 {% block title %}Dashboard - Offer Search App{% endblock %}
 
-{% block extra_styles %}
-<style>
-.dashboard-stat-card {
-    text-decoration: none;
-    color: inherit;
-    display: block;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    cursor: pointer;
-    border-radius: 16px;
-    overflow: hidden;
-}
-
-.dashboard-stat-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12) !important;
-    text-decoration: none;
-    color: inherit;
-}
-
-.dashboard-stat-card:hover .stat-icon {
-    transform: scale(1.1);
-}
-
-.stat-icon {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto;
-    font-size: 1.5rem;
-    transition: transform 0.3s ease;
-}
-
-.bg-gradient-primary-custom {
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
-}
-
-.bg-gradient-secondary-custom {
-    background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%) !important;
-}
-
-.bg-gradient-success-custom {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-}
-
-.bg-gradient-alert-custom {
-    background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%) !important;
-}
-
-.quick-action-card {
-    transition: all 0.2s ease;
-    border-radius: 12px;
-}
-
-.quick-action-card:hover {
-    transform: translateY(-3px);
-}
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="container py-4">
-    <div class="row mb-4">
-        <div class="col">
-            <h1 class="display-6 fw-bold text-gradient">
-                <i class="fas fa-tachometer-alt me-3"></i>
-                Dashboard
+<div class="app-container">
+
+    <!-- Page Header Limpo -->
+    <div class="page-header-clean">
+        <div class="page-header-left">
+            <span class="page-header-context">
+                <i class="fas fa-chart-pie"></i> Visão Geral do Sistema
+            </span>
+            <h1 class="page-header-title">
+                <i class="fas fa-tachometer-alt text-primary"></i> Painel de Controle
             </h1>
-            <p class="lead text-muted">Bem-vindo de volta! Aqui está um resumo das suas atividades.</p>
+            <p class="page-header-desc">
+                Acompanhe o status do monitoramento de preços, estoque e automações do sistema.
+            </p>
+        </div>
+        <div class="page-header-actions">
+            <a href="{{ url_for('search.search_page') }}" class="btn btn-primary">
+                <i class="fas fa-search"></i> Nova Pesquisa
+            </a>
         </div>
     </div>
     
-    <!-- Estatísticas Clicáveis -->
-    <div class="row g-4 mb-5">
+    <!-- Estatísticas Clicáveis (KPIs) -->
+    <div class="row g-3 mb-4">
         <!-- 1. Buscas Realizadas -> Histórico -->
         <div class="col-lg-3 col-md-6">
-            <a href="{{ url_for('history.history_page') }}" class="card h-100 border-0 shadow-custom dashboard-stat-card" title="Clique para ver o Histórico de Buscas">
-                <div class="card-body text-center p-4">
-                    <div class="stat-icon bg-gradient-primary-custom text-white mb-3 shadow-sm">
+            <a href="{{ url_for('history.history_page') }}" class="text-decoration-none d-block">
+                <div class="metric-card-kpi">
+                    <div class="metric-icon-box bg-indigo-subtle">
                         <i class="fas fa-search"></i>
                     </div>
-                    <h3 class="fw-bold text-dark">{{ stats.total_searches or 0 }}</h3>
-                    <p class="text-muted mb-0 fw-semibold">Buscas Realizadas</p>
-                    <small class="text-primary mt-2 d-inline-block"><i class="fas fa-arrow-right me-1"></i>Ver histórico</small>
+                    <div>
+                        <div class="metric-value font-tabular">{{ stats.total_searches or 0 }}</div>
+                        <div class="metric-label">Buscas Realizadas</div>
+                        <small class="text-primary mt-1 d-inline-block fw-semibold" style="font-size: 0.75rem;">
+                            Ver histórico <i class="fas fa-arrow-right ms-1"></i>
+                        </small>
+                    </div>
                 </div>
             </a>
         </div>
         
         <!-- 2. Produtos Aprovados -> Aprovados -->
         <div class="col-lg-3 col-md-6">
-            <a href="{{ url_for('approval.approved_products') }}" class="card h-100 border-0 shadow-custom dashboard-stat-card" title="Clique para ver Produtos Aprovados">
-                <div class="card-body text-center p-4">
-                    <div class="stat-icon bg-gradient-success-custom text-white mb-3 shadow-sm">
+            <a href="{{ url_for('approval.approved_products') }}" class="text-decoration-none d-block">
+                <div class="metric-card-kpi">
+                    <div class="metric-icon-box bg-emerald-subtle">
                         <i class="fas fa-heart"></i>
                     </div>
-                    <h3 class="fw-bold text-dark">{{ stats.total_approved or 0 }}</h3>
-                    <p class="text-muted mb-0 fw-semibold">Produtos Aprovados</p>
-                    <small class="text-success mt-2 d-inline-block"><i class="fas fa-arrow-right me-1"></i>Ver aprovados</small>
+                    <div>
+                        <div class="metric-value text-success font-tabular">{{ stats.total_approved or 0 }}</div>
+                        <div class="metric-label">Produtos Aprovados</div>
+                        <small class="text-success mt-1 d-inline-block fw-semibold" style="font-size: 0.75rem;">
+                            Ver aprovados <i class="fas fa-arrow-right ms-1"></i>
+                        </small>
+                    </div>
                 </div>
             </a>
         </div>
         
         <!-- 3. Agendamentos Ativos -> Agendamentos -->
         <div class="col-lg-3 col-md-6">
-            <a href="{{ url_for('schedule.schedule_page') }}" class="card h-100 border-0 shadow-custom dashboard-stat-card" title="Clique para gerenciar Agendamentos">
-                <div class="card-body text-center p-4">
-                    <div class="stat-icon bg-gradient-secondary-custom text-white mb-3 shadow-sm">
+            <a href="{{ url_for('schedule.schedule_page') }}" class="text-decoration-none d-block">
+                <div class="metric-card-kpi">
+                    <div class="metric-icon-box bg-sky-subtle">
                         <i class="fas fa-clock"></i>
                     </div>
-                    <h3 class="fw-bold text-dark">{{ stats.active_schedules or 0 }}</h3>
-                    <p class="text-muted mb-0 fw-semibold">Agendamentos Ativos</p>
-                    <small class="text-info mt-2 d-inline-block"><i class="fas fa-arrow-right me-1"></i>Gerenciar</small>
+                    <div>
+                        <div class="metric-value font-tabular">{{ stats.active_schedules or 0 }}</div>
+                        <div class="metric-label">Agendamentos Ativos</div>
+                        <small class="text-info mt-1 d-inline-block fw-semibold" style="font-size: 0.75rem;">
+                            Gerenciar <i class="fas fa-arrow-right ms-1"></i>
+                        </small>
+                    </div>
                 </div>
             </a>
         </div>
         
         <!-- 4. Alertas Ativos -> Alertas -->
         <div class="col-lg-3 col-md-6">
-            <a href="{{ url_for('alert.alert_page') }}" class="card h-100 border-0 shadow-custom dashboard-stat-card" title="Clique para ver Alertas">
-                <div class="card-body text-center p-4">
-                    <div class="stat-icon bg-gradient-alert-custom text-white mb-3 shadow-sm">
+            <a href="{{ url_for('alert.alert_page') }}" class="text-decoration-none d-block">
+                <div class="metric-card-kpi">
+                    <div class="metric-icon-box bg-amber-subtle">
                         <i class="fas fa-bell"></i>
                     </div>
-                    <h3 class="fw-bold text-dark">{{ stats.active_alerts or 0 }}</h3>
-                    <p class="text-muted mb-0 fw-semibold">Alertas Ativos</p>
-                    <small class="text-danger mt-2 d-inline-block"><i class="fas fa-arrow-right me-1"></i>Ver alertas</small>
+                    <div>
+                        <div class="metric-value text-warning font-tabular">{{ stats.active_alerts or 0 }}</div>
+                        <div class="metric-label">Alertas Configurados</div>
+                        <small class="text-warning mt-1 d-inline-block fw-semibold" style="font-size: 0.75rem;">
+                            Ver alertas <i class="fas fa-arrow-right ms-1"></i>
+                        </small>
+                    </div>
                 </div>
             </a>
         </div>
     </div>
     
     <!-- Ações Rápidas -->
-    <div class="row mb-5">
-        <div class="col">
-            <div class="card border-0 shadow-custom" style="border-radius: 16px; overflow: hidden;">
-                <div class="card-header bg-gradient-primary text-white p-3">
-                    <h5 class="mb-0 fw-bold">
-                        <i class="fas fa-bolt me-2"></i>
-                        Ações Rápidas
-                    </h5>
+    <div class="table-saas-card mb-4">
+        <div class="p-3 border-bottom bg-white d-flex align-items-center justify-content-between">
+            <h6 class="mb-0 fw-bold text-dark">
+                <i class="fas fa-bolt text-warning me-2"></i> Atalhos & Ações Rápidas
+            </h6>
+            <small class="text-muted">Acesse rapidamente as principais áreas da plataforma</small>
+        </div>
+        <div class="p-4 bg-white">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <a href="{{ url_for('search.search_page') }}" class="btn btn-secondary w-100 py-3 d-flex flex-column align-items-center justify-content-center text-decoration-none">
+                        <i class="fas fa-search fa-2x mb-2 text-primary"></i>
+                        <span class="fw-semibold text-dark">Nova Busca de Ofertas</span>
+                    </a>
                 </div>
-                <div class="card-body p-4">
-                    <div class="row g-3">
-                        <div class="col-md-3">
-                            <a href="{{ url_for('search.search_page') }}" class="btn btn-outline-primary w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3 quick-action-card">
-                                <i class="fas fa-search fa-2x mb-2"></i>
-                                <span class="fw-semibold">Nova Busca</span>
-                            </a>
-                        </div>
-                        <div class="col-md-3">
-                            <a href="{{ url_for('catalog.catalog_list') }}" class="btn btn-outline-warning text-dark w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3 quick-action-card">
-                                <i class="fas fa-store fa-2x mb-2 text-warning"></i>
-                                <span class="fw-semibold">Ver Catálogos</span>
-                            </a>
-                        </div>
-                        <div class="col-md-3">
-                            <a href="{{ url_for('approval.approved_products') }}" class="btn btn-outline-success w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3 quick-action-card">
-                                <i class="fas fa-heart fa-2x mb-2"></i>
-                                <span class="fw-semibold">Ver Aprovados</span>
-                            </a>
-                        </div>
-                        <div class="col-md-3">
-                            <a href="{{ url_for('schedule.schedule_page') }}" class="btn btn-outline-secondary w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3 quick-action-card">
-                                <i class="fas fa-clock fa-2x mb-2"></i>
-                                <span class="fw-semibold">Agendar Busca</span>
-                            </a>
-                        </div>
-                    </div>
+                <div class="col-md-3">
+                    <a href="{{ url_for('catalog.catalog_list') }}" class="btn btn-secondary w-100 py-3 d-flex flex-column align-items-center justify-content-center text-decoration-none">
+                        <i class="fas fa-store fa-2x mb-2 text-warning"></i>
+                        <span class="fw-semibold text-dark">Catálogos do Mercado Livre</span>
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    <a href="{{ url_for('inventory.inventory_list') }}" class="btn btn-secondary w-100 py-3 d-flex flex-column align-items-center justify-content-center text-decoration-none">
+                        <i class="fas fa-boxes-stacked fa-2x mb-2 text-indigo"></i>
+                        <span class="fw-semibold text-dark">Estoque & Pedidos</span>
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    <a href="{{ url_for('approval.approved_products') }}" class="btn btn-secondary w-100 py-3 d-flex flex-column align-items-center justify-content-center text-decoration-none">
+                        <i class="fas fa-heart fa-2x mb-2 text-success"></i>
+                        <span class="fw-semibold text-dark">Produtos Aprovados</span>
+                    </a>
                 </div>
             </div>
         </div>
     </div>
+
 </div>
 {% endblock %}

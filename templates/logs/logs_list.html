@@ -3,16 +3,23 @@
 {% block title %}Logs & Diagnóstico de Buscas - Offer Search App{% endblock %}
 
 {% block content %}
-<div class="container py-4">
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="fw-bold mb-1"><i class="fas fa-satellite-dish text-primary me-2"></i>Logs & Auditoria de Atividades</h2>
-            <p class="text-muted mb-0">Monitore requisições de usuários, saúde das buscas e diagnóstico de termos vazios ou com falhas em tempo real.</p>
+<div class="app-container">
+    <!-- Page Header Limpo -->
+    <div class="page-header-clean">
+        <div class="page-header-left">
+            <span class="page-header-context">
+                <i class="fas fa-satellite-dish"></i> Auditoria de Sistema
+            </span>
+            <h1 class="page-header-title">
+                <i class="fas fa-satellite-dish text-primary"></i> Logs & Auditoria de Atividades
+            </h1>
+            <p class="page-header-desc">
+                Monitore requisições de usuários, saúde das buscas e diagnóstico de termos vazios ou com falhas em tempo real.
+            </p>
         </div>
-        <div>
-            <a href="{{ url_for('logs.logs_page') }}" class="btn btn-outline-primary shadow-sm">
-                <i class="fas fa-sync-alt me-1"></i> Atualizar Logs
+        <div class="page-header-actions">
+            <a href="{{ url_for('logs.logs_page') }}" class="btn btn-secondary">
+                <i class="fas fa-sync-alt"></i> Atualizar Logs
             </a>
         </div>
     </div>
@@ -20,98 +27,125 @@
     <!-- KPIs Cards -->
     <div class="row g-3 mb-4">
         <div class="col-md-2 col-6">
-            <div class="card border-0 shadow-sm rounded-4 text-center p-3 h-100 bg-white">
-                <span class="text-muted small fw-semibold">TOTAL DE BUSCAS</span>
-                <h3 class="fw-bold text-dark mt-2 mb-0">{{ stats.total_buscas or 0 }}</h3>
-                <small class="text-muted">Geral registradas</small>
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-indigo-subtle">
+                    <i class="fas fa-database"></i>
+                </div>
+                <div>
+                    <div class="metric-value font-tabular">{{ stats.total_buscas or 0 }}</div>
+                    <div class="metric-label">Total de Buscas</div>
+                </div>
             </div>
         </div>
         <div class="col-md-2 col-6">
-            <div class="card border-0 shadow-sm rounded-4 text-center p-3 h-100 bg-white border-start border-success border-4">
-                <span class="text-success small fw-semibold">TAXA DE SUCESSO</span>
-                <h3 class="fw-bold text-success mt-2 mb-0">{{ stats.taxa_sucesso or 100 }}%</h3>
-                <small class="text-muted">{{ stats.sucesso_count or 0 }} com ofertas</small>
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-emerald-subtle">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div>
+                    <div class="metric-value text-success font-tabular">{{ stats.taxa_sucesso or 100 }}%</div>
+                    <div class="metric-label">Taxa de Sucesso</div>
+                </div>
             </div>
         </div>
         <div class="col-md-2 col-6">
-            <div class="card border-0 shadow-sm rounded-4 text-center p-3 h-100 bg-white border-start border-warning border-4">
-                <span class="text-warning small fw-semibold">SEM OFERTAS (0)</span>
-                <h3 class="fw-bold text-warning mt-2 mb-0">{{ stats.empty_count or 0 }}</h3>
-                <small class="text-muted">Termos vazios</small>
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-amber-subtle">
+                    <i class="fas fa-exclamation-circle"></i>
+                </div>
+                <div>
+                    <div class="metric-value text-warning font-tabular">{{ stats.empty_count or 0 }}</div>
+                    <div class="metric-label">Sem Ofertas (0)</div>
+                </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="card border-0 shadow-sm rounded-4 text-center p-3 h-100 bg-white border-start border-info border-4">
-                <span class="text-info small fw-semibold">RECUPERADOS (FALLBACK)</span>
-                <h3 class="fw-bold text-info mt-2 mb-0">{{ stats.recovered_count or 0 }}</h3>
-                <small class="text-muted">Termos relaxados c/ sucesso</small>
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-sky-subtle">
+                    <i class="fas fa-magic"></i>
+                </div>
+                <div>
+                    <div class="metric-value text-info font-tabular">{{ stats.recovered_count or 0 }}</div>
+                    <div class="metric-label">Recuperados (Fallback)</div>
+                </div>
             </div>
         </div>
         <div class="col-md-3 col-12">
-            <div class="card border-0 shadow-sm rounded-4 text-center p-3 h-100 bg-white border-start border-danger border-4">
-                <span class="text-danger small fw-semibold">FALHAS / ERROS</span>
-                <h3 class="fw-bold text-danger mt-2 mb-0">{{ stats.error_count or 0 }}</h3>
-                <small class="text-muted">Bloqueios / Timeouts</small>
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-rose-subtle">
+                    <i class="fas fa-times-circle"></i>
+                </div>
+                <div>
+                    <div class="metric-value text-danger font-tabular">{{ stats.error_count or 0 }}</div>
+                    <div class="metric-label">Falhas / Erros</div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Filtros de Status -->
-    <div class="card border-0 shadow-sm rounded-4 mb-4">
-        <div class="card-body p-3">
-            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                <div class="btn-group" role="group">
-                    <a href="{{ url_for('logs.logs_page', status='ALL') }}" class="btn btn-sm {{ 'btn-primary' if current_status == 'ALL' else 'btn-outline-secondary' }}">
+    <!-- Tabela de Logs e Toolbar -->
+    <div class="table-saas-card mb-4">
+        <!-- Toolbar com Segmented Tabs e Busca -->
+        <div class="p-3 border-bottom bg-white d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <ul class="nav segmented-tabs mb-0">
+                <li class="nav-item">
+                    <a href="{{ url_for('logs.logs_page', status='ALL') }}" class="nav-link {{ 'active' if current_status == 'ALL' else '' }}">
                         Todas ({{ stats.total_buscas or 0 }})
                     </a>
-                    <a href="{{ url_for('logs.logs_page', status='SUCCESS') }}" class="btn btn-sm {{ 'btn-success' if current_status == 'SUCCESS' else 'btn-outline-success' }}">
-                        <i class="fas fa-check-circle me-1"></i> Sucesso
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('logs.logs_page', status='SUCCESS') }}" class="nav-link {{ 'active' if current_status == 'SUCCESS' else '' }}">
+                        <i class="fas fa-check-circle text-success"></i> Sucesso
                     </a>
-                    <a href="{{ url_for('logs.logs_page', status='FALLBACK_RECOVERED') }}" class="btn btn-sm {{ 'btn-info text-white' if current_status == 'FALLBACK_RECOVERED' else 'btn-outline-info' }}">
-                        <i class="fas fa-magic me-1"></i> Recuperados
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('logs.logs_page', status='FALLBACK_RECOVERED') }}" class="nav-link {{ 'active' if current_status == 'FALLBACK_RECOVERED' else '' }}">
+                        <i class="fas fa-magic text-info"></i> Recuperados
                     </a>
-                    <a href="{{ url_for('logs.logs_page', status='EMPTY') }}" class="btn btn-sm {{ 'btn-warning text-dark' if current_status == 'EMPTY' else 'btn-outline-warning' }}">
-                        <i class="fas fa-exclamation-triangle me-1"></i> Vazios (0)
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('logs.logs_page', status='EMPTY') }}" class="nav-link {{ 'active' if current_status == 'EMPTY' else '' }}">
+                        <i class="fas fa-exclamation-triangle text-warning"></i> Vazios (0)
                     </a>
-                    <a href="{{ url_for('logs.logs_page', status='ERROR') }}" class="btn btn-sm {{ 'btn-danger' if current_status == 'ERROR' else 'btn-outline-danger' }}">
-                        <i class="fas fa-times-circle me-1"></i> Erros
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('logs.logs_page', status='ERROR') }}" class="nav-link {{ 'active' if current_status == 'ERROR' else '' }}">
+                        <i class="fas fa-times-circle text-danger"></i> Erros
                     </a>
-                </div>
-                
-                <div class="input-group input-group-sm" style="max-width: 320px;">
-                    <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-                    <input type="text" id="logSearchInput" class="form-control" placeholder="Filtrar termo na tabela..." onkeyup="filterLogTable()">
-                </div>
+                </li>
+            </ul>
+            
+            <div class="search-input-wrapper" style="min-width: 260px; max-width: 320px;">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="logSearchInput" class="form-control" placeholder="Filtrar termo na tabela..." onkeyup="filterLogTable()">
             </div>
         </div>
-    </div>
 
-    <!-- Tabela de Logs -->
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <!-- Tabela SaaS -->
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" id="logsTable">
-                <thead class="table-light">
+            <table class="table table-saas mb-0" id="logsTable">
+                <thead>
                     <tr>
-                        <th class="ps-4">Data / Hora</th>
+                        <th>Data / Hora</th>
                         <th>Usuário</th>
                         <th>Termo Buscado</th>
                         <th class="text-center">Status</th>
                         <th class="text-center">Ofertas ML / AMZ</th>
-                        <th class="text-center">Total</th>
-                        <th class="text-center">Tempo (s)</th>
-                        <th class="text-end pe-4">Ações</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Tempo (s)</th>
+                        <th class="text-end">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% if logs %}
                         {% for log in logs %}
                         <tr>
-                            <td class="ps-4 text-nowrap">
-                                <small class="text-muted d-block">{{ log.created_at[:10] if log.created_at else 'Recente' }}</small>
-                                <span class="fw-semibold">{{ log.created_at[11:19] if log.created_at else '' }}</span>
+                            <td class="text-nowrap">
+                                <small class="text-muted d-block font-tabular">{{ log.created_at[:10] if log.created_at else 'Recente' }}</small>
+                                <span class="fw-semibold text-dark font-tabular">{{ log.created_at[11:19] if log.created_at else '' }}</span>
                             </td>
                             <td>
-                                <span class="badge bg-light text-dark border">{{ log.user_email or 'Admin' }}</span>
+                                <span class="badge-saas badge-saas-neutral">{{ log.user_email or 'Admin' }}</span>
                             </td>
                             <td>
                                 <div class="fw-bold text-dark">{{ log.termo_original }}</div>
@@ -121,42 +155,42 @@
                             </td>
                             <td class="text-center">
                                 {% if log.status == 'SUCCESS' %}
-                                    <span class="badge bg-success-subtle text-success border border-success px-2 py-1 rounded-pill">
-                                        <i class="fas fa-check-circle me-1"></i> Sucesso
+                                    <span class="badge-saas badge-saas-success">
+                                        <i class="fas fa-check-circle"></i> Sucesso
                                     </span>
                                 {% elif log.status == 'FALLBACK_RECOVERED' %}
-                                    <span class="badge bg-info-subtle text-info border border-info px-2 py-1 rounded-pill">
-                                        <i class="fas fa-magic me-1"></i> Recuperado
+                                    <span class="badge-saas badge-saas-primary">
+                                        <i class="fas fa-magic"></i> Recuperado
                                     </span>
                                 {% elif log.status == 'EMPTY' %}
-                                    <span class="badge bg-warning-subtle text-warning border border-warning px-2 py-1 rounded-pill">
-                                        <i class="fas fa-exclamation-circle me-1"></i> Vazio (0)
+                                    <span class="badge-saas badge-saas-warning">
+                                        <i class="fas fa-exclamation-circle"></i> Vazio (0)
                                     </span>
                                 {% elif log.status == 'ERROR' %}
-                                    <span class="badge bg-danger-subtle text-danger border border-danger px-2 py-1 rounded-pill">
-                                        <i class="fas fa-times-circle me-1"></i> Erro
+                                    <span class="badge-saas badge-saas-danger">
+                                        <i class="fas fa-times-circle"></i> Erro
                                     </span>
                                 {% else %}
-                                    <span class="badge bg-secondary">{{ log.status }}</span>
+                                    <span class="badge-saas badge-saas-neutral">{{ log.status }}</span>
                                 {% endif %}
                             </td>
                             <td class="text-center">
-                                <span class="badge bg-warning text-dark me-1" title="Mercado Livre">ML: {{ log.ml_ofertas or 0 }}</span>
-                                <span class="badge bg-dark text-white" title="Amazon">AMZ: {{ log.amazon_ofertas or 0 }}</span>
+                                <span class="badge-saas badge-saas-warning me-1" title="Mercado Livre">ML: {{ log.ml_ofertas or 0 }}</span>
+                                <span class="badge-saas badge-saas-neutral" title="Amazon">AMZ: {{ log.amazon_ofertas or 0 }}</span>
                             </td>
-                            <td class="text-center">
-                                <span class="fw-bold {{ 'text-success' if (log.total_ofertas or 0) > 0 else 'text-danger' }}">
+                            <td class="text-end">
+                                <span class="fw-bold font-tabular {{ 'text-success' if (log.total_ofertas or 0) > 0 else 'text-danger' }}">
                                     {{ log.total_ofertas or 0 }}
                                 </span>
                             </td>
-                            <td class="text-center">
-                                <span class="badge bg-light text-secondary border">{{ log.tempo_execucao_segundos or 0 }}s</span>
+                            <td class="text-end font-tabular">
+                                <span class="badge-saas badge-saas-neutral">{{ log.tempo_execucao_segundos or 0 }}s</span>
                             </td>
-                            <td class="text-end pe-4 text-nowrap">
-                                <button type="button" class="btn btn-sm btn-outline-info me-1" onclick="openLogDetailsModal({{ log | tojson | forceescape }})" title="Ver Detalhes">
+                            <td class="text-end text-nowrap">
+                                <button type="button" class="btn btn-sm btn-secondary me-1" onclick="openLogDetailsModal({{ log | tojson | forceescape }})" title="Ver Detalhes">
                                     <i class="fas fa-info-circle"></i>
                                 </button>
-                                <a href="{{ url_for('search.search_offers') }}?q={{ log.termo_original | urlencode }}" class="btn btn-sm btn-outline-primary" title="Testar Busca Novamente">
+                                <a href="{{ url_for('search.search_offers') }}?q={{ log.termo_original | urlencode }}" class="btn btn-sm btn-secondary" title="Testar Busca Novamente">
                                     <i class="fas fa-redo-alt"></i>
                                 </a>
                             </td>
@@ -165,9 +199,9 @@
                     {% else %}
                         <tr>
                             <td colspan="8" class="text-center py-5 text-muted">
-                                <i class="fas fa-clipboard-list fa-3x mb-3 text-secondary opacity-50 d-block"></i>
+                                <i class="fas fa-clipboard-list fa-3x mb-3 text-secondary opacity-25 d-block"></i>
                                 <h6>Nenhum log encontrado para o filtro selecionado</h6>
-                                <p class="small mb-0">As próximas pesquisas realizadas no sistema serão gravadas automaticamente aqui.</p>
+                                <p class="small mb-0">As pesquisas realizadas no sistema serão gravadas automaticamente aqui.</p>
                             </td>
                         </tr>
                     {% endif %}

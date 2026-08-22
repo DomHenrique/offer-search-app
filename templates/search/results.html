@@ -364,47 +364,84 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3 avantpro-wrapper">
+<div class="app-container">
 
-    <!-- Topbar de Navegação e Busca -->
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-            <a href="{{ url_for('search.search_page') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
-                <i class="fas fa-arrow-left me-1"></i> Nova Busca
-            </a>
-            <h5 class="fw-bold text-dark mb-0">
-                <i class="fas fa-search-dollar text-primary me-2"></i>
-                Resultados para: <span class="text-indigo-600">"{{ termo_pesquisa or 'Pesquisa' }}"</span>
-            </h5>
+    <!-- Page Header Limpo -->
+    <div class="page-header-clean">
+        <div class="page-header-left">
+            <span class="page-header-context">
+                <i class="fas fa-search-dollar text-primary"></i> Inteligência AvantPro & Ofertas
+            </span>
+            <h1 class="page-header-title">
+                Resultados para: <span class="text-primary">"{{ termo_pesquisa or 'Pesquisa' }}"</span>
+            </h1>
+            <p class="page-header-desc">
+                {{ results|length }} ofertas encontradas em tempo real com métricas estimadas de mercado.
+            </p>
         </div>
-        <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-success fw-bold px-3 shadow-sm rounded-pill" id="approveSelectedBtn" disabled>
-                <i class="fas fa-heart me-1"></i> Aprovar (<span id="selectedCountSpan">0</span>)
+        <div class="page-header-actions">
+            <button class="btn btn-sm btn-success fw-bold" id="approveSelectedBtn" disabled>
+                <i class="fas fa-heart"></i> Aprovar Selecionados (<span id="selectedCountSpan">0</span>)
             </button>
-            <button class="btn btn-sm btn-outline-primary fw-bold px-3 rounded-pill" onclick="window.print()">
-                <i class="fas fa-print me-1"></i> Exportar
+            <a href="{{ url_for('search.search_page') }}" class="btn btn-sm btn-secondary">
+                <i class="fas fa-arrow-left"></i> Nova Busca
+            </a>
+            <button class="btn btn-sm btn-secondary" onclick="window.print()">
+                <i class="fas fa-print"></i> Exportar
             </button>
         </div>
     </div>
 
-    <!-- Barra de Estatísticas Agregadas -->
-    <div class="stats-summary-bar">
-        <div class="row align-items-center g-3">
-            <div class="col-6 col-md-3 stat-summary-item">
-                <div class="label"><i class="fas fa-chart-line me-1"></i> Faturamento Total Estimado</div>
-                <div class="value">R$ {{ "{:,.2f}".format(sidebar_metrics.total_revenue or 0).replace(',', 'X').replace('.', ',').replace('X', '.') }}</div>
+    <!-- KPIs de Inteligência Resumida -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-emerald-subtle">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div>
+                    <div class="metric-value text-success font-tabular">
+                        R$ {{ "{:,.2f}".format(sidebar_metrics.total_revenue or 0).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                    </div>
+                    <div class="metric-label">Faturamento Total Estimado</div>
+                </div>
             </div>
-            <div class="col-6 col-md-3 stat-summary-item">
-                <div class="label"><i class="fas fa-shopping-cart me-1"></i> Vendas Estimadas Acumuladas</div>
-                <div class="value">+ {{ "{:,}".format(sidebar_metrics.total_sales or 0).replace(',', '.') }} un</div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-indigo-subtle">
+                    <i class="fas fa-shopping-cart"></i>
+                </div>
+                <div>
+                    <div class="metric-value font-tabular">
+                        + {{ "{:,}".format(sidebar_metrics.total_sales or 0).replace(',', '.') }} un
+                    </div>
+                    <div class="metric-label">Vendas Acumuladas</div>
+                </div>
             </div>
-            <div class="col-6 col-md-3 stat-summary-item">
-                <div class="label"><i class="fas fa-layer-group me-1"></i> Total de Anúncios / Catálogos</div>
-                <div class="value">{{ results|length }} ofertas</div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-amber-subtle">
+                    <i class="fas fa-layer-group"></i>
+                </div>
+                <div>
+                    <div class="metric-value text-warning font-tabular">{{ results|length }}</div>
+                    <div class="metric-label">Total de Ofertas</div>
+                </div>
             </div>
-            <div class="col-6 col-md-3 stat-summary-item">
-                <div class="label"><i class="fas fa-tag me-1"></i> Preço Médio de Venda</div>
-                <div class="value">R$ {{ "{:,.2f}".format(stats.preco_medio or 0).replace(',', 'X').replace('.', ',').replace('X', '.') }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="metric-card-kpi">
+                <div class="metric-icon-box bg-sky-subtle">
+                    <i class="fas fa-tag"></i>
+                </div>
+                <div>
+                    <div class="metric-value font-tabular">
+                        R$ {{ "{:,.2f}".format(stats.preco_medio or 0).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                    </div>
+                    <div class="metric-label">Preço Médio</div>
+                </div>
             </div>
         </div>
     </div>
