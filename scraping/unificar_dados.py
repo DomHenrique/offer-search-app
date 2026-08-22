@@ -467,10 +467,11 @@ def salvar_no_supabase(df: pd.DataFrame, termo_busca: str) -> bool:
         return False
 
 
-def relax_search_query(term: str) -> str:
+def relax_search_query(term: str, max_words: int = 5) -> str:
     """
     Relaxa e higieniza termos de busca que falharam por excesso de especificidade.
     Remove ruídos como '-eu', '-br', '220v-eu', parênteses, códigos de lote e palavras de preenchimento.
+    Preserva números e versões essenciais como '3', '4', '1800w', etc.
     """
     if not term:
         return ""
@@ -491,12 +492,11 @@ def relax_search_query(term: str) -> str:
     # 4. Remove pontuações e símbolos estranhos
     t = re.sub(r'[()\[\]{}"\'/,+_\-]', ' ', t)
 
-    # 5. Filtra palavras com mais de 1 caractere
-    words = [w.strip() for w in t.split() if len(w.strip()) > 1]
+    # 5. Mantém palavras com len >= 2 OU dígitos individuais (como '3', '4', '5')
+    words = [w.strip() for w in t.split() if len(w.strip()) >= 2 or w.strip().isdigit()]
 
-    # Se ainda tiver mais de 5 palavras, pega as primeiras 4 ou 5
-    if len(words) > 5:
-        words = words[:5]
+    if len(words) > max_words:
+        words = words[:max_words]
 
     relaxed = ' '.join(words).strip()
     return relaxed
@@ -509,7 +509,7 @@ def unificar_dados_amazon_mercadolivre(
 ) -> pd.DataFrame:
     """
     Unifica dados de Amazon (via SerpApi) e Mercado Livre (via Selenium).
-    Com auto-recuperação (Query Relaxation) caso a busca inicial venha vazia.
+    Com auto-recuperação progressiva (Query Relaxation) caso a busca inicial venha vazia.
     
     Args:
         termo (str): Termo de busca
@@ -525,19 +525,31 @@ def unificar_dados_amazon_mercadolivre(
     # ── 1ª TENTATIVA: Termo original ──────────────────────────────────
     df_final = _executar_busca_marketplaces(termo, paginas_ml, salvar_supabase=False)
 
-    # ── 2ª TENTATIVA: Se vazio, tenta Query Relaxation (Fallback) ─────
+    # ── 2ª TENTATIVA: Se vazio, tenta Query Relaxation (5 palavras) ────
     relaxed_used = None
     if df_final is None or df_final.empty:
-        relaxed_term = relax_search_query(termo)
+        relaxed_term = relax_search_query(termo, max_words=5)
         if relaxed_term and relaxed_term.lower() != termo.lower() and len(relaxed_term) >= 3:
             print(f"\n🔄 [Auto-Recuperação] Termo '{termo}' retornou 0 resultados.")
-            print(f"   Tentando busca relaxada com: '{relaxed_term}'...")
+            print(f"   Tentando busca relaxada (5 palavras): '{relaxed_term}'...")
             df_final = _executar_busca_marketplaces(relaxed_term, paginas_ml, salvar_supabase=False)
             if df_final is not None and not df_final.empty:
                 print(f"🎉 Auto-recuperação bem-sucedida! {len(df_final)} produtos encontrados com '{relaxed_term}'")
                 relaxed_used = relaxed_term
-                # Mantém o termo_pesquisa original vinculado
                 df_final['TERMO_BUSCA'] = termo
+                df_final['RELAXED_QUERY_USED'] = relaxed_term
+
+    # ── 3ª TENTATIVA: Se ainda vazio, tenta relaxamento mais agressivo (3 palavras-chave) ────
+    if df_final is None or df_final.empty:
+        relaxed_short = relax_search_query(termo, max_words=3)
+        if relaxed_short and relaxed_short.lower() != termo.lower() and relaxed_short != relaxed_used:
+            print(f"\n🔄 [Auto-Recuperação Nível 2] Tentando busca relaxada ampla: '{relaxed_short}'...")
+            df_final = _executar_busca_marketplaces(relaxed_short, paginas_ml, salvar_supabase=False)
+            if df_final is not None and not df_final.empty:
+                print(f"🎉 Auto-recuperação Nível 2 bem-sucedida! {len(df_final)} produtos com '{relaxed_short}'")
+                relaxed_used = relaxed_short
+                df_final['TERMO_BUSCA'] = termo
+                df_final['RELAXED_QUERY_USED'] = relaxed_short
                 df_final['RELAXED_QUERY_USED'] = relaxed_term
 
     if df_final is None or df_final.empty:
@@ -585,6 +597,15 @@ def _executar_busca_marketplaces(
     print(f"🛒 Buscando produtos no Mercado Livre para '{termo}'...")
     try:
         df_ml = get_mercado_livre_data(termo, paginas_ml)
+        
+        # Se o Mercado Livre retornar 0 para o termo original, tenta auto-recuperação específica
+        if df_ml is None or df_ml.empty:
+            relaxed_ml = relax_search_query(termo, max_words=5)
+            if relaxed_ml and relaxed_ml.lower() != termo.lower() and len(relaxed_ml) >= 3:
+                print(f"🔄 [ML Auto-Recuperação] Termo original veio vazio no Mercado Livre.")
+                print(f"   Tentando no ML com termo otimizado: '{relaxed_ml}'...")
+                df_ml = get_mercado_livre_data(relaxed_ml, paginas_ml)
+                
         if df_ml is not None and not df_ml.empty:
             print(f"✅ Mercado Livre: {len(df_ml)} produtos encontrados")
         else:

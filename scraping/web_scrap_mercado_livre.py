@@ -167,9 +167,9 @@ class MercadoLivreScraper:
             return products
         
         try:
-            # Procura pelos containers de produtos
+            # Procura pelos containers de produtos (suporta layout tradicional e poly-card)
             product_containers = self.driver.find_elements(By.CSS_SELECTOR, 
-                "li.ui-search-layout__item")
+                "li.ui-search-layout__item, div.ui-search-result, div.poly-card, .ui-search-layout .ui-search-layout__item, .ui-search-results__item")
             
             print(f"🔍 Encontrados {len(product_containers)} containers de produtos")
             
