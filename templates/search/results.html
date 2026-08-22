@@ -646,15 +646,24 @@
                                         <i class="fas fa-users"></i>
                                     </a>
                                 {% endif %}
-                                <button class="btn-action-icon text-success border-success" 
-                                        onclick="openPurchaseOrderModal('{{ prod.titulo|escape }}', '{{ prod.store_name|escape }}', '{{ prod.preco_numerico }}', '{{ prod.url_produto }}', '{{ prod.marketplace }}')" 
+                                <button type="button" class="btn-action-icon btn-act-blue" 
+                                        style="background: #10b981;"
+                                        data-title="{{ prod.titulo }}" 
+                                        data-store="{{ prod.store_name }}" 
+                                        data-price="{{ prod.preco_numerico }}" 
+                                        data-url="{{ prod.url_produto }}" 
+                                        data-mp="{{ prod.marketplace }}"
+                                        onclick="openPurchaseOrderFromCard(this)" 
                                         title="Criar Pedido de Compra no Inventário">
                                     <i class="fas fa-shopping-cart"></i>
                                 </button>
-                                <a href="{{ prod.url_produto }}" target="_blank" class="btn-action-icon btn-act-blue" title="Abrir página oficial">
+                                <a href="{{ prod.url_produto }}" target="_blank" rel="noopener noreferrer" class="btn-action-icon btn-act-blue" title="Abrir página oficial">
                                     <i class="fas fa-external-link-alt"></i>
                                 </a>
-                                <button class="btn-action-icon btn-act-yellow" onclick="quickAlertModal('{{ prod.titulo|escape }}', '{{ prod.preco_numerico }}')" title="Criar Alerta de Preço">
+                                <button type="button" class="btn-action-icon btn-act-yellow" 
+                                        data-title="{{ prod.titulo }}" 
+                                        data-price="{{ prod.preco_numerico }}"
+                                        onclick="quickAlertFromCard(this)" title="Criar Alerta de Preço">
                                     <i class="fas fa-bell"></i>
                                 </button>
                             </div>
@@ -1091,27 +1100,24 @@ async function submitPurchaseOrder() {
             alert('Erro ao criar pedido: ' + (data.error || 'Erro desconhecido'));
         }
     } catch (e) {
-document.getElementById('approveSelectedBtn').addEventListener('click', async function() {
-    const selected = Array.from(document.querySelectorAll('.item-checkbox:checked')).map(cb => cb.value);
-    if (!selected.length) return;
-
-    try {
-        const res = await fetch('/search/approve-products', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({product_ids: selected})
-        });
-        const data = await res.json();
-        if (data.success) {
-            alert(data.message);
-            window.location.reload();
-        } else {
-            alert('Erro ao aprovar produtos: ' + (data.error || 'Erro desconhecido'));
-        }
-    } catch (e) {
-        alert('Erro: ' + e.message);
+        alert('Erro ao processar pedido de compra: ' + e.message);
     }
-});
+}
+
+function openPurchaseOrderFromCard(btn) {
+    const title = btn.getAttribute('data-title') || '';
+    const store = btn.getAttribute('data-store') || '';
+    const price = btn.getAttribute('data-price') || 0;
+    const url = btn.getAttribute('data-url') || '';
+    const mp = btn.getAttribute('data-mp') || 'MercadoLivre';
+    openPurchaseOrderModal(title, store, price, url, mp);
+}
+
+function quickAlertFromCard(btn) {
+    const title = btn.getAttribute('data-title') || '';
+    const price = btn.getAttribute('data-price') || 0;
+    quickAlertModal(title, price);
+}
 
 function quickAlertModal(title, price) {
     const targetPrice = prompt(`Criar alerta de preço para "${title}":\nDigite o preço alvo (R$):`, price);
@@ -1119,5 +1125,33 @@ function quickAlertModal(title, price) {
         alert(`Alerta configurado com sucesso para R$ ${targetPrice}!`);
     }
 }
+
+// ─── Eventos Globais ──────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    const approveBtn = document.getElementById('approveSelectedBtn');
+    if (approveBtn) {
+        approveBtn.addEventListener('click', async function() {
+            const selected = Array.from(document.querySelectorAll('.item-checkbox:checked')).map(cb => cb.value);
+            if (!selected.length) return;
+
+            try {
+                const res = await fetch('/search/approve-products', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({product_ids: selected})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(data.message);
+                    window.location.reload();
+                } else {
+                    alert('Erro ao aprovar produtos: ' + (data.error || 'Erro desconhecido'));
+                }
+            } catch (e) {
+                alert('Erro: ' + e.message);
+            }
+        });
+    }
+});
 </script>
 {% endblock %}
