@@ -421,14 +421,26 @@ class MercadoLivreScraper:
                     # 8. DETECÇÃO DE CATÁLOGO / BUYBOX / OPÇÕES DE COMPRA
                     is_catalog = False
                     try:
+                        # Verifica se a URL do produto já é de catálogo (/p/MLB...)
+                        prod_link = product_data.get('product_url', '')
+                        if re.search(r'/p/MLB\d+', prod_link):
+                            is_catalog = True
+                        
                         # Verifica se possui elemento de buybox ou opções de compra de múltiplos sellers
-                        buybox_elems = container.find_elements(By.CSS_SELECTOR, 
-                            ".poly-component__buybox, .poly-phrase-buybox, a[href*='/s#polycard_client'], a[href*='/s?'], span[class*='buybox'], .ui-search-item__group__element--buybox"
-                        )
-                        for b_el in buybox_elems:
-                            if b_el.is_displayed() and b_el.text.strip():
+                        if not is_catalog:
+                            buybox_elems = container.find_elements(By.CSS_SELECTOR, 
+                                ".poly-component__buybox, .poly-phrase-buybox, a[href*='/s#polycard_client'], a[href*='/s?'], a[href*='/s'], span[class*='buybox'], .ui-search-item__group__element--buybox, .ui-pdp-products, .ui-pdp-products__list, .ui-pdp-products__button"
+                            )
+                            for b_el in buybox_elems:
+                                if b_el.is_displayed() and b_el.text.strip():
+                                    is_catalog = True
+                                    break
+                        
+                        # Verifica textos explícitos de opções de compra no container
+                        if not is_catalog:
+                            c_text = container.text.lower()
+                            if 'opções de compra' in c_text or 'produtos novos a partir de' in c_text or 'outras opções' in c_text:
                                 is_catalog = True
-                                break
                     except Exception:
                         pass
                     product_data['is_catalog'] = is_catalog

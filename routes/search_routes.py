@@ -215,22 +215,28 @@ def enrich_product_intel(produto: dict) -> dict:
     reviews = int(p.get('avaliacoes') or p.get('num_avaliacoes') or 0)
     
     # 1. Classificação Precisa de Catálogo com Concorrência de Sellers vs Anúncio de Vendedor Único
-    # No Mercado Livre, um item só é considerado catálogo concorrencial se tiver múltiplos vendedores
-    # disputando a BuyBox ("Opções de compra: X produtos novos").
-    # Anúncios com vendedor único (ex: ECOMANIAS) são anúncios individuais.
+    # No Mercado Livre, um item é considerado catálogo se pertencer ao catálogo oficial (/p/MLB...)
+    # com opções de compra / múltiplos vendedores disputando a BuyBox.
     is_user_post = '/up/' in url or 'MLBU' in url
     
     # Extrai o Catalog ID se houver
     cat_match = re.search(r'/p/(MLB\d+)', url)
-    raw_cat_id = cat_match.group(1) if cat_match else ''
+    raw_cat_id = cat_match.group(1) if cat_match else (p.get('catalog_id') or '')
     
-    # Verifica se tem concorrência confirmada
+    # Flags vindas do scraper, banco ou metadados
+    raw_is_cat = p.get('is_catalog')
+    if raw_is_cat is None:
+        raw_is_cat = p.get('IS_CATALOG')
+    if raw_is_cat is None:
+        raw_is_cat = p.get('is_catalogo')
+    
     has_buybox_sellers = int(p.get('sellers_count') or 0) > 1
     has_options_link = bool(re.search(r'/p/MLB\d+/s', url)) or ('type=product' in url and bool(p.get('opcoes_compra')))
     is_explicit_cat = p.get('origem') == 'catalogo' and bool(p.get('tem_concorrentes'))
+    has_scraper_cat_flag = bool(raw_is_cat) or (bool(raw_cat_id) and not is_user_post)
     
     # Para ser considerado catálogo ativo no card:
-    is_cat = (has_buybox_sellers or has_options_link or is_explicit_cat) and not is_user_post
+    is_cat = (has_scraper_cat_flag or has_buybox_sellers or has_options_link or is_explicit_cat) and not is_user_post
     p['is_catalog'] = bool(is_cat)
     
     p['catalog_id'] = raw_cat_id if (raw_cat_id and is_cat) else ''
