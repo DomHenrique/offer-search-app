@@ -14,10 +14,10 @@ services:
       - PORT=5000
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
-      - SECRET_KEY=${SECRET_KEY}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - SERPAPI_KEY=${SERPAPI_KEY}
+      - SECRET_KEY=a-very-secret-key-that-you-should-change
+      - SUPABASE_URL=https://povgswnmwispktahqxzk.supabase.co
+      - SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvdmdzd25td2lzcGt0YWhxeHprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxMzgyNDIsImV4cCI6MjA5ODcxNDI0Mn0.dOStxqpn_stYSc6G8dLEyUsnThxDxfY5YCaTASAIAqk
+      - SERPAPI_KEY=defc49145dee59efd53c9db61a682417bfa2993a
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.offer-search.rule=Host(`offer-search.hnperformancedigital.com.br`)"
