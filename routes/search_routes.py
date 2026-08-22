@@ -48,6 +48,7 @@ def execute_search():
         return jsonify({'error': 'Termo de pesquisa deve ter pelo menos 2 caracteres'}), 400
     
     user_id = session['user_id']
+    user_email = session.get('user_email') or 'usuario@sistema'
     search_id = f"{user_id}_{int(time.time())}"
 
     # Verifica cache antes de iniciar nova busca (apenas se tiver resultados)
@@ -79,14 +80,14 @@ def execute_search():
     # Inicia busca em thread separada
     thread = threading.Thread(
         target=_execute_search_thread,
-        args=(search_id, user_id, termo_pesquisa, paginas_ml)
+        args=(search_id, user_id, user_email, termo_pesquisa, paginas_ml)
     )
     thread.daemon = True
     thread.start()
     
     return jsonify({'search_id': search_id})
 
-def _execute_search_thread(search_id, user_id, termo_pesquisa, paginas_ml):
+def _execute_search_thread(search_id, user_id, user_email, termo_pesquisa, paginas_ml):
     """Executa busca em thread separada"""
     try:
         print(f"🚀 Iniciando thread de busca para search_id: {search_id}")
@@ -158,7 +159,7 @@ def _execute_search_thread(search_id, user_id, termo_pesquisa, paginas_ml):
             # Grava log estruturado no banco
             db_manager.save_search_log({
                 'user_id': user_id,
-                'user_email': session.get('user_email') or 'usuario@sistema',
+                'user_email': user_email,
                 'termo_original': termo_pesquisa,
                 'termo_utilizado': relaxed_used or termo_pesquisa,
                 'status': log_status,
@@ -236,7 +237,7 @@ def _execute_search_thread(search_id, user_id, termo_pesquisa, paginas_ml):
         try:
             db_manager.save_search_log({
                 'user_id': user_id,
-                'user_email': session.get('user_email') or 'usuario@sistema',
+                'user_email': user_email,
                 'termo_original': termo_pesquisa,
                 'termo_utilizado': termo_pesquisa,
                 'status': 'ERROR',
