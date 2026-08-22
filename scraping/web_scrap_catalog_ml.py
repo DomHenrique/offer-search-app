@@ -319,7 +319,7 @@ class CatalogScraper:
 
     # ─── Scraping de sellers de um catálogo ──────────────────────────────────
 
-    def scrape_catalog_sellers(self, catalog_id: str) -> Dict:
+    def scrape_catalog_sellers(self, catalog_id: str, user_id: Optional[str] = None) -> Dict:
         """
         Faz scraping dos vendedores de um catálogo específico.
         
@@ -344,8 +344,8 @@ class CatalogScraper:
                 'error': 'Falha ao inicializar o driver', 'login_required': False
             }
 
-        # Injeta cookies de sessão ativa do Mercado Livre se existirem
-        self.inject_ml_cookies()
+        # Injeta cookies de sessão ativa do Mercado Livre do usuário se existirem
+        self.inject_ml_cookies(user_id=user_id)
 
         url = f"https://www.mercadolivre.com.br/p/{catalog_id}/s?"
 
@@ -366,12 +366,17 @@ class CatalogScraper:
                     'login_required': True
                 }
 
-            # Aguarda sellers carregarem (lazy loading possível)
+            # Aguarda sellers carregarem
             time.sleep(2)
 
-            # Tenta múltiplos seletores para a tabela de sellers
+            # Tenta múltiplos seletores para a tabela de sellers (baseado no DOM atual do ML)
             seller_rows = []
             seller_selectors = [
+                "form.ui-pdp-buybox.ui-pdp-table__row",
+                "form.ui-pdp-s-table__row",
+                "form[id*='buybox-form']",
+                ".ui-pdp-table__row",
+                ".ui-pdp-s-table__row",
                 "div.ui-pdp-buybox__offers__item",
                 ".andes-table__row--body",
                 "tr.andes-table__row",
@@ -440,9 +445,14 @@ class CatalogScraper:
                 row_text_lower = row_text.lower()
 
                 # ── 1. Extração do Vendedor e Reputação ────────────────────────
-                # Procura links ou textos na coluna do vendedor
                 seller_found = False
                 for sel in [
+                    "a.ui-pdp-seller__link span",
+                    "a.ui-pdp-seller__link",
+                    ".ui-pdp-seller__header_title a span",
+                    ".ui-pdp-seller__header_title",
+                    ".ui-pdp-s-table__seller a",
+                    ".ui-pdp-seller__link-trigger-button",
                     "a[href*='/perfil/']",
                     "a[href*='seller']",
                     ".ui-pdp-action-modal__link",
@@ -456,8 +466,7 @@ class CatalogScraper:
                     try:
                         el = row.find_element(By.CSS_SELECTOR, sel)
                         text_val = el.text.strip()
-                        if text_val and len(text_val) > 1 and not re.match(r'^(comprar|novo|r\$|\d)', text_val.lower()):
-                            # Quebra linhas se vier nome + reputação juntos
+                        if text_val and len(text_val) > 1 and not re.match(r'^(comprar|adicionar|novo|r\$|\d)', text_val.lower()):
                             lines = [l.strip() for l in text_val.split('\n') if l.strip()]
                             seller['seller_name'] = lines[0]
                             if len(lines) > 1:
@@ -467,59 +476,84 @@ class CatalogScraper:
                     except Exception:
                         continue
 
+                # Reputação complementar
+                for rep_sel in [".ui-pdp-seller__header_info", ".ui-pdp-seller__header", ".ui-pdp-s-table__seller"]:
+                    try:
+                        rep_el = row.find_element(By.CSS_SELECTOR, rep_sel)
+                        rep_txt = rep_el.text.strip()
+                        if ('vendas' in rep_txt.lower() or 'mercadolíder' in rep_txt.lower()) and not seller['reputacao']:
+                            rep_lines = [l.strip() for l in rep_txt.split('\n') if 'venda' in l.lower() or 'líder' in l.lower() or 'lider' in l.lower()]
+                            if rep_lines:
+                                seller['reputacao'] = ' | '.join(rep_lines)
+                    except Exception:
+                        pass
+
                 # Se não encontrou pelo seletor específico, busca no texto da linha
                 if not seller_found:
-                    # Tenta capturar padrões de vendas
                     rep_match = re.search(r'([+\d\s]+(?:mil)?\s*vendas|MercadoLíder[^\n]*)', row_text, re.IGNORECASE)
                     if rep_match:
                         seller['reputacao'] = rep_match.group(1).strip()
 
-                    # Tenta capturar o nome antes das vendas
                     for line in row_text.split('\n'):
                         l = line.strip()
-                        if l and len(l) > 2 and not re.search(r'(r\$|chegará|retire|comprar|adicionar|novo|usado|12x|\d+x)', l, re.IGNORECASE):
+                        if l and len(l) > 2 and not re.search(r'(r\$|chegará|retire|comprar|adicionar|novo|usado|10x|12x|\d+x)', l, re.IGNORECASE):
                             seller['seller_name'] = l
                             break
 
                 if not seller['seller_name']:
-                    seller['seller_name'] = f"Vendedor #{i + 1}"
+                    seller['seller_name'] = f"Vendedor Oficial #{i + 1}"
 
                 # ── 2. Extração de Preço Total e Parcelamento ──────────────────
-                # Busca todos os valores monetários na linha
-                money_amounts = re.findall(r'R\$\s*([\d.]+,\d{2}|[\d.]+)', row_text)
-                
-                # Se encontrou valores, o preço total geralmente é o maior ou o primeiro valor destacado
-                prices_floats = []
-                for m in money_amounts:
+                # Tenta extrair primeiro do container de preço da BuyBox
+                price_extracted = False
+                try:
+                    price_container = row.find_element(By.CSS_SELECTOR, ".ui-pdp-price__main-container, .ui-pdp-price")
+                    frac_el = price_container.find_element(By.CSS_SELECTOR, ".andes-money-amount__fraction")
+                    cents_txt = "00"
                     try:
-                        clean_p = m.replace('.', '').replace(',', '.')
-                        val = float(clean_p)
-                        if val > 0:
-                            prices_floats.append((val, m))
+                        cents_el = price_container.find_element(By.CSS_SELECTOR, ".andes-money-amount__cents")
+                        cents_txt = cents_el.text.strip() or "00"
                     except Exception:
                         pass
 
-                if prices_floats:
-                    # O preço do produto é o valor total (maior valor ou o primeiro grande)
-                    main_price_val, main_price_str = max(prices_floats, key=lambda x: x[0])
-                    seller['preco'] = main_price_val
-                    seller['preco_str'] = f"R$ {main_price_val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-                else:
-                    # Fallback com seletores
-                    try:
-                        p_el = row.find_element(By.CSS_SELECTOR, ".andes-money-amount__fraction")
-                        p_txt = p_el.text.strip()
-                        if p_txt:
-                            clean_p = p_txt.replace('.', '').replace(',', '.')
-                            seller['preco'] = float(clean_p)
-                            seller['preco_str'] = f"R$ {p_txt}"
-                    except Exception:
-                        pass
+                    frac_txt = frac_el.text.strip().replace('.', '')
+                    full_price_str = f"{frac_txt}.{cents_txt}"
+                    val = float(full_price_str)
+                    if val > 0:
+                        seller['preco'] = val
+                        seller['preco_str'] = f"R$ {val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                        price_extracted = True
+                except Exception:
+                    pass
 
-                # Parcelamento (ex: 12x R$ 264,92 sem juros)
+                if not price_extracted:
+                    money_amounts = re.findall(r'R\$\s*([\d.]+,\d{2}|[\d.]+)', row_text)
+                    prices_floats = []
+                    for m in money_amounts:
+                        try:
+                            clean_p = m.replace('.', '').replace(',', '.')
+                            val = float(clean_p)
+                            if val > 0:
+                                prices_floats.append((val, m))
+                        except Exception:
+                            pass
+
+                    if prices_floats:
+                        main_price_val, main_price_str = max(prices_floats, key=lambda x: x[0])
+                        seller['preco'] = main_price_val
+                        seller['preco_str'] = f"R$ {main_price_val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+
+                # Parcelamento
                 install_match = re.search(r'(\d+x\s*R?\$?\s*[\d.,]+(?:\s*sem\s*juros)?)', row_text, re.IGNORECASE)
                 if install_match:
                     seller['parcelamento'] = install_match.group(1).strip()
+                else:
+                    try:
+                        inst_el = row.find_element(By.CSS_SELECTOR, ".ui-pdp-media__body p, p.ui-pdp-media_title")
+                        if inst_el and inst_el.text.strip():
+                            seller['parcelamento'] = inst_el.text.strip()
+                    except Exception:
+                        pass
 
                 # ── 3. Forma de Entrega e Retirada ────────────────────────────
                 if 'chegará grátis' in row_text_lower or 'chegara gratis' in row_text_lower or 'grátis' in row_text_lower:
@@ -528,7 +562,6 @@ class CatalogScraper:
                 if 'full' in row_text_lower:
                     seller['frete_full'] = True
 
-                # Extrai texto exato da entrega
                 chegara_match = re.search(r'(Chegará\s+(?:grátis\s+)?entre[^\n]+|Chegará\s+[^\n]+)', row_text, re.IGNORECASE)
                 if chegara_match:
                     seller['entrega_texto'] = chegara_match.group(1).strip()
@@ -549,7 +582,7 @@ class CatalogScraper:
 
                 # ── 5. Link de Compra ─────────────────────────────────────────
                 try:
-                    buy_btn = row.find_element(By.CSS_SELECTOR, "a[href*='checkout'], a[href*='comprar'], a[href*='cart'], a.andes-button")
+                    buy_btn = row.find_element(By.CSS_SELECTOR, "a[href*='checkout'], a[href*='comprar'], a[href*='cart'], a.andes-button, button[type='submit']")
                     seller['buy_url'] = buy_btn.get_attribute('href') or ''
                 except Exception:
                     pass
@@ -576,6 +609,9 @@ class CatalogScraper:
 
             sellers = []
             rows = (
+                soup.select('form.ui-pdp-buybox.ui-pdp-table__row') or
+                soup.select('form.ui-pdp-s-table__row') or
+                soup.select('.ui-pdp-table__row') or
                 soup.select('tr.andes-table__row') or
                 soup.select('.andes-table__row--body') or
                 soup.select('[class*="buybox__offers"] [class*="item"]') or
@@ -614,10 +650,14 @@ class CatalogScraper:
 
                 # Vendedor
                 seller_name = ''
-                for l in lines:
-                    if len(l) > 2 and not re.search(r'(r\$|chegará|retire|comprar|adicionar|novo|usado|12x|\d+x|\d+ unidades)', l, re.IGNORECASE):
-                        seller_name = l
-                        break
+                seller_tag = row.select_one('a.ui-pdp-seller__link span, a.ui-pdp-seller__link, .ui-pdp-s-table__seller a, .ui-pdp-seller__header_title')
+                if seller_tag:
+                    seller_name = seller_tag.get_text(strip=True)
+                else:
+                    for l in lines:
+                        if len(l) > 2 and not re.search(r'(r\$|chegará|retire|comprar|adicionar|novo|usado|10x|12x|\d+x|\d+ unidades)', l, re.IGNORECASE):
+                            seller_name = l
+                            break
 
                 sellers.append({
                     'seller_name': seller_name or f"Vendedor #{i + 1}",
@@ -655,10 +695,10 @@ def get_catalog_list(search_term: str, n_pages: int = 1) -> Dict:
     return scraper.scrape_catalog_list(search_term, n_pages)
 
 
-def get_catalog_sellers(catalog_id: str) -> Dict:
-    """Função simplificada para buscar sellers de um catálogo."""
+def get_catalog_sellers(catalog_id: str, user_id: Optional[str] = None) -> Dict:
+    """Função simplificada para buscar sellers de um catálogo com sessão do usuário."""
     scraper = CatalogScraper()
-    return scraper.scrape_catalog_sellers(catalog_id)
+    return scraper.scrape_catalog_sellers(catalog_id, user_id=user_id)
 
 
 # ─── Teste standalone ─────────────────────────────────────────────────────────

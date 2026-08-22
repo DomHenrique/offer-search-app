@@ -229,7 +229,7 @@ def _scrape_sellers_thread(scrape_id: str, user_id: str, catalog_id: str):
             'message': f'Acessando página de sellers do catálogo {catalog_id}...'
         })
 
-        result = get_catalog_sellers(catalog_id)
+        result = get_catalog_sellers(catalog_id, user_id=user_id)
 
         if not result['success']:
             catalog_sellers_status[scrape_id].update({
@@ -269,8 +269,9 @@ def _scrape_sellers_thread(scrape_id: str, user_id: str, catalog_id: str):
 
 
 @catalog_bp.route('/sellers-status/<scrape_id>')
+@catalog_bp.route('/sellers/status/<scrape_id>')
 def sellers_scrape_status(scrape_id):
-    """Endpoint de polling — status do scraping de sellers."""
+    """Endpoint de polling — status do scraping de sellers (com alias para evitar 404)."""
     if 'user_id' not in session:
         return jsonify({'error': 'Não autenticado'}), 401
 
@@ -280,3 +281,36 @@ def sellers_scrape_status(scrape_id):
         'completed': True,
     })
     return jsonify(status)
+
+
+@catalog_bp.route('/api/<catalog_id>/sellers')
+def api_catalog_sellers(catalog_id):
+    """Retorna lista de concorrentes/sellers cacheados no Supabase em formato JSON."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+
+    import re
+    if not re.match(r'^MLB\d+$', catalog_id):
+        return jsonify({'error': 'ID de catálogo inválido'}), 400
+
+    catalog_data = db_manager.get_catalog_by_id(catalog_id)
+    sellers = db_manager.get_catalog_sellers(catalog_id)
+
+    # Se não houver sellers cacheados, retorna lista vazia
+    min_price = 0.0
+    winner_name = None
+    if sellers:
+        min_price = min((s.get('preco', 0) for s in sellers if s.get('preco', 0) > 0), default=0.0)
+        best = next((s for s in sellers if s.get('is_best_offer') or s.get('posicao') == 1), sellers[0])
+        winner_name = best.get('seller_name')
+
+    return jsonify({
+        'success': True,
+        'catalog_id': catalog_id,
+        'catalog': catalog_data,
+        'sellers': sellers or [],
+        'total_sellers': len(sellers or []),
+        'min_price': min_price,
+        'winner_name': winner_name
+    })
+

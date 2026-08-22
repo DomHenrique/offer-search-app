@@ -669,10 +669,18 @@
                                 </button>
                                 
                                 {% if prod.is_catalog and prod.catalog_id %}
-                                    <a href="{{ url_for('catalog.catalog_detail', catalog_id=prod.catalog_id) }}" 
-                                       class="btn-action-icon btn-act-purple" title="Ver Concorrentes / BuyBox">
+                                    <button type="button" class="btn-action-icon btn-act-purple" 
+                                            data-catalog-id="{{ prod.catalog_id }}"
+                                            data-title="{{ prod.titulo }}"
+                                            data-url="{{ prod.url_produto }}"
+                                            data-image="{{ prod.imagem }}"
+                                            data-winner="{{ prod.store_name }}"
+                                            data-min-price="{{ prod.buybox_min_price or prod.preco_numerico }}"
+                                            data-sellers="{{ prod.sellers_count }}"
+                                            onclick="openCompetitorsDrawer(this)"
+                                            title="Inspecionar Concorrentes / BuyBox sem sair da tela">
                                         <i class="fas fa-users"></i>
-                                    </a>
+                                    </button>
                                 {% endif %}
                                 <button type="button" class="btn-action-icon btn-act-blue" 
                                         style="background: #10b981;"
@@ -952,6 +960,79 @@
         </div>
     </div>
 </div>
+<!-- Offcanvas Drawer: Concorrentes da BuyBox do Catálogo -->
+<div class="offcanvas offcanvas-end shadow-lg border-0" tabindex="-1" id="catalogCompetitorsDrawer" aria-labelledby="catalogCompetitorsDrawerLabel" style="width: 560px; max-width: 95vw; z-index: 1065;">
+    <div class="offcanvas-header bg-dark text-white p-3" style="background: linear-gradient(135deg, #1e1b4b, #312e81) !important;">
+        <div class="d-flex align-items-center gap-2 overflow-hidden me-2">
+            <span class="badge bg-warning text-dark fw-bold px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-layer-group me-1"></i> BUYBOX</span>
+            <h5 class="offcanvas-title fs-6 fw-bold text-white text-truncate mb-0" id="drawerCatTitle">Detalhes do Catálogo</h5>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    
+    <div class="offcanvas-body p-3 bg-light">
+        <!-- Card Resumo do Catálogo -->
+        <div class="bg-white p-3 rounded-3 border mb-3 shadow-sm">
+            <div class="d-flex gap-3 align-items-center">
+                <img id="drawerCatImg" src="/static/img/no-image.png" class="rounded-3 border" style="width: 70px; height: 70px; object-fit: contain; background: #fff;" alt="Foto">
+                <div class="flex-grow-1 overflow-hidden">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="badge bg-indigo text-white font-monospace" id="drawerCatId">MLB00000000</span>
+                        <a id="drawerCatExternalLink" href="#" target="_blank" class="small text-primary text-decoration-none" title="Abrir página de opções no Mercado Livre">
+                            <i class="fas fa-external-link-alt me-1"></i>Ver no ML
+                        </a>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2">
+                        <span class="fs-5 fw-bold text-success" id="drawerCatMinPrice">R$ 0,00</span>
+                        <span class="text-muted small" id="drawerCatSellersCount">0 concorrentes</span>
+                    </div>
+                    <div class="text-xs text-muted text-truncate" id="drawerCatWinnerLine">Ganhador atual: <strong id="drawerCatWinnerName" class="text-dark">—</strong></div>
+                </div>
+            </div>
+            
+            <!-- Barra de Ações Rápidas -->
+            <div class="d-flex gap-2 mt-3 pt-2 border-top">
+                <button type="button" class="btn btn-sm btn-primary flex-fill fw-bold rounded-pill" style="background: #4f46e5; border-color: #4f46e5;" onclick="linkSkuFromDrawer()">
+                    <i class="fas fa-link me-1"></i> Conectar ao SKU
+                </button>
+                <button type="button" id="drawerBtnScrape" class="btn btn-sm btn-outline-warning text-dark flex-fill fw-bold rounded-pill bg-warning bg-opacity-10" onclick="startDrawerSellersScrape()">
+                    <i class="fas fa-sync-alt me-1"></i> Atualizar Concorrentes
+                </button>
+            </div>
+        </div>
+
+        <!-- Barra de Progresso de Scraping em Tempo Real -->
+        <div id="drawerScrapeProgressContainer" class="bg-white p-3 rounded-3 border mb-3 shadow-sm d-none">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="small fw-bold text-indigo" id="drawerScrapeStatusMsg">Iniciando robô de concorrência...</span>
+                <span class="small fw-bold text-dark" id="drawerScrapePercent">0%</span>
+            </div>
+            <div class="progress" style="height: 8px;">
+                <div id="drawerScrapeProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-indigo" role="progressbar" style="width: 0%; background-color: #6366f1 !important;"></div>
+            </div>
+            <div class="text-xs text-muted mt-2 d-flex align-items-center gap-1">
+                <i class="fas fa-shield-alt text-success"></i> Utilizando sessão ativa do Mercado Livre da extensão Chrome.
+            </div>
+        </div>
+
+        <!-- Alerta de Erro no Drawer -->
+        <div id="drawerAlertError" class="alert alert-danger py-2 px-3 small d-none mb-3"></div>
+
+        <!-- Lista de Concorrentes -->
+        <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+            <h6 class="fw-bold text-dark mb-0 small text-uppercase tracking-wider">
+                <i class="fas fa-users text-primary me-1"></i> Vendedores na Disputa da BuyBox
+            </h6>
+            <span class="badge bg-secondary" id="drawerSellersBadgeCount">0 ofertas</span>
+        </div>
+
+        <div id="drawerSellersListContainer" class="d-flex flex-column gap-2">
+            <div class="text-center text-muted py-4 bg-white rounded-3 border">
+                <span class="spinner-border spinner-border-sm text-primary me-2"></span> Carregando concorrentes...
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -1124,6 +1205,225 @@ function sortCards(type) {
     cards.forEach(c => grid.appendChild(c));
 }
 
+// ─── Drawer Lateral de Concorrentes ───────────────────────────────
+let competitorsDrawerInstance = null;
+let currentDrawerCatalog = null;
+let drawerPollingInterval = null;
+
+async function openCompetitorsDrawer(btn) {
+    const catalogId = btn.getAttribute('data-catalog-id') || '';
+    const title = btn.getAttribute('data-title') || '';
+    const url = btn.getAttribute('data-url') || '';
+    const image = btn.getAttribute('data-image') || '';
+    const winner = btn.getAttribute('data-winner') || 'Vendedor Oficial';
+    const minPrice = parseFloat(btn.getAttribute('data-min-price') || 0);
+    const sellersCount = parseInt(btn.getAttribute('data-sellers') || 1);
+
+    currentDrawerCatalog = {
+        catalog_id: catalogId,
+        title: title,
+        url: url,
+        image: image,
+        winner: winner,
+        min_price: minPrice,
+        sellers_count: sellersCount,
+        buttonRef: btn
+    };
+
+    // Preenche cabeçalho
+    document.getElementById('drawerCatTitle').textContent = title || 'Catálogo ' + catalogId;
+    document.getElementById('drawerCatId').textContent = catalogId;
+    document.getElementById('drawerCatImg').src = image || '/static/img/no-image.png';
+    document.getElementById('drawerCatExternalLink').href = url || `https://www.mercadolivre.com.br/p/${catalogId}/s?`;
+    document.getElementById('drawerCatMinPrice').textContent = 'R$ ' + minPrice.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    document.getElementById('drawerCatSellersCount').textContent = `${sellersCount} concorrentes`;
+    document.getElementById('drawerCatWinnerName').textContent = winner;
+    document.getElementById('drawerAlertError').classList.add('d-none');
+    document.getElementById('drawerScrapeProgressContainer').classList.add('d-none');
+
+    // Abre Drawer
+    if (!competitorsDrawerInstance) {
+        competitorsDrawerInstance = new bootstrap.Offcanvas(document.getElementById('catalogCompetitorsDrawer'));
+    }
+    competitorsDrawerInstance.show();
+
+    // Carrega Concorrentes Cacheados
+    await loadDrawerSellers(catalogId);
+}
+
+async function loadDrawerSellers(catalogId) {
+    const container = document.getElementById('drawerSellersListContainer');
+    container.innerHTML = '<div class="text-center text-muted py-4 bg-white rounded-3 border"><span class="spinner-border spinner-border-sm text-primary me-2"></span> Carregando concorrentes...</div>';
+
+    try {
+        const res = await fetch(`/catalog/api/${catalogId}/sellers`);
+        const data = await res.json();
+        if (data.success && data.sellers && data.sellers.length > 0) {
+            renderDrawerSellers(data.sellers, data);
+        } else {
+            container.innerHTML = `
+                <div class="text-center py-4 bg-white rounded-3 border p-3">
+                    <i class="fas fa-users fa-2x text-muted opacity-50 mb-2"></i>
+                    <h6 class="fw-bold text-dark mb-1">Nenhum concorrente gravado ainda</h6>
+                    <p class="small text-muted mb-3">Clique em "Atualizar Concorrentes" para acionar o robô e extrair as ofertas deste catálogo em tempo real.</p>
+                    <button type="button" class="btn btn-sm btn-primary rounded-pill px-3" onclick="startDrawerSellersScrape()">
+                        <i class="fas fa-play me-1"></i> Coletar Concorrentes Agora
+                    </button>
+                </div>
+            `;
+            document.getElementById('drawerSellersBadgeCount').textContent = '0 ofertas';
+        }
+    } catch (e) {
+        container.innerHTML = '<div class="text-danger small p-3 bg-white rounded-3 border">Erro ao carregar concorrentes: ' + e.message + '</div>';
+    }
+}
+
+function renderDrawerSellers(sellers, extraData) {
+    const container = document.getElementById('drawerSellersListContainer');
+    document.getElementById('drawerSellersBadgeCount').textContent = `${sellers.length} ofertas`;
+
+    if (extraData && extraData.min_price > 0) {
+        document.getElementById('drawerCatMinPrice').textContent = 'R$ ' + extraData.min_price.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+    if (extraData && extraData.winner_name) {
+        document.getElementById('drawerCatWinnerName').textContent = extraData.winner_name;
+    }
+
+    container.innerHTML = sellers.map((s, idx) => {
+        const isWinner = s.is_best_offer || s.posicao === 1 || idx === 0;
+        return `
+            <div class="p-3 bg-white rounded-3 border shadow-sm ${isWinner ? 'border-primary' : ''}" style="${isWinner ? 'background: #f8fafc; border-width: 2px !important;' : ''}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        ${isWinner 
+                            ? '<span class="badge bg-warning text-dark fw-bold"><i class="fas fa-trophy text-warning"></i> 1º BuyBox</span>' 
+                            : `<span class="badge bg-light text-secondary border font-monospace">#${s.posicao || idx + 1}</span>`}
+                        <strong class="text-dark">${s.seller_name || 'Vendedor Oficial'}</strong>
+                    </div>
+                    <div class="text-end">
+                        <div class="fw-bold text-dark fs-6">R$ ${parseFloat(s.preco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        ${s.parcelamento ? `<div class="text-xs text-muted">${s.parcelamento}</div>` : ''}
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 text-xs border-top pt-2 mt-2">
+                    <div class="d-flex align-items-center gap-2 flex-wrap text-muted">
+                        ${s.reputacao ? `<span class="badge bg-light text-dark border"><i class="fas fa-award text-warning me-1"></i>${s.reputacao}</span>` : ''}
+                        <span class="badge bg-light text-secondary border">${s.condicao || 'Novo'}</span>
+                        ${s.frete_gratis ? '<span class="badge bg-success bg-opacity-10 text-success border border-success"><i class="fas fa-truck me-1"></i>Frete Grátis</span>' : ''}
+                        ${s.frete_full ? '<span class="badge bg-warning bg-opacity-25 text-dark"><i class="fas fa-bolt text-warning"></i> FULL</span>' : ''}
+                    </div>
+
+                    <button class="btn btn-xs btn-outline-success rounded-pill px-2 py-1" style="font-size:0.75rem;" 
+                            onclick="openPurchaseOrderModal('${(currentDrawerCatalog ? currentDrawerCatalog.title : '').replace(/'/g, "\\'")}', '${(s.seller_name || 'Mercado Livre').replace(/'/g, "\\'")}', '${s.preco || 0}', '${currentDrawerCatalog ? currentDrawerCatalog.url : ''}', 'MercadoLivre')">
+                        <i class="fas fa-cart-plus me-1"></i> Comprar Deste Seller
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function startDrawerSellersScrape() {
+    if (!currentDrawerCatalog) return;
+    const catalogId = currentDrawerCatalog.catalog_id;
+
+    const btn = document.getElementById('drawerBtnScrape');
+    const pContainer = document.getElementById('drawerScrapeProgressContainer');
+    const pBar = document.getElementById('drawerScrapeProgressBar');
+    const pMsg = document.getElementById('drawerScrapeStatusMsg');
+    const pPct = document.getElementById('drawerScrapePercent');
+    const errAlert = document.getElementById('drawerAlertError');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Raspando...';
+    pContainer.classList.remove('d-none');
+    errAlert.classList.add('d-none');
+    pBar.style.width = '10%';
+    pPct.textContent = '10%';
+    pMsg.textContent = 'Iniciando robô no catálogo ' + catalogId + '...';
+
+    try {
+        const res = await fetch(`/catalog/${catalogId}/scrape-sellers`, {method: 'POST'});
+        const data = await res.json();
+
+        if (!data.scrape_id) {
+            throw new Error(data.error || 'Falha ao iniciar scraping.');
+        }
+
+        const scrapeId = data.scrape_id;
+
+        if (drawerPollingInterval) clearInterval(drawerPollingInterval);
+        drawerPollingInterval = setInterval(async () => {
+            try {
+                const statusRes = await fetch(`/catalog/sellers-status/${scrapeId}`);
+                const statusData = await statusRes.json();
+
+                if (statusData.progress) {
+                    pBar.style.width = statusData.progress + '%';
+                    pPct.textContent = statusData.progress + '%';
+                }
+                if (statusData.message) {
+                    pMsg.textContent = statusData.message;
+                }
+
+                if (statusData.completed) {
+                    clearInterval(drawerPollingInterval);
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Atualizar Concorrentes';
+
+                    if (statusData.status === 'concluida') {
+                        pMsg.textContent = 'Concorrentes atualizados com sucesso!';
+                        pBar.style.width = '100%';
+                        pPct.textContent = '100%';
+                        setTimeout(() => pContainer.classList.add('d-none'), 2500);
+
+                        // Recarrega lista
+                        if (statusData.sellers && statusData.sellers.length > 0) {
+                            renderDrawerSellers(statusData.sellers, statusData);
+                        } else {
+                            loadDrawerSellers(catalogId);
+                        }
+                    } else {
+                        errAlert.textContent = statusData.error || 'Erro durante a coleta de concorrentes.';
+                        errAlert.classList.remove('d-none');
+                        pContainer.classList.add('d-none');
+                    }
+                }
+            } catch (pollErr) {
+                console.error("Erro no polling de sellers:", pollErr);
+            }
+        }, 1500);
+
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Atualizar Concorrentes';
+        pContainer.classList.add('d-none');
+        errAlert.textContent = 'Erro: ' + e.message;
+        errAlert.classList.remove('d-none');
+    }
+}
+
+function linkSkuFromDrawer() {
+    if (!currentDrawerCatalog) return;
+    const fakeBtn = {
+        getAttribute: (attr) => {
+            if (attr === 'data-catalog-id') return currentDrawerCatalog.catalog_id;
+            if (attr === 'data-title') return currentDrawerCatalog.title;
+            if (attr === 'data-url') return currentDrawerCatalog.url;
+            if (attr === 'data-image') return currentDrawerCatalog.image;
+            if (attr === 'data-winner') return currentDrawerCatalog.winner;
+            if (attr === 'data-min-price') return currentDrawerCatalog.min_price;
+            if (attr === 'data-sellers') return currentDrawerCatalog.sellers_count;
+            return '';
+        },
+        style: {},
+        title: '',
+        innerHTML: ''
+    };
+    openLinkSkuModal(fakeBtn);
+}
+
 // ─── Modal de Vinculação a SKU ────────────────────────────────────
 let linkSkuModalInstance = null;
 let currentPendingCatalog = null;
@@ -1253,7 +1553,7 @@ async function confirmLinkSku() {
         const data = await res.json();
         if (data.success) {
             alert(`🎉 ${data.message}`);
-            if (currentPendingCatalog.buttonRef) {
+            if (currentPendingCatalog.buttonRef && currentPendingCatalog.buttonRef.style) {
                 currentPendingCatalog.buttonRef.style.background = '#059669';
                 currentPendingCatalog.buttonRef.title = `Vinculado ao SKU ${selectedSkuForLink}`;
                 currentPendingCatalog.buttonRef.innerHTML = '<i class="fas fa-check"></i>';
