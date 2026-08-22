@@ -312,7 +312,16 @@ def compute_sidebar_metrics(results: list) -> dict:
     total_revenue = 0.0
     total_sales = 0
 
+    catalog_count = 0
+    individual_count = 0
+
     for r in results:
+        # Catálogo vs Individual
+        if r.get('is_catalog'):
+            catalog_count += 1
+        else:
+            individual_count += 1
+
         # Medalhas
         m = r.get('seller_medal', 'Sem medalha')
         if m == 'Platinum': medals['platinum'] += 1
@@ -351,6 +360,8 @@ def compute_sidebar_metrics(results: list) -> dict:
         total_sales += int(r.get('estimated_sales', 0))
 
     return {
+        'catalog_count': catalog_count,
+        'individual_count': individual_count,
         'medals': medals,
         'shipping': shipping,
         'sellers_range': sellers_range,

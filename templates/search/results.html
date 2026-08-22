@@ -495,6 +495,25 @@
                     </div>
                 </div>
 
+                <!-- Tipo de Anúncio / Estrutura de Catálogo -->
+                <div class="mb-3">
+                    <div class="filter-group-title">
+                        <i class="fas fa-layer-group text-indigo"></i> Tipo de Oferta
+                    </div>
+                    <div class="filter-pills-grid" style="grid-template-columns: 1fr 1fr;">
+                        <div class="filter-btn-pill" data-filter="catalog" data-val="catalog_only" onclick="toggleSidebarFilter(this)">
+                            <i class="fas fa-layer-group pill-icon text-indigo"></i>
+                            <span class="pill-count text-indigo" id="sidebarCatalogCount">{{ sidebar_metrics.catalog_count or 0 }}</span>
+                            <span class="pill-label">Catálogo</span>
+                        </div>
+                        <div class="filter-btn-pill" data-filter="catalog" data-val="individual_only" onclick="toggleSidebarFilter(this)">
+                            <i class="fas fa-tag pill-icon text-secondary"></i>
+                            <span class="pill-count" id="sidebarIndividualCount">{{ sidebar_metrics.individual_count or 0 }}</span>
+                            <span class="pill-label">Individual</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Catálogos por Range de Vendedores -->
                 <div class="mb-3">
                     <div class="filter-group-title">
@@ -531,12 +550,17 @@
         <!-- ─── 2. GRADE DE CARDS RICOS (AVANT PRO GRID) ────────────── -->
         <div class="col-lg-9 col-md-8">
             
-            <!-- Abas de Marketplaces (Todos, Mercado Livre, Amazon) -->
+            <!-- Abas de Marketplaces (Todos, Catálogo, Mercado Livre, Amazon) -->
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border-bottom pb-2 mb-3">
                 <ul class="nav nav-pills gap-2" id="marketplaceTabs">
                     <li class="nav-item">
                         <button class="nav-link active fw-bold rounded-pill px-3 py-1 text-sm mp-tab-btn" data-marketplace="all" onclick="setMarketplaceTab('all', this)">
                             <i class="fas fa-globe me-1"></i> Todos (<span id="mpCountAll">{{ results|length }}</span>)
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold rounded-pill px-3 py-1 text-sm mp-tab-btn bg-light text-dark border" data-marketplace="catalog_only" onclick="setMarketplaceTab('catalog_only', this)">
+                            <i class="fas fa-layer-group text-indigo me-1"></i> Apenas Catálogos (<span id="mpCountCatalog">{{ sidebar_metrics.catalog_count or 0 }}</span>)
                         </button>
                     </li>
                     <li class="nav-item">
@@ -829,9 +853,10 @@
 
 {% block extra_scripts %}
 <script>
-// ─── Estado dos Filtros e Abas ────────────────────────────────────
+// ─── Estado dos Filtros Ativos ────────────────────────────────────
 let activeMarketplaceTab = 'all';
 let activeFilters = {
+    catalog: null,
     medal: null,
     shipping: null,
     sellers: null,
@@ -848,9 +873,19 @@ function updateMarketplaceCounters() {
     let countAll = cards.length;
     let countML = 0;
     let countAmazon = 0;
+    let countCatalog = 0;
+    let countIndividual = 0;
 
     cards.forEach(c => {
         const mp = c.getAttribute('data-marketplace');
+        const isCat = c.getAttribute('data-catalog') === 'true';
+
+        if (isCat) {
+            countCatalog++;
+        } else {
+            countIndividual++;
+        }
+
         if (mp === 'Amazon') {
             countAmazon++;
         } else {
@@ -861,10 +896,16 @@ function updateMarketplaceCounters() {
     const elAll = document.getElementById('mpCountAll');
     const elML = document.getElementById('mpCountML');
     const elAmazon = document.getElementById('mpCountAmazon');
+    const elCatalog = document.getElementById('mpCountCatalog');
+    const elSideCat = document.getElementById('sidebarCatalogCount');
+    const elSideInd = document.getElementById('sidebarIndividualCount');
 
     if (elAll) elAll.textContent = countAll;
     if (elML) elML.textContent = countML;
     if (elAmazon) elAmazon.textContent = countAmazon;
+    if (elCatalog) elCatalog.textContent = countCatalog;
+    if (elSideCat) elSideCat.textContent = countCatalog;
+    if (elSideInd) elSideInd.textContent = countIndividual;
 }
 
 function setMarketplaceTab(mp, btn) {
@@ -903,6 +944,7 @@ function applySidebarFilters() {
 
     cards.forEach(card => {
         const mp = card.getAttribute('data-marketplace') || 'MercadoLivre';
+        const isCat = card.getAttribute('data-catalog') === 'true';
         const medal = card.getAttribute('data-medal');
         const shipping = card.getAttribute('data-shipping');
         const sellers = parseInt(card.getAttribute('data-sellers') || '1');
@@ -910,10 +952,17 @@ function applySidebarFilters() {
 
         let match = true;
 
-        // Filtro por Aba de Marketplace
+        // Filtro por Aba de Marketplace / Apenas Catálogos
         if (activeMarketplaceTab !== 'all') {
+            if (activeMarketplaceTab === 'catalog_only' && !isCat) match = false;
             if (activeMarketplaceTab === 'MercadoLivre' && mp === 'Amazon') match = false;
             if (activeMarketplaceTab === 'Amazon' && mp !== 'Amazon') match = false;
+        }
+
+        // Filtro de Catálogo na Sidebar
+        if (activeFilters.catalog) {
+            if (activeFilters.catalog === 'catalog_only' && !isCat) match = false;
+            if (activeFilters.catalog === 'individual_only' && isCat) match = false;
         }
 
         if (activeFilters.medal && medal !== activeFilters.medal) match = false;
@@ -946,7 +995,7 @@ function applySidebarFilters() {
 }
 
 function resetSidebarFilters() {
-    activeFilters = { medal: null, shipping: null, sellers: null, age: null };
+    activeFilters = { catalog: null, medal: null, shipping: null, sellers: null, age: null };
     document.querySelectorAll('.filter-btn-pill').forEach(btn => btn.classList.remove('active'));
     applySidebarFilters();
 }
