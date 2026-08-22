@@ -10,12 +10,14 @@ services:
     shm_size: 2gb
     networks:
       - rede_gridd
-    env_file:
-      - .env
     environment:
       - PORT=5000
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
+      - SECRET_KEY=${SECRET_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SERPAPI_KEY=${SERPAPI_KEY}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.offer-search.rule=Host(`offer-search.hnperformancedigital.com.br`)"
