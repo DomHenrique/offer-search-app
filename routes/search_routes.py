@@ -367,9 +367,12 @@ def compute_sidebar_metrics(results: list) -> dict:
         total_revenue += float(r.get('estimated_revenue', 0))
         total_sales += int(r.get('estimated_sales', 0))
 
+    new_offers_count = sum(1 for r in results if r.get('is_new'))
+
     return {
         'catalog_count': catalog_count,
         'individual_count': individual_count,
+        'new_offers_count': new_offers_count,
         'medals': medals,
         'shipping': shipping,
         'sellers_range': sellers_range,
@@ -387,6 +390,7 @@ def results_page():
         flash('Você precisa fazer login para acessar esta página.', 'warning')
         return redirect(url_for('auth.login'))
     
+    user_id = session['user_id']
     search_id = request.args.get('search_id')
     busca_id = request.args.get('busca_id', type=int)
     termo = request.args.get('termo')
@@ -416,9 +420,26 @@ def results_page():
             termo = data.get('termo_pesquisa')
     
     if raw_results:
-        # Enriquece os produtos com inteligência de mercado
-        enriched_results = [enrich_product_intel(p) for p in raw_results]
+        # Recupera histórico anterior para detectar itens novos
+        previous_known_ids = db_manager.get_previous_search_identifiers(user_id, termo or '')
+        has_history = len(previous_known_ids) > 0
+        
+        # Enriquece os produtos com inteligência de mercado e flag de novidades
+        enriched_results = []
+        for p in raw_results:
+            enriched = enrich_product_intel(p)
+            p_url = (enriched.get('url_produto') or enriched.get('link') or '').strip()
+            p_cat = (enriched.get('catalog_id') or '').strip().upper()
+            
+            is_new = False
+            if has_history:
+                if p_url and (p_url not in previous_known_ids) and (not p_cat or p_cat not in previous_known_ids):
+                    is_new = True
+            enriched['is_new'] = is_new
+            enriched_results.append(enriched)
+
         sidebar_metrics = compute_sidebar_metrics(enriched_results)
+        sidebar_metrics['has_previous_history'] = has_history
         
         return render_template('search/results.html',
                                results=enriched_results,

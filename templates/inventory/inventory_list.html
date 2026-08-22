@@ -249,8 +249,9 @@
                                 <th>Descrição do Produto</th>
                                 <th>NCM</th>
                                 <th class="text-center">Qtd Estoque</th>
-                                <th>Preço Revenda / Mkt</th>
+                                <th>Preço Revenda</th>
                                 <th>Preço PIX</th>
+                                <th>Catálogos Conectados</th>
                                 <th>Origem (Pedidos)</th>
                                 <th class="text-end">Ações</th>
                             </tr>
@@ -295,6 +296,27 @@
                                         {% endif %}
                                     </td>
                                     <td>
+                                        {% if item.catalogs and item.catalogs|length > 0 %}
+                                            <div class="d-flex flex-column gap-1">
+                                                {% for cat in item.catalogs %}
+                                                <div class="d-inline-flex align-items-center justify-content-between gap-2 p-1 px-2 rounded-2 bg-light border text-xs" style="max-width: 220px;">
+                                                    <a href="{{ cat.catalog_url or 'https://www.mercadolivre.com.br/p/' + cat.catalog_id }}" target="_blank" class="text-decoration-none text-indigo fw-bold text-truncate" title="{{ cat.catalog_title }}">
+                                                        <i class="fas fa-layer-group me-1"></i>{{ cat.catalog_id }}
+                                                    </a>
+                                                    <span class="badge bg-purple text-white" style="background:#8b5cf6; font-size:0.65rem;">{{ cat.sellers_count }} op</span>
+                                                    <button type="button" class="btn btn-link p-0 text-danger border-0" style="font-size:0.75rem;" onclick="unlinkCatalogFromSku('{{ item.sku }}', '{{ cat.catalog_id }}')" title="Desvincular Catálogo deste SKU">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% else %}
+                                            <a href="{{ url_for('search.search_page') }}?q={{ item.descricao|urlencode }}" class="badge bg-light text-muted border text-decoration-none">
+                                                <i class="fas fa-plus me-1"></i> Vincular da Busca
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                    <td>
                                         <small class="text-muted">
                                             {% for ped in item.pedidos %}
                                                 <a href="{{ url_for('inventory.order_detail', pedido_id=ped.pedido_id) }}" class="badge bg-secondary text-decoration-none me-1 mb-1">
@@ -305,7 +327,7 @@
                                     </td>
                                     <td class="text-end">
                                         <a href="{{ url_for('search.search_page') }}?q={{ item.descricao|urlencode }}" 
-                                           class="btn-market-search" title="Buscar concorrentes deste produto no Mercado Livre">
+                                           class="btn-market-search" title="Buscar novas ofertas e concorrentes no Mercado Livre">
                                             <i class="fas fa-search"></i> Buscar Mercado
                                         </a>
                                     </td>
@@ -313,7 +335,7 @@
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="8" class="text-center py-5 text-muted">
+                                    <td colspan="9" class="text-center py-5 text-muted">
                                         <i class="fas fa-box-open fa-3x mb-3 opacity-25 d-block"></i>
                                         <h6>Nenhum produto cadastrado no estoque ainda.</h6>
                                         <p class="small mb-3">Crie um pedido manual ou faça a importação da sua planilha.</p>
@@ -660,7 +682,26 @@ async function confirmDeleteOrder(orderId, orderNum) {
             alert('Erro: ' + (data.error || 'Não foi possível excluir.'));
         }
     } catch (err) {
-        alert('Erro ao excluir pedido: ' + err.message);
+// ─── Desvincular Catálogo do SKU ──────────────────────────────────
+async function unlinkCatalogFromSku(sku, catalogId) {
+    if (!confirm(`Deseja desvincular o catálogo ${catalogId} do SKU ${sku}?`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/inventory/unlink-catalog', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({sku: sku, catalog_id: catalogId})
+        });
+        const data = await res.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Erro: ' + (data.error || 'Não foi possível desvincular o catálogo.'));
+        }
+    } catch (e) {
+        alert('Erro ao comunicar com o servidor: ' + e.message);
     }
 }
 </script>

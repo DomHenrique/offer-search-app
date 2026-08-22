@@ -970,10 +970,132 @@ class DatabaseManager:
                         "quantidade": qtd
                     })
 
+            # 4. Busca os catálogos vinculados a cada SKU
+            try:
+                cat_links = self.get_sku_catalogs(user_id)
+                cat_by_sku: Dict[str, List] = {}
+                for cl in cat_links:
+                    s = str(cl.get("sku") or "").strip().upper()
+                    if s not in cat_by_sku:
+                        cat_by_sku[s] = []
+                    cat_by_sku[s].append(cl)
+                
+                for sku, inv_item in inventory_by_sku.items():
+                    inv_item["catalogs"] = cat_by_sku.get(sku, [])
+            except Exception as e:
+                print(f"Aviso ao carregar catálogos do inventário: {e}")
+                for sku, inv_item in inventory_by_sku.items():
+                    inv_item["catalogs"] = []
+
             # Retorna como lista ordenada por SKU
             return sorted(list(inventory_by_sku.values()), key=lambda x: x["sku"])
         except Exception as e:
             print(f"Erro ao consolidar estoque: {e}")
             return []
+
+    # === MÉTODOS DE VINCULAÇÃO DE CATÁLOGOS POR SKU (1-para-N) ===
+
+    def link_catalog_to_sku(self, user_id: str, sku: str, catalog_id: str,
+                            catalog_title: str = '', catalog_url: str = '',
+                            catalog_image: str = '', buybox_winner: str = '',
+                            buybox_min_price: float = 0.0, sellers_count: int = 1) -> Dict:
+        """
+        Vincula um catálogo do Mercado Livre a um SKU do inventário (relação 1 SKU para N Catálogos).
+        """
+        sku = str(sku).strip().upper()
+        catalog_id = str(catalog_id).strip().upper()
+        if not sku or not catalog_id:
+            raise ValueError("SKU e Catalog ID são obrigatórios.")
+
+        payload = {
+            "user_id": user_id,
+            "sku": sku,
+            "catalog_id": catalog_id,
+            "catalog_title": catalog_title or f"Catálogo {catalog_id}",
+            "catalog_url": catalog_url or f"https://www.mercadolivre.com.br/p/{catalog_id}",
+            "catalog_image": catalog_image or '',
+            "buybox_winner": buybox_winner or 'Vendedor Oficial',
+            "buybox_min_price": float(buybox_min_price or 0.0),
+            "sellers_count": int(sellers_count or 1),
+            "updated_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+
+        try:
+            # Tenta upsert na tabela sku_catalogs
+            res = self.supabase.table("sku_catalogs").upsert(payload, on_conflict="user_id,sku,catalog_id").execute()
+            if res.data:
+                return res.data[0]
+            return payload
+        except Exception as e:
+            print(f"Erro ao salvar link em sku_catalogs no Supabase: {e}")
+            # Tenta insert simples se upsert falhar por índice
+            try:
+                res_ins = self.supabase.table("sku_catalogs").insert(payload).execute()
+                if res_ins.data:
+                    return res_ins.data[0]
+            except Exception as e_ins:
+                print(f"Falha secundária em insert sku_catalogs: {e_ins}")
+            return payload
+
+    def get_sku_catalogs(self, user_id: str, sku: Optional[str] = None) -> List[Dict]:
+        """
+        Retorna os catálogos vinculados a um SKU específico ou a todos os SKUs do usuário.
+        """
+        try:
+            query = self.supabase.table("sku_catalogs").select("*").eq("user_id", user_id)
+            if sku:
+                query = query.eq("sku", str(sku).strip().upper())
+            res = query.order("created_at", desc=True).execute()
+            return res.data or []
+        except Exception as e:
+            print(f"Aviso ao consultar sku_catalogs: {e}")
+            return []
+
+    def unlink_catalog_from_sku(self, user_id: str, sku: str, catalog_id: str) -> bool:
+        """
+        Remove a vinculação de um catálogo com um SKU do inventário.
+        """
+        try:
+            res = (self.supabase.table("sku_catalogs")
+                   .delete()
+                   .eq("user_id", user_id)
+                   .eq("sku", str(sku).strip().upper())
+                   .eq("catalog_id", str(catalog_id).strip().upper())
+                   .execute())
+            return True
+        except Exception as e:
+            print(f"Erro ao desvincular catálogo do SKU: {e}")
+            return False
+
+    def get_previous_search_identifiers(self, user_id: str, search_term: str) -> set:
+        """
+        Recupera os identificadores (URLs e catalog_ids) da pesquisa anterior mais recente
+        para o mesmo termo/usuário, para fazer o diff e identificar os produtos novos.
+        """
+        try:
+            clean_term = search_term.strip()
+            if not clean_term:
+                return set()
+
+            # Busca ofertas salvas para esse termo no histórico
+            resp = (self.supabase.table("ofertas")
+                    .select("url_produto, titulo")
+                    .ilike("termo_pesquisa", f"%{clean_term}%")
+                    .limit(200)
+                    .execute())
+            
+            identifiers = set()
+            for item in (resp.data or []):
+                u = item.get('url_produto') or ''
+                if u:
+                    identifiers.add(u.strip())
+                    # Extrai catalog_id se presente
+                    match_cat = re.search(r'/p/(MLB\d+)', u)
+                    if match_cat:
+                        identifiers.add(match_cat.group(1).upper())
+            return identifiers
+        except Exception as e:
+            print(f"Aviso ao buscar identificadores anteriores para diff: {e}")
+            return set()
 
 

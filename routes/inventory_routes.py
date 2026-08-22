@@ -381,3 +381,89 @@ def _parse_price(price_str: str) -> float:
         return float(clean)
     except Exception:
         return 0.0
+
+
+# ─── API de Vinculação de Catálogos a SKUs (1-para-N) ──────────────────────────
+
+@inventory_bp.route('/api/skus', methods=['GET'])
+@login_required
+def get_user_skus_api():
+    """Retorna lista rápida de SKUs do estoque do usuário para o modal de vinculação"""
+    try:
+        user_id = session['user_id']
+        inventory = db.get_consolidated_inventory(user_id)
+        skus_data = []
+        for item in inventory:
+            skus_data.append({
+                'sku': item.get('sku'),
+                'descricao': item.get('descricao'),
+                'quantidade_total': item.get('quantidade_total', 0),
+                'preco_revenda': item.get('preco_revenda'),
+                'catalogs_count': len(item.get('catalogs', []))
+            })
+        return jsonify({'success': True, 'skus': skus_data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@inventory_bp.route('/link-catalog', methods=['POST'])
+@login_required
+def link_catalog_api():
+    """Vincula um catálogo a um SKU do inventário mediante aprovação do usuário"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json() or {}
+
+        sku = data.get('sku')
+        catalog_id = data.get('catalog_id')
+        catalog_title = data.get('catalog_title', '')
+        catalog_url = data.get('catalog_url', '')
+        catalog_image = data.get('catalog_image', '')
+        buybox_winner = data.get('buybox_winner', 'Vendedor Oficial')
+        buybox_min_price = float(data.get('buybox_min_price') or 0.0)
+        sellers_count = int(data.get('sellers_count') or 1)
+
+        if not sku or not catalog_id:
+            return jsonify({'success': False, 'error': 'SKU e Catalog ID são obrigatórios.'}), 400
+
+        result = db.link_catalog_to_sku(
+            user_id=user_id,
+            sku=sku,
+            catalog_id=catalog_id,
+            catalog_title=catalog_title,
+            catalog_url=catalog_url,
+            catalog_image=catalog_image,
+            buybox_winner=buybox_winner,
+            buybox_min_price=buybox_min_price,
+            sellers_count=sellers_count
+        )
+
+        return jsonify({
+            'success': True,
+            'message': f"Catálogo {catalog_id} vinculado com sucesso ao SKU {sku}!",
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@inventory_bp.route('/unlink-catalog', methods=['POST'])
+@login_required
+def unlink_catalog_api():
+    """Desvincula um catálogo de um SKU do inventário"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json() or {}
+
+        sku = data.get('sku')
+        catalog_id = data.get('catalog_id')
+
+        if not sku or not catalog_id:
+            return jsonify({'success': False, 'error': 'SKU e Catalog ID são obrigatórios.'}), 400
+
+        success = db.unlink_catalog_from_sku(user_id=user_id, sku=sku, catalog_id=catalog_id)
+        if success:
+            return jsonify({'success': True, 'message': f"Catálogo {catalog_id} desvinculado do SKU {sku}."})
+        return jsonify({'success': False, 'error': 'Falha ao desvincular catálogo.'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

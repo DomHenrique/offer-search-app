@@ -554,10 +554,17 @@
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border-bottom pb-2 mb-3">
                 <ul class="nav nav-pills gap-2" id="marketplaceTabs">
                     <li class="nav-item">
-                        <button class="nav-link active fw-bold rounded-pill px-3 py-1 text-sm mp-tab-btn" data-marketplace="all" onclick="setMarketplaceTab('all', this)">
-                            <i class="fas fa-globe me-1"></i> Todos (<span id="mpCountAll">{{ results|length }}</span>)
+                        <button class="nav-link fw-bold rounded-pill px-3 py-1 text-sm mp-tab-btn active" data-marketplace="all" onclick="setMarketplaceTab('all', this)">
+                            Todos (<span id="mpCountAll">{{ results|length }}</span>)
                         </button>
                     </li>
+                    {% if sidebar_metrics.has_previous_history and sidebar_metrics.new_offers_count > 0 %}
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold rounded-pill px-3 py-1 text-sm mp-tab-btn bg-success bg-opacity-10 text-success border border-success border-opacity-25" data-marketplace="new_only" onclick="setMarketplaceTab('new_only', this)">
+                            <i class="fas fa-sparkles me-1"></i> ✦ Novos Anúncios (<span id="mpCountNew">{{ sidebar_metrics.new_offers_count }}</span>)
+                        </button>
+                    </li>
+                    {% endif %}
                     <li class="nav-item">
                         <button class="nav-link fw-bold rounded-pill px-3 py-1 text-sm mp-tab-btn bg-light text-dark border" data-marketplace="catalog_only" onclick="setMarketplaceTab('catalog_only', this)">
                             <i class="fas fa-layer-group text-indigo me-1"></i> Apenas Catálogos (<span id="mpCountCatalog">{{ sidebar_metrics.catalog_count or 0 }}</span>)
@@ -608,6 +615,7 @@
                 <div class="col product-card-col"
                      data-marketplace="{{ prod.marketplace or 'MercadoLivre' }}"
                      data-catalog="{{ 'true' if prod.is_catalog else 'false' }}"
+                     data-is-new="{{ 'true' if prod.is_new else 'false' }}"
                      data-medal="{{ prod.seller_medal }}"
                      data-shipping="{{ prod.shipping_type }}"
                      data-sellers="{{ prod.sellers_count }}"
@@ -622,8 +630,13 @@
                         
                         <!-- Header do Card: Checkbox + Badges + Ações -->
                         <div class="avantpro-card-header">
-                            <div class="d-flex align-items-center gap-2">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
                                 <input type="checkbox" class="form-check-input item-checkbox" value="{{ prod.id }}" onchange="updateSelectedCount()">
+                                {% if prod.is_new %}
+                                    <span class="badge bg-success text-white fw-bold shadow-sm" style="font-size:0.68rem;">
+                                        <i class="fas fa-sparkles"></i> NOVO
+                                    </span>
+                                {% endif %}
                                 {% if prod.is_catalog %}
                                     <span class="badge-catalog-avantpro">
                                         <i class="fas fa-layer-group"></i> CATÁLOGO
@@ -640,6 +653,21 @@
                             </div>
 
                             <div class="quick-action-icons">
+                                <!-- Botão Conectar ao SKU do Estoque -->
+                                <button type="button" class="btn-action-icon" 
+                                        style="background: #6366f1; color: white;"
+                                        data-catalog-id="{{ prod.catalog_id or '' }}"
+                                        data-title="{{ prod.titulo }}"
+                                        data-url="{{ prod.url_produto }}"
+                                        data-image="{{ prod.imagem }}"
+                                        data-winner="{{ prod.store_name }}"
+                                        data-min-price="{{ prod.buybox_min_price or prod.preco_numerico }}"
+                                        data-sellers="{{ prod.sellers_count }}"
+                                        onclick="openLinkSkuModal(this)"
+                                        title="Conectar a um Produto/SKU do Estoque">
+                                    <i class="fas fa-link"></i>
+                                </button>
+                                
                                 {% if prod.is_catalog and prod.catalog_id %}
                                     <a href="{{ url_for('catalog.catalog_detail', catalog_id=prod.catalog_id) }}" 
                                        class="btn-action-icon btn-act-purple" title="Ver Concorrentes / BuyBox">
@@ -876,6 +904,54 @@
         </div>
     </div>
 </div>
+
+<!-- Modal: Vincular Catálogo a SKU do Estoque -->
+<div class="modal fade" id="linkSkuModal" tabindex="-1" aria-labelledby="linkSkuModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 18px; border: 1px solid #e2e8f0; overflow: hidden;">
+            <div class="modal-header bg-dark text-white p-3" style="background: linear-gradient(135deg, #312e81, #4f46e5) !important;">
+                <h5 class="modal-title fs-6 fw-bold text-white d-flex align-items-center gap-2" id="linkSkuModalLabel">
+                    <i class="fas fa-link text-warning"></i> Conectar ao Produto do Estoque (SKU)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="p-3 bg-light rounded-3 mb-3 border">
+                    <div class="small text-muted fw-bold mb-1">Catálogo Selecionado:</div>
+                    <div class="fw-bold text-dark text-truncate mb-1" id="modalCatTitle">Título do Produto</div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap text-xs">
+                        <span class="badge bg-indigo text-white" id="modalCatId">MLB12345678</span>
+                        <span class="text-secondary" id="modalCatPrice">A partir de R$ 0,00</span>
+                        <span class="badge bg-light text-dark border" id="modalCatSellers">1 sellers</span>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-dark small">Buscar SKU no Estoque:</label>
+                    <div class="input-group input-group-sm mb-2">
+                        <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+                        <input type="text" id="skuSearchInput" class="form-control border-start-0" placeholder="Digite o SKU ou descrição do produto..." oninput="filterModalSkus()">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="small fw-bold text-muted mb-2">Selecione o Produto de Destino:</div>
+                    <div id="modalSkuListContainer" class="border rounded-3 p-2 bg-white" style="max-height: 200px; overflow-y: auto;">
+                        <div class="text-center text-muted p-3">
+                            <span class="spinner-border spinner-border-sm text-primary me-2"></span> Carregando SKUs do estoque...
+                        </div>
+                    </div>
+                </div>
+
+                <div id="modalLinkError" class="alert alert-danger py-2 px-3 small d-none"></div>
+
+                <button type="button" id="btnConfirmLinkSku" class="btn btn-primary w-100 fw-bold py-2 rounded-pill shadow-sm" style="background: #4f46e5; border-color: #4f46e5;" onclick="confirmLinkSku()" disabled>
+                    <i class="fas fa-check-circle me-1"></i> Confirmar Conexão de Catálogo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -902,28 +978,27 @@ function updateMarketplaceCounters() {
     let countAmazon = 0;
     let countCatalog = 0;
     let countIndividual = 0;
+    let countNew = 0;
 
     cards.forEach(c => {
         const mp = c.getAttribute('data-marketplace');
         const isCat = c.getAttribute('data-catalog') === 'true';
+        const isNew = c.getAttribute('data-is-new') === 'true';
 
-        if (isCat) {
-            countCatalog++;
-        } else {
-            countIndividual++;
-        }
+        if (isCat) countCatalog++;
+        else countIndividual++;
 
-        if (mp === 'Amazon') {
-            countAmazon++;
-        } else {
-            countML++;
-        }
+        if (isNew) countNew++;
+
+        if (mp === 'Amazon') countAmazon++;
+        else countML++;
     });
 
     const elAll = document.getElementById('mpCountAll');
     const elML = document.getElementById('mpCountML');
     const elAmazon = document.getElementById('mpCountAmazon');
     const elCatalog = document.getElementById('mpCountCatalog');
+    const elNew = document.getElementById('mpCountNew');
     const elSideCat = document.getElementById('sidebarCatalogCount');
     const elSideInd = document.getElementById('sidebarIndividualCount');
 
@@ -931,6 +1006,7 @@ function updateMarketplaceCounters() {
     if (elML) elML.textContent = countML;
     if (elAmazon) elAmazon.textContent = countAmazon;
     if (elCatalog) elCatalog.textContent = countCatalog;
+    if (elNew) elNew.textContent = countNew;
     if (elSideCat) elSideCat.textContent = countCatalog;
     if (elSideInd) elSideInd.textContent = countIndividual;
 }
@@ -972,6 +1048,7 @@ function applySidebarFilters() {
     cards.forEach(card => {
         const mp = card.getAttribute('data-marketplace') || 'MercadoLivre';
         const isCat = card.getAttribute('data-catalog') === 'true';
+        const isNew = card.getAttribute('data-is-new') === 'true';
         const medal = card.getAttribute('data-medal');
         const shipping = card.getAttribute('data-shipping');
         const sellers = parseInt(card.getAttribute('data-sellers') || '1');
@@ -979,9 +1056,10 @@ function applySidebarFilters() {
 
         let match = true;
 
-        // Filtro por Aba de Marketplace / Apenas Catálogos
+        // Filtro por Aba de Marketplace / Apenas Catálogos / Apenas Novos
         if (activeMarketplaceTab !== 'all') {
             if (activeMarketplaceTab === 'catalog_only' && !isCat) match = false;
+            if (activeMarketplaceTab === 'new_only' && !isNew) match = false;
             if (activeMarketplaceTab === 'MercadoLivre' && mp === 'Amazon') match = false;
             if (activeMarketplaceTab === 'Amazon' && mp !== 'Amazon') match = false;
         }
@@ -1046,7 +1124,157 @@ function sortCards(type) {
     cards.forEach(c => grid.appendChild(c));
 }
 
-// ─── Seleção em Lote e Aprovação ──────────────────────────────────
+// ─── Modal de Vinculação a SKU ────────────────────────────────────
+let linkSkuModalInstance = null;
+let currentPendingCatalog = null;
+let cachedSkus = [];
+let selectedSkuForLink = null;
+
+async function openLinkSkuModal(btn) {
+    const catalogId = btn.getAttribute('data-catalog-id') || '';
+    const title = btn.getAttribute('data-title') || '';
+    const url = btn.getAttribute('data-url') || '';
+    const image = btn.getAttribute('data-image') || '';
+    const winner = btn.getAttribute('data-winner') || 'Vendedor Oficial';
+    const minPrice = parseFloat(btn.getAttribute('data-min-price') || 0);
+    const sellers = parseInt(btn.getAttribute('data-sellers') || 1);
+
+    currentPendingCatalog = {
+        catalog_id: catalogId || (url.match(/MLB\d+/) ? url.match(/MLB\d+/)[0] : 'MLB' + Date.now()),
+        catalog_title: title,
+        catalog_url: url,
+        catalog_image: image,
+        buybox_winner: winner,
+        buybox_min_price: minPrice,
+        sellers_count: sellers,
+        buttonRef: btn
+    };
+
+    document.getElementById('modalCatTitle').textContent = title || 'Sem título';
+    document.getElementById('modalCatId').textContent = currentPendingCatalog.catalog_id;
+    document.getElementById('modalCatPrice').textContent = 'R$ ' + minPrice.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    document.getElementById('modalCatSellers').textContent = `${sellers} ${sellers === 1 ? 'seller' : 'sellers'}`;
+    document.getElementById('modalLinkError').classList.add('d-none');
+    document.getElementById('skuSearchInput').value = '';
+    selectedSkuForLink = null;
+    document.getElementById('btnConfirmLinkSku').disabled = true;
+
+    if (!linkSkuModalInstance) {
+        linkSkuModalInstance = new bootstrap.Modal(document.getElementById('linkSkuModal'));
+    }
+    linkSkuModalInstance.show();
+
+    // Carrega SKUs do estoque
+    await loadUserSkus();
+}
+
+async function loadUserSkus() {
+    const container = document.getElementById('modalSkuListContainer');
+    try {
+        const res = await fetch('/inventory/api/skus');
+        const data = await res.json();
+        if (data.success && data.skus) {
+            cachedSkus = data.skus;
+            renderModalSkuList(cachedSkus);
+        } else {
+            container.innerHTML = '<div class="text-danger small p-2">Erro ao carregar estoque. Crie itens primeiro no módulo Estoque & Pedidos.</div>';
+        }
+    } catch (e) {
+        container.innerHTML = '<div class="text-danger small p-2">Erro de conexão ao buscar SKUs.</div>';
+    }
+}
+
+function renderModalSkuList(skus) {
+    const container = document.getElementById('modalSkuListContainer');
+    if (!skus.length) {
+        container.innerHTML = '<div class="text-muted small p-2 text-center">Nenhum SKU encontrado no estoque.</div>';
+        return;
+    }
+
+    container.innerHTML = skus.map(s => `
+        <div class="sku-modal-item d-flex justify-content-between align-items-center p-2 rounded-2 border mb-1 cursor-pointer" 
+             style="cursor: pointer; transition: all 0.15s ease;"
+             onclick="selectSkuInModal('${s.sku}', this)">
+            <div>
+                <strong class="text-indigo me-2 font-monospace">[ ${s.sku} ]</strong>
+                <span class="text-dark small">${s.descricao}</span>
+            </div>
+            <div class="text-end">
+                <span class="badge bg-light text-secondary border">${s.quantidade_total} un</span>
+                ${s.catalogs_count > 0 ? `<span class="badge bg-purple text-white ms-1" style="background:#8b5cf6;" title="Catálogos já vinculados">${s.catalogs_count} ☷</span>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function selectSkuInModal(sku, el) {
+    selectedSkuForLink = sku;
+    document.querySelectorAll('.sku-modal-item').forEach(item => {
+        item.style.background = '#ffffff';
+        item.style.borderColor = '#e2e8f0';
+    });
+    el.style.background = '#e0e7ff';
+    el.style.borderColor = '#6366f1';
+    document.getElementById('btnConfirmLinkSku').disabled = false;
+}
+
+function filterModalSkus() {
+    const q = (document.getElementById('skuSearchInput').value || '').toLowerCase().trim();
+    const filtered = cachedSkus.filter(s => 
+        s.sku.toLowerCase().includes(q) || (s.descricao || '').toLowerCase().includes(q)
+    );
+    renderModalSkuList(filtered);
+}
+
+async function confirmLinkSku() {
+    if (!selectedSkuForLink || !currentPendingCatalog) return;
+
+    const btn = document.getElementById('btnConfirmLinkSku');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Vinculando...';
+
+    const payload = {
+        sku: selectedSkuForLink,
+        catalog_id: currentPendingCatalog.catalog_id,
+        catalog_title: currentPendingCatalog.catalog_title,
+        catalog_url: currentPendingCatalog.catalog_url,
+        catalog_image: currentPendingCatalog.catalog_image,
+        buybox_winner: currentPendingCatalog.buybox_winner,
+        buybox_min_price: currentPendingCatalog.buybox_min_price,
+        sellers_count: currentPendingCatalog.sellers_count
+    };
+
+    try {
+        const res = await fetch('/inventory/link-catalog', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert(`🎉 ${data.message}`);
+            if (currentPendingCatalog.buttonRef) {
+                currentPendingCatalog.buttonRef.style.background = '#059669';
+                currentPendingCatalog.buttonRef.title = `Vinculado ao SKU ${selectedSkuForLink}`;
+                currentPendingCatalog.buttonRef.innerHTML = '<i class="fas fa-check"></i>';
+            }
+            if (linkSkuModalInstance) linkSkuModalInstance.hide();
+        } else {
+            const errEl = document.getElementById('modalLinkError');
+            errEl.textContent = data.error || 'Erro ao vincular catálogo.';
+            errEl.classList.remove('d-none');
+        }
+    } catch (e) {
+        const errEl = document.getElementById('modalLinkError');
+        errEl.textContent = 'Erro ao comunicar com o servidor: ' + e.message;
+        errEl.classList.remove('d-none');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check-circle me-1"></i> Confirmar Conexão de Catálogo';
+    }
+}
+
+// ─── Seleção em Lote e Pedidos ────────────────────────────────────
 function toggleSelectAll(masterCheckbox) {
     const isChecked = masterCheckbox.checked;
     document.querySelectorAll('.product-card-col').forEach(card => {
@@ -1068,7 +1296,6 @@ function updateSelectedCount() {
     if (btn) btn.disabled = count === 0;
 }
 
-// ─── Modal de Pedido de Compra ────────────────────────────────────
 let poModalInstance = null;
 
 function openPurchaseOrderModal(title, store, price, url, mp) {

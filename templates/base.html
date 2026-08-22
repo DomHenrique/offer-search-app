@@ -55,11 +55,6 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('catalog.') %}active{% endif %}" href="{{ url_for('catalog.catalog_list') }}">
-                            <i class="fas fa-store me-1"></i>Catálogos
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint and request.endpoint.startswith('schedule.') %}active{% endif %}" href="{{ url_for('schedule.schedule_page') }}">
                             <i class="fas fa-clock me-1"></i>Agendamentos
                         </a>
