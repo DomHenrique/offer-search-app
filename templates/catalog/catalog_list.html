@@ -99,6 +99,43 @@
     border-color: #7e22ce;
     color: #fff;
 }
+
+/* Card de Busca Ativa em Tempo Real */
+.active-search-card {
+    background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+    border: 2px solid #3b82f6;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.15);
+    animation: fadeIn 0.3s ease;
+}
+.search-pulse-indicator {
+    position: relative;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: #dbeafe;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+.pulse-dot {
+    position: absolute;
+    top: 0px;
+    right: 0px;
+    width: 12px;
+    height: 12px;
+    background: #2563eb;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    animation: pulseRing 1.5s infinite;
+}
+@keyframes pulseRing {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
 </style>
 {% endblock %}
 
@@ -122,6 +159,37 @@
             <button class="btn btn-secondary" id="btnSyncHistory" onclick="extractCatalogsFromHistory()">
                 <i class="fas fa-sync-alt"></i> Sincronizar do Histórico
             </button>
+        </div>
+    </div>
+
+    <!-- Card Ativo de Busca em Andamento (Feedback Visual em Tempo Real) -->
+    <div id="activeSearchBanner" class="active-search-card p-4 mb-4" style="display: none;">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="search-pulse-indicator">
+                    <span class="pulse-dot"></span>
+                    <i class="fas fa-robot text-primary"></i>
+                </div>
+                <div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <h6 class="fw-bold text-dark mb-0 fs-6" id="bannerSearchTitle">Buscando Catálogos no Mercado Livre...</h6>
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" id="bannerSkuBadge" style="display:none; font-size:0.75rem;"></span>
+                    </div>
+                    <small class="text-muted d-block mt-1" id="bannerSearchSub">
+                        <i class="fas fa-satellite-dish text-primary me-1"></i> Iniciando robô Selenium e extraindo ofertas e BuyBox...
+                    </small>
+                </div>
+            </div>
+            <div class="text-end">
+                <span class="badge bg-warning text-dark px-3 py-2 fw-bold" id="bannerProgressBadge" style="font-size:0.85rem;">
+                    <i class="fas fa-spinner fa-spin me-1"></i> <span id="bannerProgressPct">20%</span>
+                </span>
+            </div>
+        </div>
+        <div class="progress" style="height: 10px; border-radius: 8px; background: #e2e8f0;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                 id="bannerProgressBar" 
+                 style="width: 20%; transition: width 0.4s ease;"></div>
         </div>
     </div>
 
@@ -1211,6 +1279,45 @@ async function triggerCatalogSearch(termo, nPages = 1, originSku = '') {
     const form = document.getElementById('catalogSearchForm');
     if (form && originSku) form.setAttribute('data-origin-sku', originSku);
 
+    // Ativa o Banner de Busca em Tempo Real no topo da tela
+    const banner = document.getElementById('activeSearchBanner');
+    const bannerTitle = document.getElementById('bannerSearchTitle');
+    const bannerSub = document.getElementById('bannerSearchSub');
+    const bannerSku = document.getElementById('bannerSkuBadge');
+    const bannerBar = document.getElementById('bannerProgressBar');
+    const bannerPct = document.getElementById('bannerProgressPct');
+    const bannerBadge = document.getElementById('bannerProgressBadge');
+    const searchBtn = document.getElementById('catalogSearchBtn');
+
+    if (banner) {
+        banner.style.display = 'block';
+        banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    if (bannerTitle) bannerTitle.textContent = `Buscando no Mercado Livre: "${termo}"`;
+    if (bannerSub) bannerSub.innerHTML = `<i class="fas fa-satellite-dish text-primary me-1"></i> Inicializando robô de scraping Selenium...`;
+    if (bannerSku) {
+        if (originSku) {
+            bannerSku.style.display = 'inline-block';
+            bannerSku.textContent = `SKU: ${originSku}`;
+        } else {
+            bannerSku.style.display = 'none';
+        }
+    }
+    if (bannerBar) {
+        bannerBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
+        bannerBar.style.width = '15%';
+    }
+    if (bannerPct) bannerPct.textContent = '15%';
+    if (bannerBadge) {
+        bannerBadge.className = 'badge bg-warning text-dark px-3 py-2 fw-bold';
+        bannerBadge.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i> <span id="bannerProgressPct">15%</span>`;
+    }
+    if (searchBtn) {
+        searchBtn.disabled = true;
+        searchBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i> Buscando...`;
+    }
+
+    // Mostra overlay central para clareza
     showOverlay('Buscando catálogos no ML...', `Iniciando robô de busca para "${termo}"...`);
 
     try {
@@ -1229,10 +1336,15 @@ async function triggerCatalogSearch(termo, nPages = 1, originSku = '') {
 
         currentCatalogSearchId = data.search_id;
         if (catalogStatusInterval) clearInterval(catalogStatusInterval);
-        catalogStatusInterval = setInterval(checkCatalogStatus, 2000);
+        catalogStatusInterval = setInterval(checkCatalogStatus, 1500);
 
     } catch (err) {
         hideOverlay();
+        if (banner) banner.style.display = 'none';
+        if (searchBtn) {
+            searchBtn.disabled = false;
+            searchBtn.innerHTML = `<i class="fas fa-search"></i> Buscar Novos Catálogos`;
+        }
         alert('Erro ao iniciar busca: ' + err.message);
     }
 }
@@ -1328,18 +1440,51 @@ async function checkCatalogStatus() {
         const res = await fetch(`/catalog/status/${currentCatalogSearchId}`);
         const status = await res.json();
 
-        document.getElementById('overlayProgress').style.width = (status.progress || 0) + '%';
-        document.getElementById('overlayMessage').textContent = status.message || 'Processando...';
+        const progressPct = (status.progress || 0) + '%';
+        const msg = status.message || 'Processando...';
+
+        document.getElementById('overlayProgress').style.width = progressPct;
+        document.getElementById('overlayMessage').textContent = msg;
+
+        // Atualiza também o banner visual fixo na página
+        const bannerBar = document.getElementById('bannerProgressBar');
+        const bannerPct = document.getElementById('bannerProgressPct');
+        const bannerSub = document.getElementById('bannerSearchSub');
+        if (bannerBar) bannerBar.style.width = progressPct;
+        if (bannerPct) bannerPct.textContent = progressPct;
+        if (bannerSub) bannerSub.innerHTML = `<i class="fas fa-spinner fa-spin text-primary me-1"></i> ${msg}`;
 
         if (status.completed) {
             clearInterval(catalogStatusInterval);
+            const searchBtn = document.getElementById('catalogSearchBtn');
+            if (searchBtn) {
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = `<i class="fas fa-search"></i> Buscar Novos Catálogos`;
+            }
 
             if (status.status === 'concluida') {
                 hideOverlay();
+
+                // Atualiza banner para estado de sucesso
+                const bannerTitle = document.getElementById('bannerSearchTitle');
+                const bannerBadge = document.getElementById('bannerProgressBadge');
+                if (bannerTitle) bannerTitle.textContent = `✅ Busca Concluída! (${status.results ? status.results.length : 0} Catálogos Encontrados)`;
+                if (bannerSub) bannerSub.innerHTML = `<i class="fas fa-check-circle text-success me-1"></i> Todos os catálogos foram salvos e vinculados ao SKU com sucesso.`;
+                if (bannerBar) {
+                    bannerBar.className = 'progress-bar bg-success';
+                    bannerBar.style.width = '100%';
+                }
+                if (bannerBadge) {
+                    bannerBadge.className = 'badge bg-success text-white px-3 py-2 fw-bold';
+                    bannerBadge.innerHTML = `<i class="fas fa-check me-1"></i> Concluído`;
+                }
+
                 renderCatalogResults(status.results || []);
             } else {
                 hideOverlay();
-                alert('Erro: ' + (status.error || 'Erro desconhecido'));
+                const banner = document.getElementById('activeSearchBanner');
+                if (banner) banner.style.display = 'none';
+                alert('Erro na busca: ' + (status.error || 'Erro desconhecido'));
             }
         }
     } catch (err) {
