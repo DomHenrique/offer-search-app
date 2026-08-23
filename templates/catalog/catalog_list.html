@@ -312,20 +312,39 @@ document.addEventListener('DOMContentLoaded', () => {
 // ─── Abre o Drawer e Inicia Análise Automática de Concorrentes ───────
 function openCompetitorsDrawer(catalogId, catalogTitle, catalogImage) {
     activeDrawerCatalogId = catalogId;
+    const isAmazon = !catalogId.startsWith('MLB');
 
     // Atualiza cabeçalho do produto no Drawer
     const titleEl = document.getElementById('drawerProductTitle');
     const idEl = document.getElementById('drawerCatalogId');
     const imgEl = document.getElementById('drawerProductImg');
     const mlLink = document.getElementById('drawerMlLlink');
+    const chipEl = document.getElementById('drawerCatalogIdChip');
 
     if (titleEl) titleEl.textContent = catalogTitle || ('Catálogo ' + catalogId);
     if (idEl) idEl.textContent = catalogId;
     if (imgEl) {
-        imgEl.src = catalogImage || 'https://via.placeholder.com/64x64/ffffff/94a3b8?text=ML';
+        imgEl.src = catalogImage || 'https://via.placeholder.com/64x64/ffffff/94a3b8?text=Product';
         imgEl.alt = catalogTitle || catalogId;
     }
-    if (mlLink) mlLink.href = `https://www.mercadolivre.com.br/p/${catalogId}/s?`;
+    if (mlLink) {
+        if (isAmazon) {
+            mlLink.href = `https://www.amazon.com.br/dp/${catalogId}`;
+            mlLink.innerHTML = '<i class="fab fa-amazon me-1 text-warning"></i> Ver na Amazon';
+            mlLink.title = 'Abrir produto na Amazon';
+        } else {
+            mlLink.href = `https://www.mercadolivre.com.br/p/${catalogId}/s?`;
+            mlLink.innerHTML = '<i class="fas fa-external-link-alt me-1"></i> Ver no ML';
+            mlLink.title = 'Abrir opções no Mercado Livre';
+        }
+    }
+    if (chipEl) {
+        if (isAmazon) {
+            chipEl.innerHTML = `<i class="fab fa-amazon text-warning"></i> <span id="drawerCatalogId">${catalogId}</span>`;
+        } else {
+            chipEl.innerHTML = `<i class="fas fa-barcode text-warning"></i> <span id="drawerCatalogId">${catalogId}</span>`;
+        }
+    }
 
     // Abre o Drawer lateral
     const drawerEl = document.getElementById('competitorsDrawer');
@@ -386,26 +405,34 @@ async function checkAndLoadSellers(catalogId, forceScrape = false) {
     }
 }
 
-// ─── Dispara Scraping Assíncrono no Mercado Livre ──────────────────
+// ─── Dispara Scraping Assíncrono (ML ou Amazon) ────────────────────
 async function startDrawerSellersScrape(catalogId) {
     const content = document.getElementById('drawerDynamicContent');
     const syncIcon = document.getElementById('drawerSyncIcon');
     if (syncIcon) syncIcon.classList.add('fa-spin');
 
+    const isAmazon = !catalogId.startsWith('MLB');
+    const platformName = isAmazon ? 'Amazon Brasil' : 'Mercado Livre';
+    const descMsg = isAmazon 
+        ? 'Acessando ofertas e gaveta de outros vendedores na Amazon...' 
+        : 'Iniciando robô de busca nas opções de compra deste produto...';
+    const authBadge = isAmazon
+        ? '<i class="fab fa-amazon text-warning"></i> <span>Navegação autenticada com cookies Amazon</span>'
+        : '<i class="fas fa-shield-alt text-success"></i> <span>Navegação autenticada com cookies ML</span>';
+
     // Renderiza o Estado de Loading com Barra de Progresso no Drawer
     content.innerHTML = `
         <div class="drawer-loader-box">
             <div class="drawer-spinner-ring"></div>
-            <h6 class="fw-bold text-dark mb-1">Buscando Concorrentes no Mercado Livre...</h6>
-            <p class="text-muted small mb-3" id="drawerScrapeStatusMsg">Iniciando robô de busca nas opções de compra deste produto...</p>
+            <h6 class="fw-bold text-dark mb-1">Buscando Concorrentes no ${platformName}...</h6>
+            <p class="text-muted small mb-3" id="drawerScrapeStatusMsg">${descMsg}</p>
             <div class="progress mb-3" style="height: 8px; border-radius: 4px;">
                 <div class="progress-bar bg-primary progress-bar-striped progress-bar-animated"
                      id="drawerScrapeProgress"
                      style="width: 25%; transition: width 0.4s ease;"></div>
             </div>
             <div class="d-flex align-items-center justify-content-center gap-2 text-muted" style="font-size: 0.78rem;">
-                <i class="fas fa-shield-alt text-success"></i>
-                <span>Navegação autenticada com cookies ML</span>
+                ${authBadge}
             </div>
         </div>`;
 
@@ -471,6 +498,9 @@ async function pollDrawerSellersStatus(scrapeId, catalogId) {
                 renderDrawerSellers(finalData);
                 showToast(`Varredura concluída! ${status.sellers ? status.sellers.length : 0} vendedores encontrados.`);
             } else {
+                const isAmazon = !catalogId.startsWith('MLB');
+                const fallbackLink = isAmazon ? `https://www.amazon.com.br/dp/${catalogId}` : `https://www.mercadolivre.com.br/p/${catalogId}/s?`;
+                const fallbackText = isAmazon ? 'Abrir Produto na Amazon' : 'Abrir Opções no ML';
                 const content = document.getElementById('drawerDynamicContent');
                 content.innerHTML = `
                     <div class="table-saas-card text-center py-5 px-3">
@@ -481,8 +511,8 @@ async function pollDrawerSellersStatus(scrapeId, catalogId) {
                             <button class="btn btn-sm btn-primary" onclick="checkAndLoadSellers('${catalogId}', true)">
                                 <i class="fas fa-redo me-1"></i> Tentar Novamente
                             </button>
-                            <a href="https://www.mercadolivre.com.br/p/${catalogId}/s?" target="_blank" class="btn btn-sm btn-secondary">
-                                <i class="fas fa-external-link-alt me-1"></i> Abrir Opções no ML
+                            <a href="${fallbackLink}" target="_blank" class="btn btn-sm btn-secondary">
+                                <i class="fas fa-external-link-alt me-1"></i> ${fallbackText}
                             </a>
                         </div>
                     </div>`;
@@ -498,13 +528,14 @@ function renderDrawerSellers(data) {
     const content = document.getElementById('drawerDynamicContent');
     const sellers = data.sellers || [];
     const catalogId = data.catalog_id || activeDrawerCatalogId;
+    const isAmz = !catalogId.startsWith('MLB');
 
     if (!sellers.length) {
         content.innerHTML = `
             <div class="table-saas-card text-center py-5 px-3">
                 <i class="fas fa-users-slash text-muted fa-2x mb-3 opacity-50"></i>
                 <h6 class="fw-bold text-dark mb-1">Nenhum concorrente cadastrado</h6>
-                <p class="text-muted small mb-3">Clique abaixo para buscar ofertas dos concorrentes neste catálogo.</p>
+                <p class="text-muted small mb-3">Clique abaixo para buscar ofertas dos concorrentes neste catálogo ${isAmz ? 'da Amazon' : 'do Mercado Livre'}.</p>
                 <button class="btn btn-sm btn-primary" onclick="checkAndLoadSellers('${catalogId}', true)">
                     <i class="fas fa-sync-alt me-1"></i> Buscar Concorrentes Agora
                 </button>
@@ -517,6 +548,7 @@ function renderDrawerSellers(data) {
     const minPrice = validPrices.length ? Math.min(...validPrices) : 0;
     const maxPrice = validPrices.length ? Math.max(...validPrices) : 0;
     const fullCount = sellers.filter(s => s.frete_full).length;
+    const fullLabel = isAmz ? 'Prime / FBA' : 'Envio FULL';
 
     let kpisHtml = `
         <div class="drawer-kpis-grid">
@@ -533,7 +565,7 @@ function renderDrawerSellers(data) {
                 <div class="kpi-val text-primary">${sellers.length}</div>
             </div>
             <div class="drawer-kpi-card">
-                <div class="kpi-label text-warning"><i class="fas fa-bolt me-1"></i>Envio FULL</div>
+                <div class="kpi-label text-warning"><i class="${isAmz ? 'fab fa-amazon' : 'fas fa-bolt'} me-1"></i>${fullLabel}</div>
                 <div class="kpi-val text-warning">${fullCount}</div>
             </div>
         </div>`;
@@ -541,12 +573,14 @@ function renderDrawerSellers(data) {
     let rowsHtml = sellers.map((s, index) => {
         const isBest = (index === 0 && s.preco > 0);
         const priceFormatted = (s.preco && s.preco > 0) ? `R$ ${parseFloat(s.preco).toFixed(2).replace('.', ',')}` : (s.preco_str || 'A consultar');
-        const sellerInitials = s.seller_name ? s.seller_name.substring(0, 2).toUpperCase() : 'ML';
-        const sellerProfileUrl = `https://www.mercadolivre.com.br/perfil/${encodeURIComponent(s.seller_name || '')}`;
-        const buyUrl = s.buy_url || `https://www.mercadolivre.com.br/p/${catalogId}/s?`;
+        const sellerInitials = s.seller_name ? s.seller_name.substring(0, 2).toUpperCase() : (isAmz ? 'AMZ' : 'ML');
+        const sellerProfileUrl = isAmz ? `https://www.amazon.com.br/dp/${catalogId}` : `https://www.mercadolivre.com.br/perfil/${encodeURIComponent(s.seller_name || '')}`;
+        const buyUrl = s.buy_url || (isAmz ? `https://www.amazon.com.br/dp/${catalogId}` : `https://www.mercadolivre.com.br/p/${catalogId}/s?`);
 
         let shippingHtml = '';
-        if (s.entrega_texto) {
+        if (s.prazo_entrega) {
+            shippingHtml += `<div class="shipping-bullet"><i class="fas fa-truck text-success mt-1" style="font-size:0.75rem;"></i><span>${escHtml(s.prazo_entrega)}</span></div>`;
+        } else if (s.entrega_texto) {
             shippingHtml += `<div class="shipping-bullet"><i class="fas fa-truck text-success mt-1" style="font-size:0.75rem;"></i><span>${escHtml(s.entrega_texto)}</span></div>`;
         } else if (s.frete_gratis) {
             shippingHtml += `<div class="shipping-bullet"><i class="fas fa-truck text-success mt-1" style="font-size:0.75rem;"></i><span class="shipping-green-highlight">Chegará grátis</span></div>`;
@@ -559,7 +593,11 @@ function renderDrawerSellers(data) {
         }
 
         if (s.frete_full) {
-            shippingHtml += `<div class="mt-1"><span class="shipping-badge-full"><i class="fas fa-bolt"></i> FULL</span></div>`;
+            if (isAmz) {
+                shippingHtml += `<div class="mt-1"><span class="badge bg-warning bg-opacity-25 text-dark"><i class="fab fa-amazon text-warning"></i> PRIME / FBA</span></div>`;
+            } else {
+                shippingHtml += `<div class="mt-1"><span class="shipping-badge-full"><i class="fas fa-bolt"></i> FULL</span></div>`;
+            }
         }
 
         let installmentHtml = '';
@@ -589,11 +627,11 @@ function renderDrawerSellers(data) {
                         </div>
                         <div class="text-truncate">
                             <a href="${sellerProfileUrl}" target="_blank" class="seller-name-link" style="font-size: 0.85rem;" title="${escHtml(s.seller_name || '')}">
-                                ${escHtml(s.seller_name || 'Vendedor ML')}
+                                ${escHtml(s.seller_name || (isAmz ? 'Vendedor Amazon' : 'Vendedor ML'))}
                                 <i class="fas fa-check-circle seller-verified-icon"></i>
                             </a>
                             <div class="seller-reputation-text" style="font-size: 0.72rem;">
-                                ${escHtml(s.reputacao || 'Vendedor Ativo')}
+                                ${escHtml(s.reputacao || (isAmz ? 'Vendedor Qualificado' : 'Vendedor Ativo'))}
                             </div>
                         </div>
                     </div>
@@ -611,7 +649,7 @@ function renderDrawerSellers(data) {
         <div class="table-saas-card">
             <div class="p-2 px-3 border-bottom d-flex align-items-center justify-content-between bg-surface">
                 <span class="fw-bold text-dark" style="font-size: 0.82rem;">
-                    <i class="fas fa-list-ol text-primary me-1"></i> Ofertas Ordenadas por Menor Preço
+                    <i class="fas fa-list-ol text-primary me-1"></i> Ofertas Ordenadas por Menor Preço (${isAmz ? 'Amazon' : 'Mercado Livre'})
                 </span>
                 <span class="badge-saas badge-saas-neutral font-tabular" style="font-size: 0.72rem;">${sellers.length} Vendedores</span>
             </div>

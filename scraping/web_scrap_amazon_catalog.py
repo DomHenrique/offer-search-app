@@ -343,26 +343,16 @@ class AmazonCatalogScraper:
         """Persiste os metadados do catálogo e os sellers no banco de dados Supabase."""
         try:
             asin = catalog_data["catalog_id"]
-            now = datetime.now().isoformat()
 
-            # 1. Upsert na tabela catalogos
-            cat_record = {
+            # 1. Salva o catálogo na tabela catalogos via db.save_catalog
+            cat_payload = {
                 "catalog_id": asin,
-                "titulo": catalog_data.get("catalog_title", f"Catálogo Amazon {asin}"),
-                "imagem_url": catalog_data.get("catalog_image", ""),
-                "url_produto": catalog_data.get("catalog_url", f"https://www.amazon.com.br/dp/{asin}"),
-                "buybox_winner": catalog_data.get("buybox_winner", "Amazon Brasil"),
-                "buybox_min_price": float(catalog_data.get("buybox_min_price") or 0.0),
-                "sellers_count": int(catalog_data.get("sellers_count") or 1),
-                "marketplace": "Amazon",
-                "user_id": self.user_id or '1',
-                "coletado_em": now,
+                "nome": catalog_data.get("catalog_title", f"Catálogo Amazon {asin}"),
+                "imagem": catalog_data.get("catalog_image", ""),
+                "termo_pesquisa": catalog_data.get("termo_pesquisa", ""),
+                "user_id": self.user_id or "1"
             }
-
-            try:
-                self.db.supabase.table("catalogos").upsert(cat_record, on_conflict="catalog_id").execute()
-            except Exception as e_cat:
-                print(f"⚠️ [Amazon Catalog] Aviso ao fazer upsert em catalogos: {e_cat}")
+            self.db.save_catalog(cat_payload)
 
             # 2. Insere sellers em catalog_sellers
             sellers = catalog_data.get("sellers", [])
