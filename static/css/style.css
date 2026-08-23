@@ -306,7 +306,7 @@ body {
   flex-shrink: 0;
 }
 
-.metric-value {
+.metric-card-kpi .metric-value {
   font-size: 1.65rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -314,7 +314,7 @@ body {
   margin-bottom: 2px;
 }
 
-.metric-label {
+.metric-card-kpi .metric-label {
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-secondary);

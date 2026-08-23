@@ -274,36 +274,48 @@
 
 /* Grid de Métricas de Inteligência 2x4 */
 .avantpro-metrics-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 8px 10px;
-    margin-bottom: 12px;
-    font-size: 0.7rem;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 6px 10px !important;
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    padding: 8px 10px !important;
+    margin-bottom: 10px !important;
 }
-.metric-col {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.25;
+.avantpro-metrics-grid .metric-col {
+    display: flex !important;
+    flex-direction: column !important;
+    line-height: 1.25 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
 }
-.metric-label {
-    color: #64748b;
-    font-size: 0.65rem;
-    margin-bottom: 1px;
+.avantpro-metrics-grid .metric-label {
+    color: #64748b !important;
+    font-size: 0.65rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.02em !important;
+    margin-bottom: 1px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.2 !important;
 }
-.metric-value {
-    color: #0f172a;
-    font-weight: 700;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.avantpro-metrics-grid .metric-value {
+    color: #0f172a !important;
+    font-size: 0.78rem !important;
+    font-weight: 700 !important;
+    line-height: 1.25 !important;
+    margin-bottom: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    display: block !important;
 }
-.metric-value.success { color: #059669; }
-.metric-value.primary { color: #4f46e5; }
-.metric-value.warning { color: #d97706; }
+.avantpro-metrics-grid .metric-value.success { color: #059669 !important; }
+.avantpro-metrics-grid .metric-value.primary { color: #4f46e5 !important; }
+.avantpro-metrics-grid .metric-value.warning { color: #d97706 !important; }
 
 /* Barra de Termômetro de Concorrência */
 .concurrency-meter {
