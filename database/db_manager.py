@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union
 from supabase import create_client, Client
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -706,6 +706,45 @@ class DatabaseManager:
         except Exception as e:
             print(f"Erro ao buscar ofertas por busca_id/termo: {e}")
             return {'results': [], 'stats': {}, 'busca_info': None, 'error': str(e)}
+
+    def delete_offers_by_ids(self, offer_ids: List[Union[int, str]]) -> int:
+        """
+        Exclui ofertas da tabela 'ofertas' pelos seus IDs.
+        """
+        if not offer_ids:
+            return 0
+        try:
+            # Converte IDs válidos
+            cleaned_ids = [int(i) for i in offer_ids if str(i).isdigit()]
+            if not cleaned_ids:
+                return 0
+            
+            resp = self.supabase.table("ofertas").delete().in_("id", cleaned_ids).execute()
+            deleted = len(resp.data) if hasattr(resp, 'data') and resp.data else len(cleaned_ids)
+            print(f"🗑️ [DB] {deleted} ofertas excluídas por ID do Supabase.")
+            return deleted
+        except Exception as e:
+            print(f"❌ [DB] Erro ao excluir ofertas por ID: {e}")
+            return 0
+
+    def delete_offers_by_urls(self, urls: List[str]) -> int:
+        """
+        Exclui ofertas da tabela 'ofertas' pelas suas URLs de produto.
+        """
+        if not urls:
+            return 0
+        try:
+            cleaned_urls = [u.strip() for u in urls if u and u.strip()]
+            if not cleaned_urls:
+                return 0
+                
+            resp = self.supabase.table("ofertas").delete().in_("url_produto", cleaned_urls).execute()
+            deleted = len(resp.data) if hasattr(resp, 'data') and resp.data else len(cleaned_urls)
+            print(f"🗑️ [DB] {deleted} ofertas excluídas por URL do Supabase.")
+            return deleted
+        except Exception as e:
+            print(f"❌ [DB] Erro ao excluir ofertas por URL: {e}")
+            return 0
 
     def get_recent_search_terms(self, user_id: str, limit: int = 8) -> List[str]:
         """

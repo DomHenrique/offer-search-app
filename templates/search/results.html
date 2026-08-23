@@ -372,6 +372,34 @@
     align-items: center;
     gap: 4px;
 }
+
+/* Floating Bulk Action Bar */
+.floating-action-bar {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1050;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    border-radius: 50px;
+    box-shadow: 0 16px 40px -6px rgba(15, 23, 42, 0.2), 0 6px 16px rgba(0, 0, 0, 0.08);
+    padding: 10px 22px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    max-width: 95vw;
+}
+.floating-action-bar.d-none {
+    display: none !important;
+    transform: translateX(-50%) translateY(30px);
+    opacity: 0;
+}
+.card-deleting {
+    opacity: 0;
+    transform: scale(0.9);
+    transition: all 0.4s ease;
+}
 </style>
 {% endblock %}
 
@@ -412,7 +440,7 @@
                     <i class="fas fa-chart-line"></i>
                 </div>
                 <div>
-                    <div class="metric-value text-success font-tabular">
+                    <div class="metric-value text-success font-tabular" id="kpiTotalRevenue">
                         R$ {{ "{:,.2f}".format(sidebar_metrics.total_revenue or 0).replace(',', 'X').replace('.', ',').replace('X', '.') }}
                     </div>
                     <div class="metric-label">Faturamento Total Estimado</div>
@@ -425,7 +453,7 @@
                     <i class="fas fa-shopping-cart"></i>
                 </div>
                 <div>
-                    <div class="metric-value font-tabular">
+                    <div class="metric-value font-tabular" id="kpiTotalSales">
                         + {{ "{:,}".format(sidebar_metrics.total_sales or 0).replace(',', '.') }} un
                     </div>
                     <div class="metric-label">Vendas Acumuladas</div>
@@ -438,7 +466,7 @@
                     <i class="fas fa-layer-group"></i>
                 </div>
                 <div>
-                    <div class="metric-value text-warning font-tabular">{{ results|length }}</div>
+                    <div class="metric-value text-warning font-tabular" id="kpiTotalOffers">{{ results|length }}</div>
                     <div class="metric-label">Total de Ofertas</div>
                 </div>
             </div>
@@ -449,7 +477,7 @@
                     <i class="fas fa-tag"></i>
                 </div>
                 <div>
-                    <div class="metric-value font-tabular">
+                    <div class="metric-value font-tabular" id="kpiAvgPrice">
                         R$ {{ "{:,.2f}".format(stats.preco_medio or 0).replace(',', 'X').replace('.', ',').replace('X', '.') }}
                     </div>
                     <div class="metric-label">Preço Médio</div>
@@ -690,7 +718,19 @@
                         <!-- Header do Card: Checkbox + Badges + Ações -->
                         <div class="avantpro-card-header">
                             <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <input type="checkbox" class="form-check-input item-checkbox" value="{{ prod.id }}" onchange="updateSelectedCount()">
+                                <input type="checkbox" class="form-check-input item-checkbox"
+                                       value="{{ prod.id }}"
+                                       data-id="{{ prod.id }}"
+                                       data-url="{{ prod.url_produto }}"
+                                       data-title="{{ prod.titulo }}"
+                                       data-image="{{ prod.imagem }}"
+                                       data-price="{{ prod.preco_numerico or 0 }}"
+                                       data-marketplace="{{ prod.marketplace or 'MercadoLivre' }}"
+                                       data-is-catalog="{{ 'true' if prod.is_catalog else 'false' }}"
+                                       data-catalog-id="{{ prod.catalog_id or '' }}"
+                                       data-revenue="{{ prod.estimated_revenue or 0 }}"
+                                       data-sales="{{ prod.estimated_sales or 0 }}"
+                                       onchange="updateSelectedCount()">
                                 {% if prod.is_new %}
                                     <span class="badge bg-success text-white fw-bold shadow-sm" style="font-size:0.68rem;">
                                         <i class="fas fa-sparkles"></i> NOVO
@@ -1092,6 +1132,83 @@
         <div id="drawerSellersListContainer" class="d-flex flex-column gap-2">
             <div class="text-center text-muted py-4 bg-white rounded-3 border">
                 <span class="spinner-border spinner-border-sm text-primary me-2"></span> Carregando concorrentes...
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── FLOATING BULK ACTION BAR (BARRA FLUTUANTE DE TRIAGEM EM LOTE) ─── -->
+<div id="floatingActionBar" class="floating-action-bar d-none">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary fs-6 px-3 py-2 rounded-pill font-monospace" id="floatingSelectedCount">0</span>
+            <span class="fw-bold text-dark small">selecionados</span>
+        </div>
+
+        <div class="vr mx-1 opacity-25 d-none d-sm-block"></div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <!-- 1. Botão Aprovar Selecionados -->
+            <button type="button" class="btn btn-sm btn-success fw-bold rounded-pill px-3 shadow-sm" onclick="approveSelectedBulk()" title="Aprovar produtos selecionados para fornecedor/compra">
+                <i class="fas fa-heart me-1"></i> Aprovar (<span class="bulk-count-label">0</span>)
+            </button>
+
+            <!-- 2. Botão Adicionar a Catálogos (Com trava estrita) -->
+            <button type="button" class="btn btn-sm btn-primary fw-bold rounded-pill px-3 shadow-sm" id="btnBulkAddCatalogs" onclick="addSelectedToCatalogsBulk()" disabled title="Disponível apenas quando todos os selecionados forem catálogos">
+                <i class="fas fa-layer-group me-1"></i> Adicionar a Catálogos (<span id="bulkCatalogCountLabel">0</span>)
+            </button>
+
+            <!-- 3. Botão Exportar Selecionados -->
+            <button type="button" class="btn btn-sm btn-outline-dark fw-bold rounded-pill px-3 shadow-sm bg-white" onclick="exportSelectedOffers()" title="Exportar dados dos selecionados para CSV/Excel">
+                <i class="fas fa-file-excel text-success me-1"></i> Exportar
+            </button>
+
+            <!-- 4. Botão Copiar Links -->
+            <button type="button" class="btn btn-sm btn-outline-secondary fw-bold rounded-pill px-3 shadow-sm bg-white" onclick="copySelectedLinks()" title="Copiar URLs dos selecionados para área de transferência">
+                <i class="fas fa-copy me-1"></i> Copiar Links
+            </button>
+
+            <!-- 5. Botão Excluir do Histórico -->
+            <button type="button" class="btn btn-sm btn-danger fw-bold rounded-pill px-3 shadow-sm" onclick="openDeleteConfirmationModal()" title="Excluir ofertas selecionadas desta pesquisa">
+                <i class="fas fa-trash-alt me-1"></i> Excluir (<span class="bulk-count-label">0</span>)
+            </button>
+        </div>
+
+        <div class="vr mx-1 opacity-25 d-none d-sm-block"></div>
+
+        <button type="button" class="btn btn-sm btn-link text-muted p-0 text-decoration-none fw-semibold small" onclick="deselectAllProducts()">
+            <i class="fas fa-times me-1"></i> Desmarcar Tudo
+        </button>
+    </div>
+</div>
+
+<!-- ─── MODAL DE CONFIRMAÇÃO DE EXCLUSÃO ───────────────────────────── -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <div class="d-flex align-items-center gap-2 text-danger">
+                    <i class="fas fa-exclamation-triangle fa-lg"></i>
+                    <h5 class="modal-title fw-bold text-dark mb-0">Confirmar Exclusão de Ofertas</h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body py-4">
+                <p class="text-secondary mb-3">
+                    Você está prestes a excluir <strong class="text-danger fs-6" id="deleteModalCount">0</strong> produto(s) desta pesquisa.
+                </p>
+                <div class="alert alert-warning border-0 rounded-3 small mb-0 d-flex align-items-start gap-2" style="background:#fffbeb; color:#92400e;">
+                    <i class="fas fa-info-circle text-warning fs-5 flex-shrink-0 mt-1"></i>
+                    <div>
+                        <strong>Atenção:</strong> Os itens serão removidos do histórico de buscas no banco de dados e os indicadores de mercado (Faturamento Total, Preço Médio e Vendas Acumuladas) serão recalculados em tempo real.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger fw-bold rounded-pill px-4" id="btnConfirmDelete" onclick="executeBatchDelete()">
+                    <i class="fas fa-trash-alt me-1"></i> Sim, Excluir do Histórico
+                </button>
             </div>
         </div>
     </div>
@@ -1652,7 +1769,7 @@ async function confirmLinkSku() {
     }
 }
 
-// ─── Seleção em Lote e Pedidos ────────────────────────────────────
+// ─── Seleção em Lote e Triagem ────────────────────────────────────
 function toggleSelectAll(masterCheckbox) {
     const isChecked = masterCheckbox.checked;
     document.querySelectorAll('.product-card-col').forEach(card => {
@@ -1664,14 +1781,379 @@ function toggleSelectAll(masterCheckbox) {
     updateSelectedCount();
 }
 
-function updateSelectedCount() {
-    const selected = document.querySelectorAll('.item-checkbox:checked');
-    const count = selected.length;
-    const btn = document.getElementById('approveSelectedBtn');
-    const span = document.getElementById('selectedCountSpan');
+function deselectAllProducts() {
+    document.querySelectorAll('.item-checkbox').forEach(cb => cb.checked = false);
+    const masterCb = document.getElementById('selectAllMaster');
+    if (masterCb) masterCb.checked = false;
+    updateSelectedCount();
+}
 
-    if (span) span.textContent = count;
-    if (btn) btn.disabled = count === 0;
+function updateSelectedCount() {
+    const selectedCbs = Array.from(document.querySelectorAll('.item-checkbox:checked'));
+    const count = selectedCbs.length;
+
+    // Contadores gerais
+    const topBtn = document.getElementById('approveSelectedBtn');
+    const topSpan = document.getElementById('selectedCountSpan');
+    const floatBar = document.getElementById('floatingActionBar');
+    const floatCount = document.getElementById('floatingSelectedCount');
+    const bulkLabels = document.querySelectorAll('.bulk-count-label');
+    const catalogCountLabel = document.getElementById('bulkCatalogCountLabel');
+    const btnAddCatalogs = document.getElementById('btnBulkAddCatalogs');
+
+    if (topSpan) topSpan.textContent = count;
+    if (topBtn) topBtn.disabled = count === 0;
+    if (floatCount) floatCount.textContent = count;
+    bulkLabels.forEach(el => el.textContent = count);
+
+    // Validação estrita de Catálogos (apenas habilitado se 100% forem catálogos)
+    let catalogCount = 0;
+    selectedCbs.forEach(cb => {
+        const isCat = cb.getAttribute('data-is-catalog') === 'true' || cb.getAttribute('data-is-catalog') === true;
+        if (isCat) catalogCount++;
+    });
+
+    if (catalogCountLabel) catalogCountLabel.textContent = catalogCount;
+
+    if (btnAddCatalogs) {
+        if (count > 0 && catalogCount === count) {
+            btnAddCatalogs.disabled = false;
+            btnAddCatalogs.classList.remove('btn-secondary');
+            btnAddCatalogs.classList.add('btn-primary');
+            btnAddCatalogs.title = `Adicionar ${count} catálogo(s) selecionado(s) para monitoramento`;
+        } else {
+            btnAddCatalogs.disabled = true;
+            btnAddCatalogs.classList.remove('btn-primary');
+            btnAddCatalogs.classList.add('btn-secondary');
+            if (count > 0) {
+                const nonCats = count - catalogCount;
+                btnAddCatalogs.title = `Bloqueado: A seleção contém ${nonCats} anúncio(s) que não são catálogos`;
+            } else {
+                btnAddCatalogs.title = "Selecione apenas produtos de catálogo para ativar";
+            }
+        }
+    }
+
+    // Exibição da Floating Action Bar
+    if (floatBar) {
+        if (count > 0) {
+            floatBar.classList.remove('d-none');
+        } else {
+            floatBar.classList.add('d-none');
+        }
+    }
+}
+
+// ─── 1. Exclusão em Lote com Confirmação e Recálculo de KPIs ───────
+let deleteConfirmModalInstance = null;
+
+function openDeleteConfirmationModal() {
+    const selectedCbs = document.querySelectorAll('.item-checkbox:checked');
+    if (!selectedCbs.length) return;
+
+    const countEl = document.getElementById('deleteModalCount');
+    if (countEl) countEl.textContent = selectedCbs.length;
+
+    if (!deleteConfirmModalInstance) {
+        const modalEl = document.getElementById('deleteConfirmModal');
+        if (modalEl && typeof bootstrap !== 'undefined') {
+            deleteConfirmModalInstance = new bootstrap.Modal(modalEl);
+        }
+    }
+    if (deleteConfirmModalInstance) deleteConfirmModalInstance.show();
+}
+
+async function executeBatchDelete() {
+    const selectedCbs = Array.from(document.querySelectorAll('.item-checkbox:checked'));
+    if (!selectedCbs.length) return;
+
+    const btnConfirm = document.getElementById('btnConfirmDelete');
+    if (btnConfirm) {
+        btnConfirm.disabled = true;
+        btnConfirm.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Excluindo...';
+    }
+
+    const offerIds = [];
+    const offerUrls = [];
+
+    selectedCbs.forEach(cb => {
+        const idVal = cb.getAttribute('data-id') || cb.value;
+        const urlVal = cb.getAttribute('data-url');
+        if (idVal && !isNaN(idVal)) offerIds.push(parseInt(idVal));
+        if (urlVal) offerUrls.push(urlVal);
+    });
+
+    try {
+        const res = await fetch('/search/delete-offers', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                offer_ids: offerIds,
+                offer_urls: offerUrls
+            })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            // Animação de fade-out e remoção dos cards
+            selectedCbs.forEach(cb => {
+                const cardCol = cb.closest('.product-card-col');
+                if (cardCol) {
+                    cardCol.classList.add('card-deleting');
+                    setTimeout(() => cardCol.remove(), 350);
+                }
+            });
+
+            if (deleteConfirmModalInstance) deleteConfirmModalInstance.hide();
+            showTriageToast(`🗑️ ${data.deleted_count || selectedCbs.length} oferta(s) removida(s) com sucesso!`, 'success');
+
+            // Atualiza contadores e recalcula KPIs visíveis após remoção
+            setTimeout(() => {
+                updateSelectedCount();
+                recalculateVisibleKPIs();
+            }, 400);
+
+        } else {
+            alert('Erro ao excluir ofertas: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (e) {
+        alert('Erro ao comunicar com o servidor: ' + e.message);
+    } finally {
+        if (btnConfirm) {
+            btnConfirm.disabled = false;
+            btnConfirm.innerHTML = '<i class="fas fa-trash-alt me-1"></i> Sim, Excluir do Histórico';
+        }
+    }
+}
+
+// ─── 2. Adicionar em Lote a Catálogos Monitorados ───────────────────
+async function addSelectedToCatalogsBulk() {
+    const selectedCbs = Array.from(document.querySelectorAll('.item-checkbox:checked'));
+    if (!selectedCbs.length) return;
+
+    // Confirma se todos são catálogos
+    const catalogsPayload = [];
+    let hasInvalid = false;
+
+    selectedCbs.forEach(cb => {
+        const isCat = cb.getAttribute('data-is-catalog') === 'true' || cb.getAttribute('data-is-catalog') === true;
+        const catalogId = cb.getAttribute('data-catalog-id');
+        if (!isCat || !catalogId) {
+            hasInvalid = true;
+        } else {
+            catalogsPayload.push({
+                catalog_id: catalogId,
+                title: cb.getAttribute('data-title') || '',
+                image: cb.getAttribute('data-image') || '',
+                url: cb.getAttribute('data-url') || '',
+                marketplace: cb.getAttribute('data-marketplace') || 'MercadoLivre',
+                search_term: "{{ termo_pesquisa or '' }}"
+            });
+        }
+    });
+
+    if (hasInvalid || !catalogsPayload.length) {
+        alert('Atenção: Todos os produtos selecionados devem ser catálogos válidos para adicionar aos Catálogos Monitorados.');
+        return;
+    }
+
+    const btn = document.getElementById('btnBulkAddCatalogs');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Salvando...';
+    }
+
+    try {
+        const res = await fetch('/search/batch-add-catalogs', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({catalogs: catalogsPayload})
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showTriageToast(`🎉 ${data.added_count} catálogo(s) adicionado(s) aos Catálogos Monitorados!`, 'success');
+            deselectAllProducts();
+        } else {
+            alert('Erro ao salvar catálogos: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (e) {
+        alert('Erro ao enviar catálogos: ' + e.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-layer-group me-1"></i> Adicionar a Catálogos (<span id="bulkCatalogCountLabel">0</span>)';
+            updateSelectedCount();
+        }
+    }
+}
+
+// ─── 3. Aprovação em Massa de Produtos ─────────────────────────────
+async function approveSelectedBulk() {
+    const selected = Array.from(document.querySelectorAll('.item-checkbox:checked')).map(cb => cb.value);
+    if (!selected.length) return;
+
+    try {
+        const res = await fetch('/search/approve-products', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({product_ids: selected})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showTriageToast(`💖 ${data.message || 'Produtos aprovados com sucesso!'}`, 'success');
+            deselectAllProducts();
+        } else {
+            alert('Erro ao aprovar produtos: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (e) {
+        alert('Erro ao aprovar: ' + e.message);
+    }
+}
+
+// ─── 4. Copiar Links em Massa ──────────────────────────────────────
+function copySelectedLinks() {
+    const selectedCbs = Array.from(document.querySelectorAll('.item-checkbox:checked'));
+    if (!selectedCbs.length) return;
+
+    const urls = selectedCbs.map(cb => cb.getAttribute('data-url')).filter(Boolean);
+    if (!urls.length) {
+        alert('Nenhum link válido encontrado nos produtos selecionados.');
+        return;
+    }
+
+    navigator.clipboard.writeText(urls.join('\n')).then(() => {
+        showTriageToast(`📋 ${urls.length} link(s) copiado(s) para a área de transferência!`, 'info');
+    }).catch(err => {
+        alert('Erro ao copiar links: ' + err);
+    });
+}
+
+// ─── 5. Exportar Selecionados para CSV / Planilha ──────────────────
+function exportSelectedOffers() {
+    const selectedCbs = Array.from(document.querySelectorAll('.item-checkbox:checked'));
+    if (!selectedCbs.length) return;
+
+    const rows = [
+        ['Título', 'Marketplace', 'Tipo', 'Preço (R$)', 'Faturamento Estimado (R$)', 'Vendas Estimadas', 'URL']
+    ];
+
+    selectedCbs.forEach(cb => {
+        const title = (cb.getAttribute('data-title') || '').replace(/"/g, '""');
+        const mp = cb.getAttribute('data-marketplace') || 'MercadoLivre';
+        const isCat = cb.getAttribute('data-is-catalog') === 'true' ? 'Catálogo' : 'Individual';
+        const price = cb.getAttribute('data-price') || 0;
+        const rev = cb.getAttribute('data-revenue') || 0;
+        const sales = cb.getAttribute('data-sales') || 0;
+        const url = cb.getAttribute('data-url') || '';
+
+        rows.push([
+            `"${title}"`,
+            `"${mp}"`,
+            `"${isCat}"`,
+            price,
+            rev,
+            sales,
+            `"${url}"`
+        ]);
+    });
+
+    const csvContent = '\uFEFF' + rows.map(r => r.join(';')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `ofertas_selecionadas_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showTriageToast(`📊 Planilha de ${selectedCbs.length} ofertas baixada com sucesso!`, 'success');
+}
+
+// ─── 6. Recálculo Dinâmico dos KPIs da Tela ────────────────────────
+function recalculateVisibleKPIs() {
+    const remainingCards = Array.from(document.querySelectorAll('.product-card-col'));
+    const totalCount = remainingCards.length;
+
+    let totalRevenue = 0;
+    let totalSales = 0;
+    let totalPrice = 0;
+    let validPriceCount = 0;
+    let catalogCount = 0;
+    let individualCount = 0;
+    let mlCount = 0;
+    let amzCount = 0;
+
+    remainingCards.forEach(col => {
+        const rev = parseFloat(col.getAttribute('data-revenue')) || 0;
+        const sales = parseInt(col.getAttribute('data-sales')) || 0;
+        const price = parseFloat(col.getAttribute('data-price')) || 0;
+        const isCat = col.getAttribute('data-catalog') === 'true';
+        const mp = (col.getAttribute('data-marketplace') || '').toLowerCase();
+
+        totalRevenue += rev;
+        totalSales += sales;
+        if (price > 0) {
+            totalPrice += price;
+            validPriceCount++;
+        }
+
+        if (isCat) catalogCount++;
+        else individualCount++;
+
+        if (mp === 'amazon') amzCount++;
+        else mlCount++;
+    });
+
+    const avgPrice = validPriceCount > 0 ? (totalPrice / validPriceCount) : 0;
+
+    // Atualiza KPIs principais
+    const kpiRev = document.getElementById('kpiTotalRevenue');
+    const kpiSales = document.getElementById('kpiTotalSales');
+    const kpiOffers = document.getElementById('kpiTotalOffers');
+    const kpiAvg = document.getElementById('kpiAvgPrice');
+
+    if (kpiRev) kpiRev.textContent = 'R$ ' + totalRevenue.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    if (kpiSales) kpiSales.textContent = '+ ' + totalSales.toLocaleString('pt-BR') + ' un';
+    if (kpiOffers) kpiOffers.textContent = totalCount;
+    if (kpiAvg) kpiAvg.textContent = 'R$ ' + avgPrice.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+    // Atualiza badges de contadores das abas
+    const mpAll = document.getElementById('mpCountAll');
+    const mpCat = document.getElementById('mpCountCatalog');
+    const mpML = document.getElementById('mpCountML');
+    const mpAmz = document.getElementById('mpCountAmazon');
+    const sideCat = document.getElementById('sidebarCatalogCount');
+    const sideInd = document.getElementById('sidebarIndividualCount');
+
+    if (mpAll) mpAll.textContent = totalCount;
+    if (mpCat) mpCat.textContent = catalogCount;
+    if (mpML) mpML.textContent = mlCount;
+    if (mpAmz) mpAmz.textContent = amzCount;
+    if (sideCat) sideCat.textContent = catalogCount;
+    if (sideInd) sideInd.textContent = individualCount;
+}
+
+// ─── Helper Toast de Notificação ──────────────────────────────────
+function showTriageToast(message, type = 'success') {
+    const existing = document.getElementById('triageToast');
+    if (existing) existing.remove();
+
+    const bgClass = type === 'success' ? '#059669' : (type === 'info' ? '#4f46e5' : '#d97706');
+    const toastHtml = `
+        <div id="triageToast" style="position: fixed; top: 24px; right: 24px; z-index: 9999; background: ${bgClass}; color: white; padding: 12px 20px; border-radius: 50px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 8px; animation: slideInRight 0.3s ease;">
+            ${message}
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', toastHtml);
+    setTimeout(() => {
+        const el = document.getElementById('triageToast');
+        if (el) {
+            el.style.opacity = '0';
+            el.style.transition = 'opacity 0.4s ease';
+            setTimeout(() => el.remove(), 400);
+        }
+    }, 3500);
 }
 
 let poModalInstance = null;
@@ -1748,33 +2230,5 @@ function quickAlertModal(title, price) {
         alert(`Alerta configurado com sucesso para R$ ${targetPrice}!`);
     }
 }
-
-// ─── Eventos Globais ──────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-    const approveBtn = document.getElementById('approveSelectedBtn');
-    if (approveBtn) {
-        approveBtn.addEventListener('click', async function() {
-            const selected = Array.from(document.querySelectorAll('.item-checkbox:checked')).map(cb => cb.value);
-            if (!selected.length) return;
-
-            try {
-                const res = await fetch('/search/approve-products', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({product_ids: selected})
-                });
-                const data = await res.json();
-                if (data.success) {
-                    alert(data.message);
-                    window.location.reload();
-                } else {
-                    alert('Erro ao aprovar produtos: ' + (data.error || 'Erro desconhecido'));
-                }
-            } catch (e) {
-                alert('Erro: ' + e.message);
-            }
-        });
-    }
-});
 </script>
 {% endblock %}

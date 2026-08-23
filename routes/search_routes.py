@@ -829,3 +829,95 @@ def bulk_status(lote_id):
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ─── AÇÕES DE TRIAGEM EM LOTE NA TELA DE RESULTADOS ──────────────────────────
+
+@search_bp.route('/delete-offers', methods=['POST'])
+def delete_offers():
+    """Exclui uma ou mais ofertas do banco de dados a partir da triagem na tela de resultados"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+
+    try:
+        data = request.get_json() or {}
+        offer_ids = data.get('offer_ids', [])
+        offer_urls = data.get('offer_urls', [])
+
+        deleted_by_id = 0
+        deleted_by_url = 0
+
+        if offer_ids:
+            deleted_by_id = db_manager.delete_offers_by_ids(offer_ids)
+        if offer_urls:
+            deleted_by_url = db_manager.delete_offers_by_urls(offer_urls)
+
+        total_deleted = max(deleted_by_id, deleted_by_url, len(offer_ids), len(offer_urls))
+
+        return jsonify({
+            'success': True,
+            'deleted_count': total_deleted,
+            'message': f"{total_deleted} oferta(s) removida(s) do histórico com sucesso."
+        })
+    except Exception as e:
+        print(f"❌ Erro ao excluir ofertas em lote: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@search_bp.route('/batch-add-catalogs', methods=['POST'])
+def batch_add_catalogs():
+    """Adiciona múltiplos produtos de catálogo selecionados à tabela de catálogos monitorados"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+
+    try:
+        user_id = session['user_id']
+        data = request.get_json() or {}
+        catalogs = data.get('catalogs', [])
+
+        if not catalogs:
+            return jsonify({'success': False, 'error': 'Nenhum catálogo fornecido'}), 400
+
+        added_count = 0
+        skipped_count = 0
+
+        for item in catalogs:
+            cid = str(item.get('catalog_id') or '').strip()
+            if not cid:
+                skipped_count += 1
+                continue
+
+            mp = item.get('marketplace') or ('MercadoLivre' if cid.startswith('MLB') else 'Amazon')
+            title = item.get('title') or item.get('nome') or f"Catálogo {cid}"
+            image = item.get('image') or item.get('imagem') or ""
+            url = item.get('url') or item.get('url_produto') or ""
+            search_term = item.get('search_term') or item.get('termo_pesquisa') or ""
+
+            cat_payload = {
+                "catalog_id": cid,
+                "nome": title,
+                "titulo": title,
+                "imagem": image,
+                "imagem_url": image,
+                "url_produto": url,
+                "marketplace": mp,
+                "termo_pesquisa": search_term,
+                "user_id": user_id
+            }
+
+            saved = db_manager.save_catalog(cat_payload)
+            if saved:
+                added_count += 1
+            else:
+                skipped_count += 1
+
+        return jsonify({
+            'success': True,
+            'added_count': added_count,
+            'skipped_count': skipped_count,
+            'message': f"{added_count} catálogo(s) adicionado(s) com sucesso aos Catálogos Monitorados!"
+        })
+    except Exception as e:
+        print(f"❌ Erro ao adicionar catálogos em lote: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
