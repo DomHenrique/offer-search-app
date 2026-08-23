@@ -328,14 +328,39 @@ def enrich_product_intel(produto: dict) -> dict:
     p['winner_item_id'] = wid_match.group(1) if wid_match else (raw_cat_id if (is_amazon and is_cat) else '')
     
     # 2. Vendedor da BuyBox e Medalha
-    raw_store = p.get('store_name') or p.get('loja_oficial') or p.get('LOJA_OFICIAL') or ''
+    raw_store = p.get('store_name') or p.get('loja_oficial') or p.get('LOJA_OFICIAL') or p.get('loja') or ''
+    
+    # Se raw_store for uma URL ou contiver /loja/, extrai o nome formatado
+    if '/loja/' in str(raw_store):
+        loja_m = re.search(r'/loja/([^/?&#]+)', str(raw_store))
+        if loja_m:
+            raw_store = loja_m.group(1).replace('-', ' ').title()
+    elif not raw_store and '/loja/' in url:
+        loja_m = re.search(r'/loja/([^/?&#]+)', url)
+        if loja_m:
+            raw_store = loja_m.group(1).replace('-', ' ').title()
+
     clean_store = re.sub(r'^(vendido\s+por\s+|por\s+|loja\s+oficial\s+)', '', str(raw_store), flags=re.IGNORECASE).strip()
-    if not clean_store or clean_store.lower() in ('loja não identificada', 'loja', 'none'):
-        clean_store = "Vendedor Oficial" if is_cat else ("Vendedor Mercado Livre" if 'mercadolivre' in url.lower() else "Amazon Brasil")
+    if not clean_store or clean_store.lower() in ('loja não identificada', 'loja', 'none', 'null'):
+        # Fallback tenta extrair da URL se for loja oficial
+        loja_url_match = re.search(r'/loja/([^/?&#]+)', url)
+        if loja_url_match:
+            clean_store = loja_url_match.group(1).replace('-', ' ').title()
+        else:
+            clean_store = "Vendedor Oficial" if is_cat else ("Vendedor Mercado Livre" if 'mercadolivre' in url.lower() else "Amazon Brasil")
+            
     p['store_name'] = clean_store
     p['winner_seller_name'] = clean_store
     
-    if p.get('prime') or p.get('patrocinado') or reviews >= 400:
+    # Medalha e Reputação do Vendedor
+    raw_medal = str(p.get('seller_medal') or p.get('reputacao') or '').lower()
+    if 'platinum' in raw_medal:
+        p['seller_medal'] = 'Platinum'
+    elif 'gold' in raw_medal:
+        p['seller_medal'] = 'Gold'
+    elif 'líder' in raw_medal or 'lider' in raw_medal or 'silver' in raw_medal:
+        p['seller_medal'] = 'Líder'
+    elif p.get('prime') or p.get('patrocinado') or reviews >= 400:
         p['seller_medal'] = 'Platinum'
     elif reviews >= 120:
         p['seller_medal'] = 'Gold'

@@ -363,20 +363,32 @@ class MercadoLivreScraper:
                     except:
                         pass
                     
-                    # 5. LOJA/VENDEDOR OFICIAL (GANHADOR DA BUYBOX)
+                    # 5. LOJA/VENDEDOR OFICIAL (GANHADOR DA BUYBOX / PDP / SEARCH CARD)
                     store_selectors = [
+                        ".ui-seller-data-header__title span",
+                        ".ui-seller-data-header__title",
+                        ".ui-seller-data-header__title-container h2 span",
+                        ".ui-seller-data-header__title-container h2",
+                        ".ui-seller-data a[href*='/loja/']",
+                        "div.ui-seller-data a.ui-seller-data-header__main-info",
+                        "a[href*='/loja/']",
                         "span.poly-component__seller",
                         ".poly-component__seller",
+                        "a.poly-component__seller",
+                        ".poly-component__brand",
                         ".ui-search-item__group__element--seller",
                         ".ui-search-item__brand-title",
                         ".ui-search-item__group__element--stores__name",
                         "span.ui-search-item__store-name",
+                        ".ui-search-item__store-name a",
+                        "span.ui-pdp-seller__link-trigger",
+                        ".ui-pdp-seller__header_title a span",
+                        ".ui-pdp-seller__header_title",
+                        "a.ui-pdp-seller__link span",
+                        "a.ui-pdp-seller__link",
+                        ".ui-seller-info__title",
                         "span[class*='seller']",
                         "div[class*='seller'] span",
-                        ".ui-search-item__store-name a",
-                        "a[href*='/loja/']",
-                        "span.ui-pdp-seller__link-trigger",
-                        ".ui-seller-data-header__title-container",
                         "span.ui-search-color--BLACK"
                     ]
                     
@@ -396,6 +408,33 @@ class MercadoLivreScraper:
                                     break
                         except:
                             continue
+
+                    # Fallback: tenta extrair de links com /loja/ ou /perfil/ dentro do container
+                    if not product_data['store_name']:
+                        try:
+                            loja_links = container.find_elements(By.CSS_SELECTOR, "a[href*='/loja/'], a[href*='/perfil/']")
+                            for l in loja_links:
+                                if not self.is_element_ignored(l):
+                                    txt = l.text.strip()
+                                    clean_txt = re.sub(r'^(vendido\s+por\s+|por\s+|loja\s+oficial\s+)', '', txt, flags=re.IGNORECASE).strip()
+                                    if clean_txt and len(clean_txt) > 2 and not clean_txt.lower().startswith(('r$', 'em ', 'ir para')):
+                                        product_data['store_name'] = clean_txt
+                                        break
+                                    href = l.get_attribute('href') or ''
+                                    m_loja = re.search(r'/(?:loja|perfil)/([^/?&#]+)', href)
+                                    if m_loja:
+                                        slug = m_loja.group(1).replace('-', ' ').title()
+                                        if slug and len(slug) > 2:
+                                            product_data['store_name'] = slug
+                                            break
+                        except Exception:
+                            pass
+
+                    # Fallback adicional pela própria URL do produto
+                    if not product_data['store_name'] and product_data.get('product_url'):
+                        m_url = re.search(r'/loja/([^/?&#]+)', product_data['product_url'])
+                        if m_url:
+                            product_data['store_name'] = m_url.group(1).replace('-', ' ').title()
                     
                     # 6. AVALIAÇÕES (RATING)
                     rating_selectors = [

@@ -324,13 +324,21 @@ def converter_para_supabase(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
     
+    # Extrai o nome da loja/vendedor corretamente
+    if "LOJA_OFICIAL" in df.columns:
+        loja_series = df["LOJA_OFICIAL"].fillna("")
+    elif "STORE_NAME" in df.columns:
+        loja_series = df["STORE_NAME"].fillna("")
+    else:
+        loja_series = pd.Series([""] * len(df))
+
     # Mapeia colunas para o schema do Supabase (atualizado com novos campos)
     df_supabase = pd.DataFrame({
         "termo_pesquisa": df["TERMO_BUSCA"].fillna(""),
         "titulo": df["TITULO"].fillna(""),
         "preco": df["PRECO_STR"].fillna(""),
         "preco_numerico": df["PRECO_NUM"].fillna(0),
-        "loja": df.get("CODIGO_PRODUTO", pd.Series([""] * len(df))).fillna(""), # ASIN ou código ML
+        "loja": loja_series,
         "avaliacao": df["AVALIACAO"].fillna(0),
         "avaliacoes": df["NUM_AVALIACOES"].fillna(0),
         "imagem": df["IMAGEM_URL"].fillna(""),

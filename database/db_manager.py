@@ -28,49 +28,75 @@ class DatabaseManager:
     
     # === MÉTODOS DE USUÁRIO ===
     
-    def create_user(self, email: str, password: str, nome: str) -> Optional[str]:
-        """Cria novo usuário"""
+    # === MÉTODOS DE USUÁRIO E EQUIPE ===
+    
+    def create_user(self, email: str, password: str, nome: str, role: str = "member", cargo: str = "", telefone: str = "") -> Optional[str]:
+        """Cria novo usuário com suporte a role, cargo e telefone"""
         try:
             password_hash = generate_password_hash(password)
             
-            response = self.supabase.table("users").insert({
-                "email": email,
+            payload = {
+                "email": email.strip().lower(),
                 "password_hash": password_hash,
-                "nome": nome
-            }).execute()
+                "nome": nome.strip()
+            }
+            if role:
+                payload["role"] = role
+            if cargo:
+                payload["cargo"] = cargo
+            if telefone:
+                payload["telefone"] = telefone
+
+            response = self.supabase.table("users").insert(payload).execute()
             
             if response.data:
                 user_id = response.data[0]['id']
-                # Cria configurações padrão para o usuário
                 self._create_default_configs(user_id)
                 return user_id
             
             return None
         
         except Exception as e:
+            # Fallback caso colunas opcionais (role, cargo, telefone) ainda não existam no schema
+            if any(col in str(e) for col in ["role", "cargo", "telefone", "PGRST204"]):
+                try:
+                    response = self.supabase.table("users").insert({
+                        "email": email.strip().lower(),
+                        "password_hash": generate_password_hash(password),
+                        "nome": nome.strip()
+                    }).execute()
+                    if response.data:
+                        user_id = response.data[0]['id']
+                        self._create_default_configs(user_id)
+                        return user_id
+                except Exception as e2:
+                    print(f"Erro no fallback de criação de usuário: {e2}")
             print(f"Erro ao criar usuário: {e}")
-            # Check if it's a table not found error
-            if "Could not find the table" in str(e):
-                print("Possível causa: Tabelas do banco de dados não foram criadas.")
             return None
     
     def authenticate_user(self, email: str, password: str) -> Optional[Dict]:
-        """Autentica usuário"""
+        """Autentica usuário e retorna dados com perfil/role"""
         try:
-            response = self.supabase.table("users").select("*").eq("email", email).eq("ativo", True).execute()
+            response = self.supabase.table("users").select("*").eq("email", email.strip().lower()).eq("ativo", True).execute()
             
             if response.data and len(response.data) > 0:
                 user = response.data[0]
                 if check_password_hash(user['password_hash'], password):
                     # Atualiza último login
-                    self.supabase.table("users").update({
-                        "ultimo_login": datetime.now().isoformat()
-                    }).eq("id", user['id']).execute()
+                    try:
+                        self.supabase.table("users").update({
+                            "ultimo_login": datetime.now().isoformat()
+                        }).eq("id", user['id']).execute()
+                    except Exception:
+                        pass
                     
                     return {
                         'id': user['id'],
                         'email': user['email'],
-                        'nome': user['nome']
+                        'nome': user['nome'],
+                        'role': user.get('role') or ('admin' if user['id'] in (1, '1') else 'member'),
+                        'cargo': user.get('cargo') or '',
+                        'telefone': user.get('telefone') or ''
                     }
             
             return None
@@ -83,19 +109,114 @@ class DatabaseManager:
         """Busca usuário pelo ID"""
         try:
             response = self.supabase.table("users").select("*").eq("id", user_id).execute()
-            return response.data[0] if response.data else None
+            if response.data:
+                u = response.data[0]
+                u['role'] = u.get('role') or ('admin' if str(u.get('id')) == '1' else 'member')
+                return u
+            return None
         except Exception as e:
             print(f"Erro ao buscar usuário por ID: {e}")
             return None
 
-    def update_user_name(self, user_id: str, name: str) -> bool:
-        """Atualiza o nome do usuário"""
+    def is_user_admin(self, user_id: str) -> bool:
+        """Verifica se o usuário tem privilégios de administrador"""
         try:
-            response = self.supabase.table("users").update({"nome": name}).eq("id", user_id).execute()
+            user = self.get_user_by_id(user_id)
+            if not user:
+                return False
+            role = str(user.get('role', '')).lower()
+            return role == 'admin' or str(user.get('id')) in ('1', 1)
+        except Exception:
+            return False
+
+    def get_all_team_members(self) -> List[Dict]:
+        """Retorna lista de todos os membros da equipe"""
+        try:
+            response = self.supabase.table("users").select("*").order("id", desc=False).execute()
+            members = response.data or []
+            for m in members:
+                m['role'] = m.get('role') or ('admin' if str(m.get('id')) == '1' else 'member')
+                m['cargo'] = m.get('cargo') or ('Administrador' if m['role'] == 'admin' else 'Membro da Equipe')
+                m['telefone'] = m.get('telefone') or ''
+                # Remove o hash da senha por segurança
+                if 'password_hash' in m:
+                    del m['password_hash']
+            return members
+        except Exception as e:
+            print(f"Erro ao listar membros da equipe: {e}")
+            return []
+
+    def update_user_profile(self, user_id: str, nome: str, cargo: Optional[str] = None, telefone: Optional[str] = None) -> bool:
+        """Atualiza dados cadastrais do perfil do usuário"""
+        try:
+            payload = {"nome": nome.strip()}
+            if cargo is not None:
+                payload["cargo"] = cargo.strip()
+            if telefone is not None:
+                payload["telefone"] = telefone.strip()
+
+            response = self.supabase.table("users").update(payload).eq("id", user_id).execute()
             return len(response.data) > 0
         except Exception as e:
-            print(f"Erro ao atualizar nome do usuário: {e}")
+            # Fallback caso colunas opcionais não existam
+            if any(col in str(e) for col in ["cargo", "telefone", "PGRST204"]):
+                try:
+                    response = self.supabase.table("users").update({"nome": nome.strip()}).eq("id", user_id).execute()
+                    return len(response.data) > 0
+                except Exception:
+                    pass
+            print(f"Erro ao atualizar perfil do usuário: {e}")
             return False
+
+    def update_team_member(self, user_id: str, nome: Optional[str] = None, role: Optional[str] = None, cargo: Optional[str] = None, telefone: Optional[str] = None, ativo: Optional[bool] = None) -> bool:
+        """Atualiza informações de um membro da equipe (Ação administrativa)"""
+        try:
+            payload = {}
+            if nome is not None:
+                payload["nome"] = nome.strip()
+            if role is not None:
+                payload["role"] = role.strip()
+            if cargo is not None:
+                payload["cargo"] = cargo.strip()
+            if telefone is not None:
+                payload["telefone"] = telefone.strip()
+            if ativo is not None:
+                payload["ativo"] = bool(ativo)
+
+            if not payload:
+                return True
+
+            response = self.supabase.table("users").update(payload).eq("id", user_id).execute()
+            return len(response.data) > 0
+        except Exception as e:
+            print(f"Erro ao atualizar membro da equipe: {e}")
+            return False
+
+    def reset_user_password(self, user_id: str, new_password: str) -> bool:
+        """Redefine a senha de um usuário"""
+        try:
+            password_hash = generate_password_hash(new_password)
+            response = self.supabase.table("users").update({"password_hash": password_hash}).eq("id", user_id).execute()
+            return len(response.data) > 0
+        except Exception as e:
+            print(f"Erro ao redefinir senha do usuário: {e}")
+            return False
+
+    def delete_team_member(self, user_id: str, requesting_user_id: str) -> bool:
+        """Exclui um membro da equipe (com proteção contra auto-exclusão)"""
+        if str(user_id) == str(requesting_user_id):
+            print("⚠️ Auto-exclusão não permitida.")
+            return False
+        try:
+            response = self.supabase.table("users").delete().eq("id", user_id).execute()
+            return len(response.data) > 0
+        except Exception as e:
+            print(f"Erro ao excluir membro da equipe: {e}")
+            return False
+
+    def update_user_name(self, user_id: str, name: str) -> bool:
+        """Atualiza o nome do usuário"""
+        return self.update_user_profile(user_id, nome=name)
 
     def update_user_password(self, user_id: str, password_hash: str) -> bool:
         """Atualiza a senha do usuário"""

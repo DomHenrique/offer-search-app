@@ -52,6 +52,14 @@
                         <i class="fas fa-envelope"></i> Notificações
                     </button>
                 </li>
+                {% if is_admin %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="team-tab" data-bs-toggle="tab" 
+                            data-bs-target="#team" type="button" role="tab" aria-selected="false" aria-controls="team">
+                        <i class="fas fa-users"></i> Membros da Equipe
+                    </button>
+                </li>
+                {% endif %}
             </ul>
         </div>
 
@@ -226,7 +234,277 @@
                         </div>
                     </form>
                 </div>
+
+                {% if is_admin %}
+                <!-- Aba Membros da Equipe (Admin Only) -->
+                <div class="tab-pane fade" id="team" role="tabpanel">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+                        <div>
+                            <h5 class="fw-bold text-dark mb-1">
+                                <i class="fas fa-users text-primary me-2"></i> Membros da Equipe & Acessos
+                            </h5>
+                            <p class="text-muted small mb-0">
+                                Gerencie os operadores do sistema, atribua cargos e controle permissões administrativas.
+                            </p>
+                        </div>
+                        <button class="btn btn-primary px-3 shadow-sm" onclick="openAddMemberModal()">
+                            <i class="fas fa-user-plus me-2"></i> Adicionar Novo Membro
+                        </button>
+                    </div>
+
+                    <!-- Tabela de Membros -->
+                    <div class="table-responsive rounded-3 border">
+                        <table class="table table-hover align-middle mb-0 bg-white" id="teamMembersTable">
+                            <thead class="bg-light text-secondary text-uppercase fs-7 fw-semibold">
+                                <tr>
+                                    <th class="ps-3 py-3">Membro</th>
+                                    <th>Cargo / Função</th>
+                                    <th>Contato</th>
+                                    <th>Nível de Acesso</th>
+                                    <th>Status</th>
+                                    <th>Último Acesso</th>
+                                    <th class="text-end pe-3">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="teamMembersTableBody">
+                                {% for m in team_members %}
+                                <tr id="memberRow-{{ m.id }}">
+                                    <td class="ps-3 py-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar-initials me-3 shadow-sm" style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #4f46e5, #06b6d4); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.95rem;">
+                                                {{ (m.nome[:2] if m.nome else 'U') | upper }}
+                                            </div>
+                                            <div>
+                                                <div class="fw-bold text-dark">{{ m.nome }}</div>
+                                                <div class="text-muted small">{{ m.email }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="text-dark fw-medium">{{ m.cargo or 'Operador de E-commerce' }}</span>
+                                    </td>
+                                    <td>
+                                        {% if m.telefone %}
+                                        <a href="https://wa.me/{{ m.telefone | replace('(', '') | replace(')', '') | replace('-', '') | replace(' ', '') }}" target="_blank" class="text-decoration-none text-success small fw-semibold">
+                                            <i class="fab fa-whatsapp me-1"></i> {{ m.telefone }}
+                                        </a>
+                                        {% else %}
+                                        <span class="text-muted small">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if m.role == 'admin' %}
+                                        <span class="badge" style="background: rgba(79, 70, 229, 0.1); color: #4f46e5; border: 1px solid rgba(79, 70, 229, 0.2); font-weight: 600;">
+                                            <i class="fas fa-crown me-1 text-warning"></i> Administrador
+                                        </span>
+                                        {% else %}
+                                        <span class="badge" style="background: rgba(100, 116, 139, 0.1); color: #475569; border: 1px solid rgba(100, 116, 139, 0.2); font-weight: 600;">
+                                            <i class="fas fa-user me-1"></i> Membro da Equipe
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if m.ativo %}
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                                            <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> Ativo
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
+                                            <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> Inativo
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="text-muted small">
+                                            {% if m.ultimo_login %}
+                                                {{ m.ultimo_login[:16] | replace('T', ' ') }}
+                                            {% else %}
+                                                Nunca acessou
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                    <td class="text-end pe-3">
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-secondary" title="Editar Membro" onclick="openEditMemberModal({{ m | tojson }})">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary" title="Redefinir Senha" onclick="openResetMemberPasswordModal('{{ m.id }}', '{{ m.nome }}')">
+                                                <i class="fas fa-key"></i>
+                                            </button>
+                                            {% if m.id | string != session.user_id | string %}
+                                            <button class="btn btn-outline-{{ 'warning' if m.ativo else 'success' }}" title="{{ 'Desativar Acesso' if m.ativo else 'Ativar Acesso' }}" onclick="toggleMemberStatus('{{ m.id }}', {{ 'false' if m.ativo else 'true' }})">
+                                                <i class="fas fa-{{ 'ban' if m.ativo else 'check' }}"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger" title="Excluir Membro" onclick="deleteTeamMember('{{ m.id }}', '{{ m.nome }}')">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center py-5 text-muted">
+                                        <i class="fas fa-users-slash fs-2 mb-2 d-block text-secondary opacity-50"></i>
+                                        Nenhum membro cadastrado além do administrador principal.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Adicionar Novo Membro -->
+<div class="modal fade" id="addTeamMemberModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header bg-dark text-white p-4" style="background: linear-gradient(135deg, #1e1b4b, #312e81) !important;">
+                <div>
+                    <h5 class="modal-title fs-6 fw-bold mb-1">
+                        <i class="fas fa-user-plus text-primary me-2"></i> Adicionar Membro da Equipe
+                    </h5>
+                    <p class="text-white-50 small mb-0">Cadastre um novo usuário com acesso à plataforma.</p>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addTeamMemberForm" onsubmit="submitAddMember(event)">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Nome Completo *</label>
+                        <input type="text" class="form-control" id="newMemberName" placeholder="Ex: João da Silva" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Email de Acesso *</label>
+                        <input type="email" class="form-control" id="newMemberEmail" placeholder="joao@empresa.com.br" required>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">Cargo / Função</label>
+                            <input type="text" class="form-control" id="newMemberCargo" placeholder="Ex: Analista de Compras">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">WhatsApp / Telefone</label>
+                            <input type="text" class="form-control" id="newMemberPhone" placeholder="(11) 99999-9999">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Nível de Permissão *</label>
+                        <select class="form-select" id="newMemberRole">
+                            <option value="member" selected>Membro da Equipe (Operador / Analista)</option>
+                            <option value="admin">👑 Administrador (Acesso total às configurações)</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold text-secondary">Senha de Acesso Inicial *</label>
+                        <input type="password" class="form-control" id="newMemberPassword" placeholder="Mínimo 6 caracteres" minlength="6" required>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light p-3">
+                    <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary px-4" id="btnAddMemberSubmit">
+                        <i class="fas fa-check-circle me-1"></i> Cadastrar Membro
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Membro -->
+<div class="modal fade" id="editTeamMemberModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header bg-dark text-white p-4" style="background: linear-gradient(135deg, #1e1b4b, #312e81) !important;">
+                <div>
+                    <h5 class="modal-title fs-6 fw-bold mb-1">
+                        <i class="fas fa-user-edit text-primary me-2"></i> Editar Membro da Equipe
+                    </h5>
+                    <p class="text-white-50 small mb-0">Atualize dados cadastrais e permissões.</p>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editTeamMemberForm" onsubmit="submitEditMember(event)">
+                <input type="hidden" id="editMemberId">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Nome Completo *</label>
+                        <input type="text" class="form-control" id="editMemberName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Email (Fixo)</label>
+                        <input type="email" class="form-control bg-light" id="editMemberEmail" readonly>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">Cargo / Função</label>
+                            <input type="text" class="form-control" id="editMemberCargo">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">WhatsApp / Telefone</label>
+                            <input type="text" class="form-control" id="editMemberPhone">
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">Nível de Permissão</label>
+                            <select class="form-select" id="editMemberRole">
+                                <option value="member">Membro da Equipe</option>
+                                <option value="admin">👑 Administrador</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-secondary">Status da Conta</label>
+                            <select class="form-select" id="editMemberAtivo">
+                                <option value="true">🟢 Ativo (Permitir Login)</option>
+                                <option value="false">⚪ Inativo (Bloquear Acesso)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light p-3">
+                    <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary px-4" id="btnEditMemberSubmit">
+                        <i class="fas fa-save me-1"></i> Salvar Alterações
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Redefinir Senha de Membro -->
+<div class="modal fade" id="resetPasswordMemberModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header bg-dark text-white p-3" style="background: linear-gradient(135deg, #1e1b4b, #312e81) !important;">
+                <h5 class="modal-title fs-6 fw-bold">
+                    <i class="fas fa-key text-warning me-2"></i> Redefinir Senha
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="resetPasswordMemberForm" onsubmit="submitResetMemberPassword(event)">
+                <input type="hidden" id="resetMemberId">
+                <div class="modal-body p-3">
+                    <p class="small text-muted mb-3">Defina a nova senha de acesso para <strong id="resetMemberNameLabel" class="text-dark"></strong>:</p>
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold text-secondary">Nova Senha</label>
+                        <input type="password" class="form-control" id="resetNewPassword" minlength="6" placeholder="Mínimo 6 caracteres" required>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light p-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold" id="btnResetPasswordSubmit">
+                        <i class="fas fa-check me-1"></i> Salvar Senha
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -568,5 +846,191 @@ document.getElementById('alertModal').addEventListener('hidden.bs.modal', functi
     document.getElementById('alertForm').reset();
     document.getElementById('alertId').value = '';
 });
+
+// ─── Funções de Gestão de Membros da Equipe (Admin) ───────────────────────────
+let addMemberModalInstance = null;
+let editMemberModalInstance = null;
+let resetPasswordModalInstance = null;
+
+function openAddMemberModal() {
+    document.getElementById('addTeamMemberForm').reset();
+    if (!addMemberModalInstance) {
+        addMemberModalInstance = new bootstrap.Modal(document.getElementById('addTeamMemberModal'));
+    }
+    addMemberModalInstance.show();
+}
+
+async function submitAddMember(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnAddMemberSubmit');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Cadastrando...';
+
+    const payload = {
+        nome: document.getElementById('newMemberName').value,
+        email: document.getElementById('newMemberEmail').value,
+        cargo: document.getElementById('newMemberCargo').value,
+        telefone: document.getElementById('newMemberPhone').value,
+        role: document.getElementById('newMemberRole').value,
+        password: document.getElementById('newMemberPassword').value
+    };
+
+    try {
+        const res = await fetch('/settings/team/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            showAlert('success', data.message || 'Membro adicionado com sucesso!');
+            if (addMemberModalInstance) addMemberModalInstance.hide();
+            setTimeout(() => window.location.reload(), 800);
+        } else {
+            showAlert('danger', data.error || 'Erro ao cadastrar membro.');
+        }
+    } catch (err) {
+        showAlert('danger', 'Erro na requisição: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check-circle me-1"></i> Cadastrar Membro';
+    }
+}
+
+function openEditMemberModal(member) {
+    document.getElementById('editMemberId').value = member.id;
+    document.getElementById('editMemberName').value = member.nome || '';
+    document.getElementById('editMemberEmail').value = member.email || '';
+    document.getElementById('editMemberCargo').value = member.cargo || '';
+    document.getElementById('editMemberPhone').value = member.telefone || '';
+    document.getElementById('editMemberRole').value = member.role || 'member';
+    document.getElementById('editMemberAtivo').value = member.ativo !== false ? 'true' : 'false';
+
+    if (!editMemberModalInstance) {
+        editMemberModalInstance = new bootstrap.Modal(document.getElementById('editTeamMemberModal'));
+    }
+    editMemberModalInstance.show();
+}
+
+async function submitEditMember(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnEditMemberSubmit');
+    const memberId = document.getElementById('editMemberId').value;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Salvando...';
+
+    const payload = {
+        nome: document.getElementById('editMemberName').value,
+        cargo: document.getElementById('editMemberCargo').value,
+        telefone: document.getElementById('editMemberPhone').value,
+        role: document.getElementById('editMemberRole').value,
+        ativo: document.getElementById('editMemberAtivo').value === 'true'
+    };
+
+    try {
+        const res = await fetch(`/settings/team/${memberId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            showAlert('success', data.message || 'Membro atualizado com sucesso!');
+            if (editMemberModalInstance) editMemberModalInstance.hide();
+            setTimeout(() => window.location.reload(), 800);
+        } else {
+            showAlert('danger', data.error || 'Erro ao atualizar membro.');
+        }
+    } catch (err) {
+        showAlert('danger', 'Erro na requisição: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save me-1"></i> Salvar Alterações';
+    }
+}
+
+function openResetMemberPasswordModal(memberId, memberName) {
+    document.getElementById('resetMemberId').value = memberId;
+    document.getElementById('resetMemberNameLabel').textContent = memberName;
+    document.getElementById('resetNewPassword').value = '';
+
+    if (!resetPasswordModalInstance) {
+        resetPasswordModalInstance = new bootstrap.Modal(document.getElementById('resetPasswordMemberModal'));
+    }
+    resetPasswordModalInstance.show();
+}
+
+async function submitResetMemberPassword(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnResetPasswordSubmit');
+    const memberId = document.getElementById('resetMemberId').value;
+    const newPass = document.getElementById('resetNewPassword').value;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Salvando...';
+
+    try {
+        const res = await fetch(`/settings/team/${memberId}/reset-password`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({new_password: newPass})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showAlert('success', data.message || 'Senha redefinida com sucesso!');
+            if (resetPasswordModalInstance) resetPasswordModalInstance.hide();
+        } else {
+            showAlert('danger', data.error || 'Erro ao redefinir senha.');
+        }
+    } catch (err) {
+        showAlert('danger', 'Erro na requisição: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i> Salvar Senha';
+    }
+}
+
+async function toggleMemberStatus(memberId, newStatus) {
+    const actionText = newStatus ? 'ativar' : 'desativar';
+    if (!confirm(`Deseja realmente ${actionText} o acesso deste membro?`)) return;
+
+    try {
+        const res = await fetch(`/settings/team/${memberId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ativo: newStatus})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showAlert('success', `Acesso do membro ${actionText}do com sucesso!`);
+            setTimeout(() => window.location.reload(), 600);
+        } else {
+            showAlert('danger', data.error || 'Erro ao alterar status.');
+        }
+    } catch (err) {
+        showAlert('danger', 'Erro na requisição: ' + err.message);
+    }
+}
+
+async function deleteTeamMember(memberId, memberName) {
+    if (!confirm(`Tem certeza que deseja excluir o membro "${memberName}"? Esta ação não pode ser desfeita.`)) return;
+
+    try {
+        const res = await fetch(`/settings/team/${memberId}/delete`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        if (data.success) {
+            showAlert('success', data.message || 'Membro excluído com sucesso.');
+            const row = document.getElementById(`memberRow-${memberId}`);
+            if (row) row.remove();
+        } else {
+            showAlert('danger', data.error || 'Erro ao excluir membro.');
+        }
+    } catch (err) {
+        showAlert('danger', 'Erro na requisição: ' + err.message);
+    }
+}
 </script>
 {% endblock %}

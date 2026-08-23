@@ -447,15 +447,23 @@ class CatalogScraper:
                 # ── 1. Extração do Vendedor e Reputação ────────────────────────
                 seller_found = False
                 for sel in [
+                    ".ui-seller-data-header__title span",
+                    ".ui-seller-data-header__title",
+                    ".ui-seller-data-header__title-container h2 span",
+                    ".ui-seller-data a[href*='/loja/']",
+                    "div.ui-seller-data a.ui-seller-data-header__main-info",
+                    "a[href*='/loja/']",
                     "a.ui-pdp-seller__link span",
                     "a.ui-pdp-seller__link",
                     ".ui-pdp-seller__header_title a span",
                     ".ui-pdp-seller__header_title",
                     ".ui-pdp-s-table__seller a",
                     ".ui-pdp-seller__link-trigger-button",
+                    "span.ui-pdp-seller__link-trigger",
                     "a[href*='/perfil/']",
                     "a[href*='seller']",
                     ".ui-pdp-action-modal__link",
+                    ".ui-seller-info__title",
                     "span[class*='seller']",
                     "[class*='seller-name']",
                     "[class*='seller__name']",

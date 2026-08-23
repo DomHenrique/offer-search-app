@@ -35,11 +35,16 @@ def settings_page():
         'EVOLUTION_API_KEY': '***' if os.environ.get('EVOLUTION_API_KEY') else ''
     }
     
+    is_admin = db.is_user_admin(user_id)
+    team_members = db.get_all_team_members() if is_admin else []
+    
     return render_template('settings/settings.html', 
                          user_configs=user_configs,
                          alertas=alertas,
                          env_vars=env_vars,
-                         min_price_filter=min_price_filter)
+                         min_price_filter=min_price_filter,
+                         is_admin=is_admin,
+                         team_members=team_members)
 
 @settings_bp.route('/update-min-price', methods=['POST'])
 def update_min_price():
@@ -279,3 +284,165 @@ def notification_settings():
         'browser_notifications': True,
         'daily_summary': False
     })
+
+
+# ─── Gestão de Membros da Equipe (Admin Only) ──────────────────────────────────
+
+@settings_bp.route('/team', methods=['GET'])
+def get_team_members():
+    """Lista todos os membros da equipe (exclusivo para administradores)"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Não autenticado'}), 401
+    
+    user_id = session['user_id']
+    if not db.is_user_admin(user_id):
+        return jsonify({'success': False, 'error': 'Acesso restrito a administradores.'}), 403
+    
+    members = db.get_all_team_members()
+    return jsonify({'success': True, 'members': members})
+
+
+@settings_bp.route('/team/add', methods=['POST'])
+def add_team_member():
+    """Adiciona um novo membro à equipe"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Não autenticado'}), 401
+    
+    user_id = session['user_id']
+    if not db.is_user_admin(user_id):
+        return jsonify({'success': False, 'error': 'Acesso restrito a administradores.'}), 403
+    
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        nome = (data.get('nome') or '').strip()
+        email = (data.get('email') or '').strip().lower()
+        password = data.get('password') or ''
+        role = (data.get('role') or 'member').strip().lower()
+        cargo = (data.get('cargo') or '').strip()
+        telefone = (data.get('telefone') or '').strip()
+
+        if not nome or len(nome) < 2:
+            return jsonify({'success': False, 'error': 'Nome do membro deve ter pelo menos 2 caracteres.'}), 400
+        
+        if not email or '@' not in email:
+            return jsonify({'success': False, 'error': 'Email corporativo inválido.'}), 400
+
+        if not password or len(password) < 6:
+            return jsonify({'success': False, 'error': 'A senha inicial deve ter no mínimo 6 caracteres.'}), 400
+
+        # Verifica se email já existe
+        try:
+            existing = db.supabase.table("users").select("id").eq("email", email).execute()
+            if existing.data:
+                return jsonify({'success': False, 'error': 'Este email já está cadastrado no sistema.'}), 400
+        except Exception:
+            pass
+
+        new_user_id = db.create_user(
+            email=email,
+            password=password,
+            nome=nome,
+            role=role,
+            cargo=cargo,
+            telefone=telefone
+        )
+
+        if new_user_id:
+            return jsonify({
+                'success': True,
+                'message': f'Membro "{nome}" cadastrado com sucesso!',
+                'user_id': new_user_id
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Erro ao registrar membro no banco de dados.'}), 500
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erro interno: {str(e)}'}), 500
+
+
+@settings_bp.route('/team/<user_id>', methods=['PUT', 'POST'])
+def update_team_member(user_id):
+    """Atualiza dados e status de um membro da equipe"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Não autenticado'}), 401
+    
+    admin_id = session['user_id']
+    if not db.is_user_admin(admin_id):
+        return jsonify({'success': False, 'error': 'Acesso restrito a administradores.'}), 403
+    
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        nome = data.get('nome')
+        role = data.get('role')
+        cargo = data.get('cargo')
+        telefone = data.get('telefone')
+        ativo = data.get('ativo')
+
+        # Se for desativar, não permitir desativar a si mesmo
+        if ativo is False and str(user_id) == str(admin_id):
+            return jsonify({'success': False, 'error': 'Você não pode desativar o seu próprio usuário.'}), 400
+
+        success = db.update_team_member(
+            user_id=user_id,
+            nome=nome,
+            role=role,
+            cargo=cargo,
+            telefone=telefone,
+            ativo=ativo
+        )
+
+        if success:
+            return jsonify({'success': True, 'message': 'Membro da equipe atualizado com sucesso!'})
+        else:
+            return jsonify({'success': False, 'error': 'Erro ao atualizar membro no banco de dados.'}), 500
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erro interno: {str(e)}'}), 500
+
+
+@settings_bp.route('/team/<user_id>/reset-password', methods=['POST'])
+def reset_member_password(user_id):
+    """Redefine a senha de um membro da equipe (Ação administrativa)"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Não autenticado'}), 401
+    
+    admin_id = session['user_id']
+    if not db.is_user_admin(admin_id):
+        return jsonify({'success': False, 'error': 'Acesso restrito a administradores.'}), 403
+    
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        new_password = data.get('new_password') or ''
+
+        if not new_password or len(new_password) < 6:
+            return jsonify({'success': False, 'error': 'A nova senha deve ter no mínimo 6 caracteres.'}), 400
+
+        success = db.reset_user_password(user_id, new_password)
+        if success:
+            return jsonify({'success': True, 'message': 'Senha do membro redefinida com sucesso!'})
+        else:
+            return jsonify({'success': False, 'error': 'Erro ao redefinir senha no banco de dados.'}), 500
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erro interno: {str(e)}'}), 500
+
+
+@settings_bp.route('/team/<user_id>', methods=['DELETE'])
+@settings_bp.route('/team/<user_id>/delete', methods=['POST'])
+def delete_team_member(user_id):
+    """Exclui um membro da equipe"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Não autenticado'}), 401
+    
+    admin_id = session['user_id']
+    if not db.is_user_admin(admin_id):
+        return jsonify({'success': False, 'error': 'Acesso restrito a administradores.'}), 403
+
+    if str(user_id) == str(admin_id):
+        return jsonify({'success': False, 'error': 'Você não pode excluir sua própria conta de administrador.'}), 400
+
+    success = db.delete_team_member(user_id=user_id, requesting_user_id=admin_id)
+    if success:
+        return jsonify({'success': True, 'message': 'Membro da equipe excluído com sucesso.'})
+    else:
+        return jsonify({'success': False, 'error': 'Erro ao excluir membro ou auto-exclusão bloqueada.'}), 500

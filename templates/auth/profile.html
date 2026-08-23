@@ -1,89 +1,377 @@
 {% extends "base.html" %}
 
-{% block title %}Perfil - Offer Search App{% endblock %}
+{% block title %}Meu Perfil & Segurança - Offer Search App{% endblock %}
+
+{% block extra_styles %}
+<style>
+.profile-hero-card {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%);
+    border-radius: 16px;
+    color: white;
+    padding: 2rem;
+    box-shadow: 0 10px 25px rgba(30, 27, 75, 0.25);
+    position: relative;
+    overflow: hidden;
+}
+.profile-hero-card::before {
+    content: '';
+    position: absolute;
+    top: -50px;
+    right: -50px;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%);
+    border-radius: 50%;
+}
+.avatar-badge-large {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #06b6d4, #3b82f6);
+    color: white;
+    font-size: 2rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    border: 3px solid rgba(255,255,255,0.3);
+}
+.stat-pill {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 10px 16px;
+    display: flex;
+    flex-direction: column;
+    min-width: 130px;
+}
+.stat-pill .stat-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255,255,255,0.7);
+    font-weight: 600;
+}
+.stat-pill .stat-value {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #fff;
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container py-4">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card shadow-lg border-0">
-                <div class="card-header bg-gradient-primary text-white">
-                    <h4 class="mb-0">
-                        <i class="fas fa-user-circle me-2"></i>
-                        Meu Perfil
-                    </h4>
+<div class="app-container">
+
+    <!-- Page Header Limpo -->
+    <div class="page-header-clean mb-4">
+        <div class="page-header-left">
+            <span class="page-header-context">
+                <i class="fas fa-id-badge"></i> Conta & Acessos
+            </span>
+            <h1 class="page-header-title">
+                <i class="fas fa-user-circle text-primary"></i> Meu Perfil
+            </h1>
+            <p class="page-header-desc">
+                Gerencie seus dados cadastrais, informações de contato corporativo e credenciais de segurança.
+            </p>
+        </div>
+        <div class="page-header-actions">
+            <a href="{{ url_for('settings.settings_page') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-cog"></i> Configurações
+            </a>
+            <a href="{{ url_for('dashboard.dashboard_page') }}" class="btn btn-secondary">
+                <i class="fas fa-tachometer-alt"></i> Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Card de Identidade do Usuário -->
+    <div class="profile-hero-card mb-4">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-4">
+            <div class="d-flex align-items-center gap-4">
+                <div class="avatar-badge-large">
+                    {{ (user.nome[:2] if user.nome else 'HC') | upper }}
                 </div>
-                
-                <div class="card-body p-4">
-                    <div class="row">
-                        <div class="col-md-4 text-center mb-4">
-                            <div class="profile-avatar">
-                                <i class="fas fa-user-circle"></i>
-                            </div>
-                            <h5 class="mt-3">{{ session.user_name }}</h5>
-                            <p class="text-muted">{{ session.user_email }}</p>
-                        </div>
-                        
-                        <div class="col-md-8">
-                            <h6 class="text-uppercase text-muted mb-3">Informações da Conta</h6>
-                            
-                            <div class="row mb-3">
-                                <div class="col-sm-4">
-                                    <strong>Nome:</strong>
-                                </div>
-                                <div class="col-sm-8">
-                                    {{ session.user_name }}
-                                </div>
-                            </div>
-                            
-                            <div class="row mb-3">
-                                <div class="col-sm-4">
-                                    <strong>Email:</strong>
-                                </div>
-                                <div class="col-sm-8">
-                                    {{ session.user_email }}
-                                </div>
-                            </div>
-                            
-                            <div class="row mb-3">
-                                <div class="col-sm-4">
-                                    <strong>Status:</strong>
-                                </div>
-                                <div class="col-sm-8">
-                                    <span class="badge bg-success">Ativo</span>
-                                </div>
-                            </div>
-                            
-                            <hr>
-                            
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-primary" onclick="editProfile()">
-                                    <i class="fas fa-edit me-2"></i>
-                                    Editar Perfil
-                                </button>
-                                
-                                <button class="btn btn-outline-secondary" onclick="changePassword()">
-                                    <i class="fas fa-key me-2"></i>
-                                    Alterar Senha
-                                </button>
-                            </div>
-                        </div>
+                <div>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <h3 class="fw-bold mb-0 text-white">{{ user.nome }}</h3>
+                        {% if user.role == 'admin' %}
+                        <span class="badge" style="background: #f59e0b; color: #1e1b4b; font-weight: 800; font-size: 0.75rem;">
+                            <i class="fas fa-crown me-1"></i> ADMIN
+                        </span>
+                        {% else %}
+                        <span class="badge" style="background: rgba(255,255,255,0.2); color: #fff; font-weight: 600; font-size: 0.75rem;">
+                            <i class="fas fa-user me-1"></i> MEMBRO
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="text-white-50 small mb-2">
+                        <i class="fas fa-envelope me-1"></i> {{ user.email }}
+                        {% if user.cargo %}
+                        <span class="mx-2">•</span>
+                        <i class="fas fa-briefcase me-1"></i> {{ user.cargo }}
+                        {% endif %}
+                    </div>
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small">
+                            <i class="fas fa-circle me-1" style="font-size: 0.45rem;"></i> Conta Ativa
+                        </span>
+                        {% if user.criado_em %}
+                        <span class="badge bg-white text-dark border px-2 py-1 small">
+                            <i class="fas fa-calendar-alt me-1 text-muted"></i> Cadastrado em {{ user.criado_em[:10] }}
+                        </span>
+                        {% endif %}
                     </div>
                 </div>
             </div>
+
+            <!-- Pílulas de Estatísticas -->
+            <div class="d-flex flex-wrap gap-2">
+                <div class="stat-pill">
+                    <span class="stat-label">Buscas Realizadas</span>
+                    <span class="stat-value">{{ stats.total_searches or 0 }}</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="stat-label">Itens Aprovados</span>
+                    <span class="stat-value">{{ stats.total_approved or 0 }}</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="stat-label">Agendamentos</span>
+                    <span class="stat-value">{{ stats.active_schedules or 0 }}</span>
+                </div>
+            </div>
         </div>
+    </div>
+
+    <!-- Formulários em 2 Colunas (Dados Cadastrais + Troca de Senha) -->
+    <div class="row g-4">
+        
+        <!-- Coluna 1: Dados Cadastrais -->
+        <div class="col-lg-6">
+            <div class="table-saas-card p-4 h-100">
+                <div class="d-flex align-items-center justify-content-between border-bottom pb-3 mb-4">
+                    <div>
+                        <h5 class="fw-bold text-dark mb-1">
+                            <i class="fas fa-id-card text-primary me-2"></i> Dados Cadastrais
+                        </h5>
+                        <p class="text-muted small mb-0">Atualize suas informações pessoais e de contato.</p>
+                    </div>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                        Informações Pessoais
+                    </span>
+                </div>
+
+                <form id="profileDetailsForm" onsubmit="submitProfileDetails(event)">
+                    <div class="mb-3">
+                        <label for="profileNome" class="form-label small fw-semibold text-secondary">Nome Completo *</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-user text-muted"></i></span>
+                            <input type="text" class="form-control border-start-0 ps-0" id="profileNome" value="{{ user.nome }}" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="profileEmail" class="form-label small fw-semibold text-secondary">Email de Acesso (Login)</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-envelope text-muted"></i></span>
+                            <input type="email" class="form-control border-start-0 ps-0 bg-light" id="profileEmail" value="{{ user.email }}" readonly title="O email é a chave única da sua conta e não pode ser alterado diretamente">
+                        </div>
+                        <small class="text-muted">O email é a identificação de login e não pode ser alterado diretamente.</small>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="profileCargo" class="form-label small fw-semibold text-secondary">Cargo / Função</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="fas fa-briefcase text-muted"></i></span>
+                                <input type="text" class="form-control border-start-0 ps-0" id="profileCargo" value="{{ user.cargo or '' }}" placeholder="Ex: Gestor de Compras">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="profileTelefone" class="form-label small fw-semibold text-secondary">WhatsApp / Telefone</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="fab fa-whatsapp text-success"></i></span>
+                                <input type="text" class="form-control border-start-0 ps-0" id="profileTelefone" value="{{ user.telefone or '' }}" placeholder="(11) 99999-9999">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label small fw-semibold text-secondary">Nível de Acesso na Plataforma</label>
+                        <input type="text" class="form-control bg-light" value="{{ '👑 Administrador do Sistema' if user.role == 'admin' else 'Membro da Equipe (Operador)' }}" readonly>
+                    </div>
+
+                    <div class="pt-2 border-top d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary px-4 shadow-sm" id="btnSaveProfile">
+                            <i class="fas fa-save me-1"></i> Salvar Dados Cadastrais
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Coluna 2: Segurança & Troca de Senha -->
+        <div class="col-lg-6">
+            <div class="table-saas-card p-4 h-100">
+                <div class="d-flex align-items-center justify-content-between border-bottom pb-3 mb-4">
+                    <div>
+                        <h5 class="fw-bold text-dark mb-1">
+                            <i class="fas fa-lock text-warning me-2"></i> Segurança & Senha
+                        </h5>
+                        <p class="text-muted small mb-0">Atualize sua senha de acesso periodicamente.</p>
+                    </div>
+                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                        Credenciais
+                    </span>
+                </div>
+
+                <form id="passwordChangeForm" onsubmit="submitPasswordChange(event)">
+                    <div class="mb-3">
+                        <label for="currentPassword" class="form-label small fw-semibold text-secondary">Senha Atual *</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-key text-muted"></i></span>
+                            <input type="password" class="form-control border-start-0 ps-0" id="currentPassword" placeholder="Digite sua senha atual" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="newPassword" class="form-label small fw-semibold text-secondary">Nova Senha *</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-shield-alt text-muted"></i></span>
+                            <input type="password" class="form-control border-start-0 ps-0" id="newPassword" placeholder="Mínimo 6 caracteres" minlength="6" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="confirmNewPassword" class="form-label small fw-semibold text-secondary">Confirmar Nova Senha *</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-shield-alt text-muted"></i></span>
+                            <input type="password" class="form-control border-start-0 ps-0" id="confirmNewPassword" placeholder="Repita a nova senha" minlength="6" required>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info py-2 px-3 small border-0 bg-light text-muted mb-4" style="border-radius: 8px;">
+                        <i class="fas fa-info-circle me-1 text-primary"></i> 
+                        A nova senha deve possuir no mínimo <strong>6 caracteres</strong> para garantir a segurança da conta.
+                    </div>
+
+                    <div class="pt-2 border-top d-flex justify-content-end">
+                        <button type="submit" class="btn btn-warning fw-bold px-4 shadow-sm" id="btnChangePassword">
+                            <i class="fas fa-check-circle me-1"></i> Atualizar Senha
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
     </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-function editProfile() {
-    alert('Funcionalidade de edição de perfil será implementada em breve!');
+// Feedback Toast Helper
+function showProfileToast(message, type = 'success') {
+    const existing = document.getElementById('profileToast');
+    if (existing) existing.remove();
+
+    const bgClass = type === 'success' ? '#059669' : (type === 'info' ? '#4f46e5' : '#dc2626');
+    const toastHtml = `
+        <div id="profileToast" style="position: fixed; top: 24px; right: 24px; z-index: 9999; background: ${bgClass}; color: white; padding: 12px 22px; border-radius: 50px; box-shadow: 0 10px 25px rgba(0,0,0,0.25); font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 10px; animation: slideInRight 0.3s ease;">
+            ${message}
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', toastHtml);
+    setTimeout(() => {
+        const el = document.getElementById('profileToast');
+        if (el) {
+            el.style.opacity = '0';
+            el.style.transition = 'opacity 0.4s ease';
+            setTimeout(() => el.remove(), 400);
+        }
+    }, 4000);
 }
 
-function changePassword() {
-    alert('Funcionalidade de alteração de senha será implementada em breve!');
+// 1. Salvar Dados Cadastrais
+async function submitProfileDetails(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSaveProfile');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Salvando...';
+
+    const payload = {
+        nome: document.getElementById('profileNome').value,
+        cargo: document.getElementById('profileCargo').value,
+        telefone: document.getElementById('profileTelefone').value
+    };
+
+    try {
+        const res = await fetch('/auth/profile/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            showProfileToast(`🎉 ${data.message || 'Dados atualizados com sucesso!'}`, 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showProfileToast(`❌ ${data.message || 'Erro ao atualizar dados.'}`, 'danger');
+        }
+    } catch (err) {
+        showProfileToast(`❌ Erro de comunicação: ${err.message}`, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save me-1"></i> Salvar Dados Cadastrais';
+    }
+}
+
+// 2. Alterar Senha
+async function submitPasswordChange(e) {
+    e.preventDefault();
+    const currentPass = document.getElementById('currentPassword').value;
+    const newPass = document.getElementById('newPassword').value;
+    const confirmPass = document.getElementById('confirmNewPassword').value;
+
+    if (newPass !== confirmPass) {
+        showProfileToast('❌ A nova senha e a confirmação não conferem.', 'danger');
+        return;
+    }
+
+    if (newPass.length < 6) {
+        showProfileToast('❌ A nova senha deve ter no mínimo 6 caracteres.', 'danger');
+        return;
+    }
+
+    const btn = document.getElementById('btnChangePassword');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Atualizando...';
+
+    try {
+        const res = await fetch('/auth/profile/change-password', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                senha_atual: currentPass,
+                nova_senha: newPass,
+                confirmar_senha: confirmPass
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showProfileToast(`🔒 ${data.message || 'Senha alterada com sucesso!'}`, 'success');
+            document.getElementById('passwordChangeForm').reset();
+        } else {
+            showProfileToast(`❌ ${data.message || 'Erro ao alterar senha.'}`, 'danger');
+        }
+    } catch (err) {
+        showProfileToast(`❌ Erro de comunicação: ${err.message}`, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check-circle me-1"></i> Atualizar Senha';
+    }
 }
 </script>
 {% endblock %}

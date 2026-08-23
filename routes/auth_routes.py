@@ -41,6 +41,9 @@ def login():
             session['user_id'] = user['id']
             session['user_email'] = user['email']
             session['user_name'] = user['nome']
+            session['user_role'] = user.get('role') or ('admin' if str(user['id']) in ('1', 1) else 'member')
+            session['user_cargo'] = user.get('cargo') or ''
+            session['user_telefone'] = user.get('telefone') or ''
             
             flash(f'Bem-vindo, {user["nome"]}!', 'success')
             
@@ -133,7 +136,83 @@ def profile():
     if 'user_id' not in session:
         flash('Você precisa fazer login para acessar esta página.', 'warning')
         return redirect(url_for('auth.login'))
-    return render_template('auth/profile.html')
+    
+    user_id = session['user_id']
+    user = db_manager.get_user_by_id(user_id) or {
+        'id': user_id,
+        'nome': session.get('user_name', 'Usuário'),
+        'email': session.get('user_email', ''),
+        'role': session.get('user_role', 'member'),
+        'cargo': session.get('user_cargo', ''),
+        'telefone': session.get('user_telefone', ''),
+        'criado_em': None
+    }
+    stats = db_manager.get_user_stats(user_id)
+    return render_template('auth/profile.html', user=user, stats=stats)
+
+@auth_bp.route('/profile/update', methods=['POST'])
+def update_profile():
+    """Atualiza dados cadastrais do perfil"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Não autenticado'}), 401
+    
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        nome = (data.get('nome') or '').strip()
+        cargo = (data.get('cargo') or '').strip()
+        telefone = (data.get('telefone') or '').strip()
+
+        if not nome or len(nome) < 2:
+            return jsonify({'success': False, 'message': 'O nome deve ter pelo menos 2 caracteres.'}), 400
+
+        user_id = session['user_id']
+        success = db_manager.update_user_profile(user_id, nome=nome, cargo=cargo, telefone=telefone)
+
+        if success:
+            session['user_name'] = nome
+            session['user_cargo'] = cargo
+            session['user_telefone'] = telefone
+            return jsonify({'success': True, 'message': 'Dados cadastrais atualizados com sucesso!'})
+        else:
+            return jsonify({'success': False, 'message': 'Erro ao atualizar dados no banco.'}), 500
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Erro interno: {str(e)}'}), 500
+
+@auth_bp.route('/profile/change-password', methods=['POST'])
+def change_password():
+    """Alteração segura de senha do próprio usuário"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Não autenticado'}), 401
+    
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        senha_atual = data.get('senha_atual') or ''
+        nova_senha = data.get('nova_senha') or ''
+        confirmar_senha = data.get('confirmar_senha') or ''
+
+        if not senha_atual or not nova_senha:
+            return jsonify({'success': False, 'message': 'Preencha a senha atual e a nova senha.'}), 400
+
+        if len(nova_senha) < 6:
+            return jsonify({'success': False, 'message': 'A nova senha deve conter pelo menos 6 caracteres.'}), 400
+
+        if nova_senha != confirmar_senha:
+            return jsonify({'success': False, 'message': 'A confirmação de senha não confere.'}), 400
+
+        user_id = session['user_id']
+        user = db_manager.get_user_by_id(user_id)
+        if not user or not check_password_hash(user.get('password_hash', ''), senha_atual):
+            return jsonify({'success': False, 'message': 'A senha atual informada está incorreta.'}), 400
+
+        success = db_manager.reset_user_password(user_id, nova_senha)
+        if success:
+            return jsonify({'success': True, 'message': 'Senha atualizada com sucesso!'})
+        else:
+            return jsonify({'success': False, 'message': 'Erro ao atualizar senha no banco.'}), 500
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Erro interno: {str(e)}'}), 500
 
 
 # ─── Sincronização de Sessão Mercado Livre (Extensão Chrome / API) ─────────────
