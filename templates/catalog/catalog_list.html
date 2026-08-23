@@ -127,7 +127,7 @@
 
     <!-- Formulário de busca rápida de novos catálogos -->
     <div class="table-saas-card p-4 mb-4">
-        <form id="catalogSearchForm">
+        <form id="catalogSearchForm" onsubmit="event.preventDefault(); return false;">
             <div class="row g-3 align-items-end">
                 <div class="col-md-7">
                     <label class="form-label small fw-semibold text-secondary mb-1">
@@ -630,13 +630,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Limpa parâmetros da URL no histórico do navegador para evitar loop ao recarregar
         window.history.replaceState({}, document.title, window.location.pathname);
 
-        // Dispara busca automaticamente com leve atraso de renderização
+        // Dispara busca diretamente pela função segura com leve atraso de renderização
         setTimeout(() => {
-            const form = document.getElementById('catalogSearchForm');
-            if (form) {
-                form.dispatchEvent(new Event('submit'));
-            }
-        }, 300);
+            triggerCatalogSearch(query, 1, sku || '');
+        }, 350);
     }
 });
 
@@ -1198,18 +1195,21 @@ async function extractCatalogsFromHistory() {
     }
 }
 
-// ─── Formulário de busca de novos catálogos ──────────────────────
-document.getElementById('catalogSearchForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const termo = document.getElementById('catalogSearchInput').value.trim();
-    const nPages = parseInt(document.getElementById('catalogNPages').value);
-    const originSku = this.getAttribute('data-origin-sku') || '';
-
+// ─── Função Central de Execução da Busca de Catálogos ───────────
+async function triggerCatalogSearch(termo, nPages = 1, originSku = '') {
     if (!termo || termo.length < 2) {
         alert('Digite um termo com pelo menos 2 caracteres.');
         return;
     }
+
+    const input = document.getElementById('catalogSearchInput');
+    if (input) input.value = termo;
+
+    const pagesSelect = document.getElementById('catalogNPages');
+    if (pagesSelect && nPages) pagesSelect.value = String(nPages);
+
+    const form = document.getElementById('catalogSearchForm');
+    if (form && originSku) form.setAttribute('data-origin-sku', originSku);
 
     showOverlay('Buscando catálogos no ML...', `Iniciando robô de busca para "${termo}"...`);
 
@@ -1219,7 +1219,7 @@ document.getElementById('catalogSearchForm').addEventListener('submit', async fu
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 termo_pesquisa: termo, 
-                n_pages: nPages,
+                n_pages: parseInt(nPages) || 1,
                 origin_sku: originSku
             })
         });
@@ -1228,13 +1228,32 @@ document.getElementById('catalogSearchForm').addEventListener('submit', async fu
         if (!res.ok) throw new Error(data.error || 'Erro ao iniciar busca');
 
         currentCatalogSearchId = data.search_id;
-        catalogStatusInterval = setInterval(checkCatalogStatus, 2500);
+        if (catalogStatusInterval) clearInterval(catalogStatusInterval);
+        catalogStatusInterval = setInterval(checkCatalogStatus, 2000);
 
     } catch (err) {
         hideOverlay();
-        alert('Erro: ' + err.message);
+        alert('Erro ao iniciar busca: ' + err.message);
     }
-});
+}
+
+// ─── Formulário de busca de novos catálogos ──────────────────────
+const searchFormEl = document.getElementById('catalogSearchForm');
+if (searchFormEl) {
+    searchFormEl.addEventListener('submit', function(e) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        const termo = document.getElementById('catalogSearchInput').value.trim();
+        const nPages = parseInt(document.getElementById('catalogNPages').value) || 1;
+        const originSku = this.getAttribute('data-origin-sku') || '';
+
+        triggerCatalogSearch(termo, nPages, originSku);
+        return false;
+    });
+}
 
 // ─── Funções de Vinculação Rápida a SKU ──────────────────────────
 function openQuickLinkModal(searchTerm, catalogId) {
@@ -1268,33 +1287,31 @@ async function submitQuickSkuLink() {
         if (catalogId) {
             catalogIds = [catalogId];
         } else if (searchTerm) {
-            // Busca todos os IDs dos cards do grupo
-            const groupItems = document.querySelectorAll(`.catalog-item-wrapper[data-term="${searchTerm.toLowerCase()}"]`);
-            groupItems.forEach(item => {
-                const cid = item.getAttribute('data-id');
-                if (cid) catalogIds.push(cid.toUpperCase());
+            document.querySelectorAll('.catalog-search-group').forEach(grp => {
+                const title = grp.querySelector('.search-group-title');
+                if (title && title.textContent.toLowerCase().includes(searchTerm.toLowerCase())) {
+                    grp.querySelectorAll('.catalog-item-wrapper').forEach(item => {
+                        const cid = item.getAttribute('data-id');
+                        if (cid) catalogIds.push(cid.toUpperCase());
+                    });
+                }
             });
         }
 
-        if (!catalogIds.length) {
-            hideOverlay();
-            alert('Nenhum catálogo encontrado para vincular.');
-            return;
-        }
+        const res = await fetch('/catalog/link-sku', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                sku: sku,
+                catalog_id: catalogId || null,
+                catalog_ids: catalogIds
+            })
+        });
 
-        let linkedCount = 0;
-        for (const cid of catalogIds) {
-            const res = await fetch('/catalog/link-sku', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({sku: sku, catalog_id: cid})
-            });
-            if (res.ok) linkedCount++;
-        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Falha ao vincular');
 
-        hideOverlay();
-        if (quickLinkModalInstance) quickLinkModalInstance.hide();
-        showToast(`${linkedCount} catálogo(s) vinculado(s) ao SKU ${sku}!`);
+        showOverlay('Sucesso!', 'Catálogos vinculados ao SKU com sucesso. Atualizando...');
         setTimeout(() => {
             window.location.reload();
         }, 1000);
@@ -1338,8 +1355,12 @@ function renderCatalogResults(catalogs) {
     const grid = document.getElementById('catalogGrid');
     const count = document.getElementById('resultCount');
 
+    if (!section || !grid) return;
+
+    section.style.display = 'block';
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
     if (!catalogs.length) {
-        section.style.display = 'block';
         grid.innerHTML = `
             <div class="col-12 w-100">
                 <div class="text-center py-5 text-muted bg-white rounded-3 border">
