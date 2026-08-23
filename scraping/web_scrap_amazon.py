@@ -280,31 +280,38 @@ class AmazonDirectScraper:
                     if container.select_one('.s-sponsored-label-info-icon') or "Patrocinado" in container.text:
                         product_data['SPONSORED'] = True
 
-                    # Detecção de Múltiplas Ofertas / Catálogo (All Offers / Outros vendedores)
+                    # Detecção Rigorosa de Múltiplas Ofertas / Concorrentes na Amazon
                     is_catalog = False
                     sellers_count = 1
                     container_text = container.text
 
-                    # 1. Procura por links de offer-listing ou gatilho de ofertas
+                    # 1. Procura por links específicos de offer-listing ou All Offers
                     olp_link = container.select_one('a[href*="offer-listing"], a[href*="aod"], a[data-action="show-all-offers-display"]')
                     if olp_link:
-                        is_catalog = True
                         olp_text = olp_link.text.strip()
-                        match_count = re.search(r'(\d+)\s*(?:outras?\s*ofertas?|opções|vendedores)', olp_text, re.IGNORECASE)
+                        match_count = re.search(r'(\d+)\s*(?:outras?\s*ofertas?|opções\s*de\s*compra|vendedores|ofertas?\s*a\s*partir)', olp_text, re.IGNORECASE)
                         if match_count:
                             sellers_count = int(match_count.group(1)) + 1
-
-                    # 2. Procura no texto do card por padrões de múltiplos concorrentes
-                    if not is_catalog:
-                        multi_match = re.search(r'(?:outras?|mais)\s*(\d+)\s*(?:ofertas?|opções|vendedores)', container_text, re.IGNORECASE)
-                        if multi_match:
                             is_catalog = True
-                            sellers_count = int(multi_match.group(1)) + 1
-                        elif re.search(r'outras\s*opções\s*de\s*compra|outros\s*vendedores', container_text, re.IGNORECASE):
-                            is_catalog = True
+                        elif "outras opções" in olp_text.lower() or "novos e usados" in olp_text.lower():
                             sellers_count = 2
+                            is_catalog = True
 
-                    # Todo ASIN válido na Amazon é uma página de catálogo indexável
+                    # 2. Procura no texto do card por padrões explícitos de concorrência com contagem
+                    if not is_catalog:
+                        multi_match = re.search(r'(?:outras?|mais)\s*(\d+)\s*(?:ofertas?|opções\s*de\s*compra|vendedores)', container_text, re.IGNORECASE)
+                        if multi_match:
+                            extracted_count = int(multi_match.group(1))
+                            if extracted_count >= 1:
+                                sellers_count = extracted_count + 1
+                                is_catalog = True
+                        elif re.search(r'a\s*partir\s*de\s*R\$\s*[\d\.,]+\s*(?:\(\d+\s*ofertas?\)|em\s*\d+\s*ofertas?|\(novos\s*e\s*usados\))', container_text, re.IGNORECASE):
+                            sellers_count = 2
+                            is_catalog = True
+
+                    if sellers_count <= 1:
+                        is_catalog = False
+
                     product_data['IS_CATALOG'] = is_catalog
                     product_data['SELLERS_COUNT'] = sellers_count
                     product_data['BUYBOX_MIN_PRICE'] = product_data['PRICE_NUMERIC']

@@ -92,18 +92,37 @@ def catalog_detail(catalog_id):
 
 @catalog_bp.route('/extract-from-history', methods=['POST'])
 def extract_from_history():
-    """Extrai catálogos do Mercado Livre e Amazon a partir das ofertas salvas no banco de dados"""
+    """Extrai catálogos confirmados do histórico e limpa produtos sem concorrência"""
     if 'user_id' not in session:
         return jsonify({'error': 'Não autenticado'}), 401
 
     try:
         user_id = session['user_id']
+        # Limpa catálogos da Amazon que foram catalogados com apenas 1 vendedor
+        db_manager.cleanup_single_seller_catalogs()
         catalogs = db_manager.extract_and_save_catalogs_from_offers(user_id=user_id)
         return jsonify({
             'success': True,
             'count': len(catalogs),
             'catalogs': catalogs,
             'message': f"{len(catalogs)} catálogo(s) sincronizado(s) com sucesso a partir do histórico de ofertas!"
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@catalog_bp.route('/cleanup-empty', methods=['POST'])
+def cleanup_empty():
+    """Remove da listagem de catálogos produtos que possuem apenas 1 vendedor (sem concorrência)."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+
+    try:
+        removed = db_manager.cleanup_single_seller_catalogs()
+        return jsonify({
+            'success': True,
+            'removed': removed,
+            'message': f"{removed} produto(s) de vendedor único removido(s) da lista de catálogos."
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

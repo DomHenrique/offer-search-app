@@ -736,8 +736,8 @@ class DatabaseManager:
 
     def extract_and_save_catalogs_from_offers(self, user_id: Optional[str] = None) -> List[Dict]:
         """
-        Analisa as ofertas salvas na tabela 'ofertas' (Mercado Livre e Amazon),
-        extrai links com padrão de catálogo (/p/MLB... ou /dp/ASIN) e salva na tabela 'catalogos'.
+        Analisa as ofertas salvas na tabela 'ofertas',
+        extrai exclusivamente catálogos confirmados (/p/MLB... do Mercado Livre) e salva na tabela 'catalogos'.
         """
         try:
             import re
@@ -754,13 +754,9 @@ class DatabaseManager:
                 url = item.get("url_produto") or ""
                 mp = item.get("marketplace") or "MercadoLivre"
                 
+                # Apenas produtos com /p/MLB... no ML são catálogos garantidos
                 cat_id = None
-                if mp == "Amazon" or "amazon.com" in url.lower():
-                    asin_m = re.search(r'/dp/([A-Z0-9]{10})', url)
-                    if asin_m:
-                        cat_id = asin_m.group(1)
-                        mp = "Amazon"
-                else:
+                if mp == "MercadoLivre" or "mercadolivre.com" in url.lower():
                     cat_id = extract_catalog_id_from_url(url)
                     mp = "MercadoLivre"
 
@@ -780,11 +776,36 @@ class DatabaseManager:
                     self.save_catalog(catalog_data)
                     catalogs_found.append(catalog_data)
 
-            print(f"✅ {len(catalogs_found)} catálogos híbridos (ML + Amazon) extraídos das ofertas existentes")
+            print(f"✅ {len(catalogs_found)} catálogos oficiais extraídos das ofertas existentes")
             return catalogs_found
         except Exception as e:
             print(f"Erro ao extrair catálogos das ofertas: {e}")
             return []
+
+    def cleanup_single_seller_catalogs(self) -> int:
+        """
+        Remove catálogos da Amazon que possuem 1 ou nenhum vendedor concorrente,
+        mantendo a aba de catálogos apenas com produtos que possuem concorrência ativa.
+        """
+        try:
+            resp_cats = self.supabase.table("catalogos").select("catalog_id").execute()
+            cats = resp_cats.data or []
+            removed_count = 0
+
+            for c in cats:
+                cid = c.get("catalog_id", "")
+                if not cid.startswith("MLB"): # É ASIN Amazon
+                    sellers = self.get_catalog_sellers(cid)
+                    if len(sellers) <= 1:
+                        self.supabase.table("catalog_sellers").delete().eq("catalog_id", cid).execute()
+                        self.supabase.table("catalogos").delete().eq("catalog_id", cid).execute()
+                        removed_count += 1
+
+            print(f"🧹 Limpeza concluída: {removed_count} catálogos de vendedor único removidos.")
+            return removed_count
+        except Exception as e:
+            print(f"Erro na limpeza de catálogos: {e}")
+            return 0
 
     # === MÉTODOS DE SESSÃO DO MERCADO LIVRE ===
 

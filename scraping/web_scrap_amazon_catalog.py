@@ -340,9 +340,20 @@ class AmazonCatalogScraper:
             self.close_driver()
 
     def _save_scraped_data(self, catalog_data: Dict):
-        """Persiste os metadados do catálogo e os sellers no banco de dados Supabase."""
+        """Persiste os metadados do catálogo e os sellers no banco de dados Supabase apenas se houver concorrentes reais."""
         try:
             asin = catalog_data["catalog_id"]
+            sellers = catalog_data.get("sellers", [])
+
+            # Se só tiver 1 vendedor (anúncio exclusivo), não deve poluir a tabela de catálogos concorrenciais
+            if len(sellers) <= 1:
+                print(f"ℹ️ [Amazon Catalog] ASIN {asin} possui apenas 1 vendedor. Removendo da lista de catálogos concorrenciais.")
+                try:
+                    self.db.supabase.table("catalog_sellers").delete().eq("catalog_id", asin).execute()
+                    self.db.supabase.table("catalogos").delete().eq("catalog_id", asin).execute()
+                except Exception as e_del:
+                    print(f"⚠️ [Amazon Catalog] Aviso ao limpar catálogo de vendedor único: {e_del}")
+                return
 
             # 1. Salva o catálogo na tabela catalogos via db.save_catalog
             cat_payload = {
@@ -355,7 +366,6 @@ class AmazonCatalogScraper:
             self.db.save_catalog(cat_payload)
 
             # 2. Insere sellers em catalog_sellers
-            sellers = catalog_data.get("sellers", [])
             if sellers:
                 self.db.save_catalog_sellers(asin, sellers)
                 print(f"💾 [Amazon Catalog] {len(sellers)} sellers do ASIN {asin} salvos no banco.")

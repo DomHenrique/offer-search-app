@@ -1342,9 +1342,20 @@ function renderDrawerSellers(sellers, extraData) {
         document.getElementById('drawerCatWinnerName').textContent = extraData.winner_name;
     }
 
-    container.innerHTML = sellers.map((s, idx) => {
+    const mpOrigin = (currentDrawerCatalog && !currentDrawerCatalog.catalog_id.startsWith('MLB')) ? 'Amazon' : 'MercadoLivre';
+    let singleAlert = '';
+    if (sellers.length === 1 && mpOrigin === 'Amazon') {
+        singleAlert = `
+            <div class="p-3 rounded-3 border mb-3 d-flex align-items-center gap-2" style="background:#fffbeb; border-color:#fde68a !important; color:#92400e; font-size:0.8rem;">
+                <i class="fas fa-info-circle text-warning fs-5 flex-shrink-0"></i>
+                <div>
+                    <strong>Vendedor Único:</strong> Este produto possui apenas 1 vendedor oficial na Amazon (sem concorrência ativa na BuyBox no momento).
+                </div>
+            </div>`;
+    }
+
+    container.innerHTML = singleAlert + sellers.map((s, idx) => {
         const isWinner = s.is_best_offer || s.posicao === 1 || idx === 0;
-        const mpOrigin = (currentDrawerCatalog && !currentDrawerCatalog.catalog_id.startsWith('MLB')) ? 'Amazon' : 'MercadoLivre';
         const fullBadge = s.frete_full ? (mpOrigin === 'Amazon' ? '<span class="badge bg-warning bg-opacity-25 text-dark"><i class="fab fa-amazon text-warning"></i> PRIME / FBA</span>' : '<span class="badge bg-warning bg-opacity-25 text-dark"><i class="fas fa-bolt text-warning"></i> FULL</span>') : '';
         return `
             <div class="p-3 bg-white rounded-3 border shadow-sm ${isWinner ? 'border-primary' : ''}" style="${isWinner ? 'background: #f8fafc; border-width: 2px !important;' : ''}">

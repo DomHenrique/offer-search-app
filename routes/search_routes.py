@@ -306,19 +306,26 @@ def enrich_product_intel(produto: dict) -> dict:
     
     sellers_count = int(p.get('sellers_count') or p.get('SELLERS_COUNT') or 1)
     has_buybox_sellers = sellers_count > 1
-    has_options_link = bool(re.search(r'/p/MLB\d+/s', url)) or ('type=product' in url and bool(p.get('opcoes_compra')))
-    is_explicit_cat = p.get('origem') == 'catalogo' and bool(p.get('tem_concorrentes'))
-    has_scraper_cat_flag = bool(raw_is_cat) or (bool(raw_cat_id) and not is_user_post)
-    
-    # Para ser considerado catálogo ativo no card:
-    is_cat = (has_scraper_cat_flag or has_buybox_sellers or has_options_link or is_explicit_cat) and not is_user_post
+
+    if is_amazon:
+        # Na Amazon, o produto SÓ recebe rótulo de catálogo se tiver múltiplos vendedores confirmados (> 1)
+        is_cat = bool(raw_is_cat) and has_buybox_sellers
+        if not is_cat and sellers_count > 1:
+            is_cat = True
+    else:
+        # No Mercado Livre, /p/MLB... é a rota oficial de catálogo de produto
+        ml_is_cat_url = bool(cat_match) and not is_user_post
+        has_options_link = bool(re.search(r'/p/MLB\d+/s', url)) or ('type=product' in url and bool(p.get('opcoes_compra')))
+        is_explicit_cat = p.get('origem') == 'catalogo' and bool(p.get('tem_concorrentes'))
+        is_cat = (bool(raw_is_cat) or ml_is_cat_url or has_buybox_sellers or has_options_link or is_explicit_cat) and not is_user_post
+
     p['is_catalog'] = bool(is_cat)
     p['sellers_count'] = sellers_count
     
-    p['catalog_id'] = raw_cat_id if (raw_cat_id and is_cat) else (raw_cat_id if is_amazon else '')
+    p['catalog_id'] = raw_cat_id if (raw_cat_id and is_cat) else (raw_cat_id if (is_amazon and is_cat) else '')
     
     wid_match = re.search(r'wid=(MLB\d+)', url)
-    p['winner_item_id'] = wid_match.group(1) if wid_match else (raw_cat_id if is_amazon else '')
+    p['winner_item_id'] = wid_match.group(1) if wid_match else (raw_cat_id if (is_amazon and is_cat) else '')
     
     # 2. Vendedor da BuyBox e Medalha
     raw_store = p.get('store_name') or p.get('loja_oficial') or p.get('LOJA_OFICIAL') or ''

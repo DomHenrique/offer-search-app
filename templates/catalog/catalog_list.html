@@ -644,8 +644,20 @@ function renderDrawerSellers(data) {
             </tr>`;
     }).join('');
 
+    let singleSellerAlert = '';
+    if (sellers.length === 1 && isAmz) {
+        singleSellerAlert = `
+            <div class="p-3 rounded-3 border mb-3 d-flex align-items-center gap-2" style="background:#fffbeb; border-color:#fde68a !important; color:#92400e; font-size:0.8rem;">
+                <i class="fas fa-info-circle text-warning fs-5 flex-shrink-0"></i>
+                <div>
+                    <strong>Anúncio de Vendedor Único:</strong> Este produto possui apenas 1 vendedor oficial na Amazon no momento (sem concorrência ativa na BuyBox).
+                </div>
+            </div>`;
+    }
+
     content.innerHTML = `
         ${kpisHtml}
+        ${singleSellerAlert}
         <div class="table-saas-card">
             <div class="p-2 px-3 border-bottom d-flex align-items-center justify-content-between bg-surface">
                 <span class="fw-bold text-dark" style="font-size: 0.82rem;">
