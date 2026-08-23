@@ -167,7 +167,7 @@
                                                 {% endfor %}
                                             </div>
                                         {% else %}
-                                            <a href="{{ url_for('catalog.catalog_list') }}?q={{ item.descricao|urlencode }}&sku={{ item.sku|urlencode }}&auto=1" class="badge-saas badge-saas-neutral text-decoration-none">
+                                            <a href="{{ url_for('catalog.catalog_list') }}?q={{ (item.termo_busca or item.descricao)|urlencode }}&sku={{ item.sku|urlencode }}&auto=1" class="badge-saas badge-saas-neutral text-decoration-none">
                                                 <i class="fas fa-plus"></i> Vincular
                                             </a>
                                         {% endif %}
@@ -182,7 +182,7 @@
                                         </small>
                                     </td>
                                     <td class="text-end">
-                                        <a href="{{ url_for('catalog.catalog_list') }}?q={{ item.descricao|urlencode }}&sku={{ item.sku|urlencode }}&auto=1" 
+                                        <a href="{{ url_for('catalog.catalog_list') }}?q={{ (item.termo_busca or item.descricao)|urlencode }}&sku={{ item.sku|urlencode }}&auto=1" 
                                            class="btn-action-row" title="Buscar novos catálogos e concorrentes deste produto">
                                             <i class="fas fa-search text-warning"></i> Buscar
                                         </a>

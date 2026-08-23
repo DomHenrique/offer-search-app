@@ -215,7 +215,17 @@ class CatalogScraper:
 
         try:
             all_products = []
-            formatted_term = search_term.replace(' ', '-').lower()
+            
+            # Higieniza o termo de busca removendo ruídos de notas fiscais/pedidos
+            clean_term = re.sub(r'\(.*?\)', ' ', search_term)
+            clean_term = re.sub(r'\+.*$', ' ', clean_term)
+            clean_term = re.sub(r'\b(NexGen|XT60|127V|220V|BR|EU)\b', ' ', clean_term, flags=re.IGNORECASE)
+            clean_term = re.sub(r'[^a-zA-Z0-9\sáéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ-]', ' ', clean_term)
+            clean_term = ' '.join(clean_term.split())
+            if not clean_term:
+                clean_term = search_term
+
+            formatted_term = clean_term.replace(' ', '-').lower()
 
             for page in range(1, n_pages + 1):
                 if page == 1:

@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any, Union
 from supabase import create_client, Client
@@ -1227,8 +1228,22 @@ class DatabaseManager:
                 return None
             
             order = order_res.data[0]
+            fornecedor = order.get("fornecedor", "")
             items_res = self.supabase.table("itens_pedido").select("*").eq("pedido_id", pedido_id).order("sku").execute()
-            order["itens"] = items_res.data or []
+            items_data = items_res.data or []
+            for it in items_data:
+                desc = it.get("descricao") or it.get("sku") or ""
+                sku_str = str(it.get("sku") or "").upper()
+                tb = re.sub(r'\(.*?\)', ' ', desc)
+                tb = re.sub(r'\+.*$', ' ', tb)
+                tb = re.sub(r'\b(NexGen|XT60|127V|220V|BR|EU)\b', ' ', tb, flags=re.IGNORECASE)
+                tb = re.sub(r'[^a-zA-Z0-9\sáéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ-]', ' ', tb)
+                tb = ' '.join(tb.split())
+                if (sku_str.startswith('ECO') or 'ecoflow' in fornecedor.lower()) and 'ecoflow' not in tb.lower():
+                    tb = f"EcoFlow {tb}"
+                it["termo_busca"] = tb
+
+            order["itens"] = items_data
             order["total_quantidade"] = sum(int(it.get("quantidade") or 0) for it in order["itens"])
             return order
         except Exception as e:
@@ -1274,11 +1289,23 @@ class DatabaseManager:
                 
                 qtd = int(item.get("quantidade") or 0)
                 ped_info = order_map.get(item.get("pedido_id"))
+                fornecedor = ped_info.get("fornecedor", "") if ped_info else ""
+                desc = item.get("descricao") or sku
+
+                # Gera termo comercial limpo para busca automática em marketplaces
+                termo_busca = re.sub(r'\(.*?\)', ' ', desc)
+                termo_busca = re.sub(r'\+.*$', ' ', termo_busca)
+                termo_busca = re.sub(r'\b(NexGen|XT60|127V|220V|BR|EU)\b', ' ', termo_busca, flags=re.IGNORECASE)
+                termo_busca = re.sub(r'[^a-zA-Z0-9\sáéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ-]', ' ', termo_busca)
+                termo_busca = ' '.join(termo_busca.split())
+                if (sku.startswith('ECO') or 'ecoflow' in fornecedor.lower()) and 'ecoflow' not in termo_busca.lower():
+                    termo_busca = f"EcoFlow {termo_busca}"
 
                 if sku not in inventory_by_sku:
                     inventory_by_sku[sku] = {
                         "sku": sku,
-                        "descricao": item.get("descricao") or sku,
+                        "descricao": desc,
+                        "termo_busca": termo_busca,
                         "ncm": item.get("ncm") or "",
                         "quantidade_total": 0,
                         "preco_custo": item.get("preco_custo"),

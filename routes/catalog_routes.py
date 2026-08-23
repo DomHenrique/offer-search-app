@@ -258,13 +258,17 @@ def search_catalogs():
 def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pages: int, origin_sku: str = ''):
     """Thread de busca de catálogos com vinculação automática de SKU."""
     try:
+        clean_search = search_term
+        if origin_sku and origin_sku.upper().startswith('ECO') and 'ecoflow' not in clean_search.lower():
+            clean_search = f"EcoFlow {clean_search}"
+
         catalog_search_status[search_id].update({
             'status': 'buscando',
             'progress': 20,
-            'message': f'Buscando catálogos para "{search_term}" no Mercado Livre...'
+            'message': f'Buscando catálogos para "{clean_search}" no Mercado Livre...'
         })
 
-        result = get_catalog_list(search_term, n_pages)
+        result = get_catalog_list(clean_search, n_pages)
 
         if not result['success']:
             catalog_search_status[search_id].update({
