@@ -101,6 +101,44 @@ def buscar_produtos_amazon(
         offers = produto.get("offers", [])
         snap_ebt = produto.get("snap_ebt_eligible", False)
 
+        # Extração de Marca e Vendedor
+        brand = produto.get("brand", "")
+        if not brand:
+            # Tenta extrair a marca do início do título
+            if title.upper().startswith("EF ECOFLOW"):
+                brand = "EF ECOFLOW"
+            elif title.upper().startswith("ECOFLOW"):
+                brand = "Ecoflow"
+            elif title.upper().startswith("ZOUPW"):
+                brand = "ZOUPW"
+            elif title:
+                first_word = title.split()[0]
+                if len(first_word) >= 2 and not first_word.isdigit():
+                    brand = first_word
+
+        seller_name = produto.get("seller") or brand or "Amazon Brasil"
+
+        # Detecção de Catálogo / Concorrência de Múltiplas Ofertas
+        sellers_count = 1
+        is_catalog = False
+        offers_text = ""
+        if isinstance(offers, list):
+            offers_text = ", ".join([str(o) for o in offers])
+            if len(offers) > 1:
+                sellers_count = len(offers)
+                is_catalog = True
+            elif len(offers) == 1:
+                m_cnt = re.search(r'(\d+)\s*(?:outras?\s*ofertas?|opções\s*de\s*compra|vendedores|ofertas?\s*a\s*partir)', str(offers[0]), re.IGNORECASE)
+                if m_cnt:
+                    sellers_count = int(m_cnt.group(1)) + 1
+                    is_catalog = True
+        elif isinstance(offers, str):
+            offers_text = offers
+            m_cnt = re.search(r'(\d+)\s*(?:outras?\s*ofertas?|opções\s*de\s*compra|vendedores|ofertas?\s*a\s*partir)', offers, re.IGNORECASE)
+            if m_cnt:
+                sellers_count = int(m_cnt.group(1)) + 1
+                is_catalog = True
+
         # Preços
         old_price = produto.get("old_price", "")
         extracted_price = produto.get("extracted_price", None)
@@ -118,10 +156,15 @@ def buscar_produtos_amazon(
             "BOUGHT_LAST_MONTH": bought_last_month,
             "IMAGE_URL": image,
             "PRODUCT_URL": link,
+            "STORE_NAME": seller_name,
+            "BRAND": brand,
+            "MARCA": brand,
+            "IS_CATALOG": is_catalog,
+            "SELLERS_COUNT": sellers_count,
             "SPONSORED": sponsored,
             "PRIME": prime,
             "BADGES": ", ".join(badges) if badges else "",
-            "OFFERS": ", ".join(offers) if offers else "",
+            "OFFERS": offers_text,
             "SNAP_EBT_ELIGIBLE": snap_ebt,
             "SEARCH_TERM": query,
             "SCRAPY_DATETIME": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),

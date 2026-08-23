@@ -157,13 +157,21 @@ class AmazonCatalogScraper:
             img_elem = soup_page.select_one('#landingImage, #imgBlkFront, #main-image, img[data-a-image-name="landingImage"]')
             image_url = img_elem.get('src') or img_elem.get('data-old-hires') if img_elem else ""
 
-            # Vencedor da BuyBox Principal
+            # Vencedor da BuyBox Principal (ex: PowerSafe, Amazon, etc.)
             buybox_seller_elem = (
+                soup_page.select_one('#tabular-buybox [tabular-attribute-name*="Vendido"] span.tabular-buybox-text-message a') or
+                soup_page.select_one('#tabular-buybox [tabular-attribute-name*="Vendido"] span.tabular-buybox-text-message') or
+                soup_page.select_one('#tabular-buybox [tabular-attribute-name*="Vendido"] span') or
+                soup_page.select_one('#tabular-buybox [tabular-attribute-name*="Vendido"]') or
                 soup_page.select_one('#tabular-buybox .tabular-buybox-container a[id*="sellerProfile"]') or
                 soup_page.select_one('#merchant-info a span, #merchant-info a') or
+                soup_page.select_one('#merchant-info') or
                 soup_page.select_one('#sellerProfileTriggerId')
             )
-            buybox_seller = buybox_seller_elem.text.strip() if buybox_seller_elem else "Amazon Brasil"
+            buybox_seller = buybox_seller_elem.text.strip() if buybox_seller_elem else ""
+            buybox_seller = re.sub(r'^(enviado\s+e\s+vendido\s+por|vendido\s+por|enviado\s+por|devolução|vendedor:?)\s*', '', buybox_seller, flags=re.IGNORECASE).strip()
+            if not buybox_seller or buybox_seller.lower() in ('none', 'null', 'amazon'):
+                buybox_seller = "Amazon Brasil"
 
             # Preço da BuyBox Principal
             price_elem = soup_page.select_one('#corePrice_feature_div .a-offscreen, #apex_desktop .a-price .a-offscreen')

@@ -133,9 +133,9 @@
                             {% endif %}
                         </td>
                         <td class="text-end">
-                            <a href="{{ url_for('search.search_page') }}?q={{ it.descricao|urlencode }}" 
+                            <a href="{{ url_for('catalog.catalog_list') }}?q={{ it.descricao|urlencode }}&sku={{ it.sku|urlencode }}&auto=1" 
                                class="btn btn-sm btn-warning fw-bold">
-                                <i class="fas fa-search me-1"></i> Buscar Ofertas
+                                <i class="fas fa-search me-1"></i> Buscar Concorrentes
                             </a>
                         </td>
                     </tr>

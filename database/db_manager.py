@@ -649,6 +649,7 @@ class DatabaseManager:
         """
         Insere vendedores de um catálogo na tabela catalog_sellers.
         Cada coleta gera novos registros (preserva histórico temporal).
+        Atualiza também buybox_min_price na tabela sku_catalogs.
         
         Args:
             catalog_id: ID do catálogo (ex: MLB45231994)
@@ -661,12 +662,20 @@ class DatabaseManager:
         try:
             now = datetime.now().isoformat()
             records = []
+            min_price = None
+            winner_seller = 'Vendedor Oficial'
+
             for s in sellers:
+                p = float(s.get("preco", 0) or 0)
+                if p > 0 and (min_price is None or p < min_price):
+                    min_price = p
+                    winner_seller = s.get("seller_name") or winner_seller
+
                 records.append({
                     "catalog_id": catalog_id,
                     "seller_name": s.get("seller_name", ""),
                     "seller_id_ml": s.get("seller_id_ml", ""),
-                    "preco": float(s.get("preco", 0) or 0),
+                    "preco": p,
                     "preco_str": s.get("preco_str", ""),
                     "frete_gratis": bool(s.get("frete_gratis", False)),
                     "frete_full": bool(s.get("frete_full", False)),
@@ -677,10 +686,69 @@ class DatabaseManager:
                     "coletado_em": now,
                 })
             response = self.supabase.table("catalog_sellers").insert(records).execute()
+
+            # Atualiza o menor preço na tabela sku_catalogs se houver vínculo
+            if min_price is not None:
+                try:
+                    self.supabase.table("sku_catalogs").update({
+                        "buybox_min_price": min_price,
+                        "buybox_winner": winner_seller,
+                        "sellers_count": len(records)
+                    }).eq("catalog_id", catalog_id).execute()
+                except Exception as e_sku:
+                    print(f"Aviso ao atualizar sku_catalogs com menor preço: {e_sku}")
+
             return len(response.data)
         except Exception as e:
             print(f"Erro ao salvar sellers do catálogo {catalog_id}: {e}")
             return 0
+
+    def get_catalog_prices_map(self, catalog_ids: List[str]) -> Dict[str, Dict]:
+        """
+        Retorna mapa com menor preço, contagem de sellers e vencedor para os catalog_ids informados.
+        Consulta catalog_sellers e sku_catalogs.
+        """
+        if not catalog_ids:
+            return {}
+        prices_map = {}
+        try:
+            # 1. Consulta em catalog_sellers (últimos preços coletados)
+            res = (self.supabase.table("catalog_sellers")
+                   .select("catalog_id, preco, seller_name, is_best_offer, frete_full")
+                   .in_("catalog_id", catalog_ids)
+                   .gt("preco", 0)
+                   .order("preco", desc=False)
+                   .execute())
+            if res.data:
+                for row in res.data:
+                    cid = str(row["catalog_id"]).strip().upper()
+                    p = float(row.get("preco") or 0.0)
+                    if cid not in prices_map and p > 0:
+                        prices_map[cid] = {
+                            "min_price": p,
+                            "buybox_winner": row.get("seller_name") or "Vendedor Oficial",
+                            "frete_full": bool(row.get("frete_full", False))
+                        }
+
+            # 2. Complementa com sku_catalogs caso algum catálogo ainda não esteja no mapa
+            res_sku = (self.supabase.table("sku_catalogs")
+                       .select("catalog_id, buybox_min_price, buybox_winner")
+                       .in_("catalog_id", catalog_ids)
+                       .gt("buybox_min_price", 0)
+                       .execute())
+            if res_sku.data:
+                for row in res_sku.data:
+                    cid = str(row["catalog_id"]).strip().upper()
+                    p = float(row.get("buybox_min_price") or 0.0)
+                    if cid not in prices_map and p > 0:
+                        prices_map[cid] = {
+                            "min_price": p,
+                            "buybox_winner": row.get("buybox_winner") or "Vendedor Oficial",
+                            "frete_full": False
+                        }
+        except Exception as e:
+            print(f"Aviso ao consultar preços dos catálogos: {e}")
+        return prices_map
 
     def get_catalog_sellers(self, catalog_id: str, limit: int = 50) -> List[Dict]:
         """
@@ -1264,6 +1332,14 @@ class DatabaseManager:
 
     # === MÉTODOS DE VINCULAÇÃO DE CATÁLOGOS POR SKU (1-para-N) ===
 
+    def _get_user_uuid(self, user_id: Any) -> str:
+        """Converte user_id (int ou str) para UUID determinístico válido"""
+        import uuid
+        try:
+            return str(uuid.UUID(str(user_id)))
+        except (ValueError, TypeError):
+            return str(uuid.uuid5(uuid.NAMESPACE_OID, str(user_id or "1")))
+
     def link_catalog_to_sku(self, user_id: str, sku: str, catalog_id: str,
                             catalog_title: str = '', catalog_url: str = '',
                             catalog_image: str = '', buybox_winner: str = '',
@@ -1276,8 +1352,9 @@ class DatabaseManager:
         if not sku or not catalog_id:
             raise ValueError("SKU e Catalog ID são obrigatórios.")
 
+        user_uuid = self._get_user_uuid(user_id)
         payload = {
-            "user_id": user_id,
+            "user_id": user_uuid,
             "sku": sku,
             "catalog_id": catalog_id,
             "catalog_title": catalog_title or f"Catálogo {catalog_id}",
@@ -1285,8 +1362,7 @@ class DatabaseManager:
             "catalog_image": catalog_image or '',
             "buybox_winner": buybox_winner or 'Vendedor Oficial',
             "buybox_min_price": float(buybox_min_price or 0.0),
-            "sellers_count": int(sellers_count or 1),
-            "updated_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            "sellers_count": int(sellers_count or 1)
         }
 
         try:
@@ -1296,14 +1372,13 @@ class DatabaseManager:
                 return res.data[0]
             return payload
         except Exception as e:
-            print(f"Erro ao salvar link em sku_catalogs no Supabase: {e}")
             # Tenta insert simples se upsert falhar por índice
             try:
                 res_ins = self.supabase.table("sku_catalogs").insert(payload).execute()
                 if res_ins.data:
                     return res_ins.data[0]
             except Exception as e_ins:
-                print(f"Falha secundária em insert sku_catalogs: {e_ins}")
+                print(f"Falha ao salvar link sku_catalogs: {e_ins}")
             return payload
 
     def get_sku_catalogs(self, user_id: str, sku: Optional[str] = None) -> List[Dict]:
@@ -1311,7 +1386,8 @@ class DatabaseManager:
         Retorna os catálogos vinculados a um SKU específico ou a todos os SKUs do usuário.
         """
         try:
-            query = self.supabase.table("sku_catalogs").select("*").eq("user_id", user_id)
+            user_uuid = self._get_user_uuid(user_id)
+            query = self.supabase.table("sku_catalogs").select("*").eq("user_id", user_uuid)
             if sku:
                 query = query.eq("sku", str(sku).strip().upper())
             res = query.order("created_at", desc=True).execute()
@@ -1325,9 +1401,10 @@ class DatabaseManager:
         Remove a vinculação de um catálogo com um SKU do inventário.
         """
         try:
+            user_uuid = self._get_user_uuid(user_id)
             res = (self.supabase.table("sku_catalogs")
                    .delete()
-                   .eq("user_id", user_id)
+                   .eq("user_id", user_uuid)
                    .eq("sku", str(sku).strip().upper())
                    .eq("catalog_id", str(catalog_id).strip().upper())
                    .execute())

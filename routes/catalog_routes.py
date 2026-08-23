@@ -23,29 +23,118 @@ catalog_sellers_status = {}
 
 @catalog_bp.route('/')
 def catalog_list():
-    """Página principal de catálogos — listagem e busca."""
+    """Página principal de catálogos — listagem, busca e comparação com inventário."""
     if 'user_id' not in session:
         flash('Você precisa fazer login para acessar esta página.', 'warning')
         return redirect(url_for('auth.login'))
 
     user_id = session['user_id']
 
-    # Catálogos já salvos do usuário (agrupados por termo de pesquisa)
+    # 1. Catálogos salvos do usuário
     saved_catalogs = db_manager.get_user_catalogs(user_id, limit=200)
 
-    # Agrupa os catálogos pelo termo que os originou
+    # 2. Inventário consolidado do usuário para cruzamento de SKUs
+    inventory = db_manager.get_consolidated_inventory(user_id)
+    sku_dict = {str(item.get('sku') or '').strip().upper(): item for item in inventory}
+
+    # 3. Mapeamento de SKUs vinculados
+    sku_links = db_manager.get_sku_catalogs(user_id)
+    catalog_to_sku = {}
+    for link in sku_links:
+        c_id = str(link.get('catalog_id') or '').strip().upper()
+        s_code = str(link.get('sku') or '').strip().upper()
+        if c_id and s_code:
+            catalog_to_sku[c_id] = s_code
+
+    # 4. Busca os menores preços coletados para todos os catálogos
+    catalog_ids = [str(cat.get('catalog_id') or '').strip().upper() for cat in saved_catalogs if cat.get('catalog_id')]
+    prices_map = db_manager.get_catalog_prices_map(catalog_ids)
+
+    # 5. Agrupa os catálogos identificando a origem (SKU vinculado vs Busca Avulsa) e calculando métricas
     from collections import OrderedDict
     grouped_catalogs = OrderedDict()
+
     for cat in saved_catalogs:
+        c_id = str(cat.get('catalog_id') or '').strip().upper()
         raw_term = (cat.get('termo_pesquisa') or '').strip()
-        term = raw_term if raw_term else 'Outros / Sem termo associado'
-        if term not in grouped_catalogs:
-            grouped_catalogs[term] = []
-        grouped_catalogs[term].append(cat)
+        
+        # Preço de concorrência coletado
+        price_data = prices_map.get(c_id, {})
+        competitor_price = float(price_data.get('min_price') or cat.get('buybox_min_price') or 0.0)
+        buybox_winner = price_data.get('buybox_winner') or cat.get('buybox_winner') or 'Vendedor Oficial'
+        cat['competitor_price'] = competitor_price
+        cat['buybox_winner'] = buybox_winner
+        cat['frete_full'] = price_data.get('frete_full', False)
+        
+        # Identifica se este catálogo está vinculado a um SKU diretamente ou pelo termo
+        linked_sku = catalog_to_sku.get(c_id)
+        if not linked_sku:
+            for s_code, s_item in sku_dict.items():
+                if raw_term.upper() == s_code or raw_term.lower() == s_item.get('descricao', '').lower():
+                    linked_sku = s_code
+                    break
+
+        group_key = linked_sku if linked_sku else (raw_term if raw_term else 'Outros / Sem termo associado')
+
+        if group_key not in grouped_catalogs:
+            sku_info = sku_dict.get(linked_sku) if linked_sku else None
+            grouped_catalogs[group_key] = {
+                'key': group_key,
+                'term': raw_term or group_key,
+                'sku_code': linked_sku,
+                'sku_info': sku_info,
+                'is_orphan': bool(linked_sku is None),
+                'catalogs': []
+            }
+        
+        # Anexa métricas do SKU e comparativo de preços
+        sku_info = grouped_catalogs[group_key]['sku_info']
+        if sku_info:
+            my_revenda = float(sku_info.get('preco_revenda') or 0.0)
+            my_pix = float(sku_info.get('preco_site_pix') or 0.0)
+            my_custo = float(sku_info.get('preco_custo') or 0.0)
+        else:
+            my_revenda = 0.0
+            my_pix = 0.0
+            my_custo = 0.0
+
+        cat['my_revenda'] = my_revenda
+        cat['my_pix'] = my_pix
+        cat['my_custo'] = my_custo
+
+        # Cálculo de status de competitividade e margem
+        if not sku_info:
+            status = 'sem_sku'
+            diff_price = 0.0
+            diff_pct = 0.0
+            margin_pct = 0.0
+        elif competitor_price <= 0 or my_revenda <= 0:
+            status = 'sem_preco'
+            diff_price = 0.0
+            diff_pct = 0.0
+            margin_pct = ((my_revenda - my_custo) / my_revenda * 100) if my_revenda > 0 and my_custo > 0 else 0.0
+        else:
+            diff_price = my_revenda - competitor_price
+            diff_pct = ((my_revenda - competitor_price) / competitor_price * 100)
+            margin_pct = ((my_revenda - my_custo) / my_revenda * 100) if my_revenda > 0 and my_custo > 0 else 0.0
+            if my_revenda < competitor_price:
+                status = 'vencendo'
+            elif my_revenda > competitor_price:
+                status = 'perdendo'
+            else:
+                status = 'empatado'
+
+        cat['status_competitivo'] = status
+        cat['diff_price'] = diff_price
+        cat['diff_pct'] = diff_pct
+        cat['margin_pct'] = margin_pct
+
+        grouped_catalogs[group_key]['catalogs'].append(cat)
 
     return render_template('catalog/catalog_list.html',
                            saved_catalogs=saved_catalogs,
-                           grouped_catalogs=grouped_catalogs)
+                           grouped_catalogs=grouped_catalogs,
+                           inventory=inventory)
 
 
 @catalog_bp.route('/<catalog_id>')
@@ -132,12 +221,13 @@ def cleanup_empty():
 
 @catalog_bp.route('/search', methods=['POST'])
 def search_catalogs():
-    """Inicia busca de catálogos por termo em thread de background."""
+    """Inicia busca de catálogos por termo em thread de background com suporte a origin_sku."""
     if 'user_id' not in session:
         return jsonify({'error': 'Não autenticado'}), 401
 
-    data = request.get_json()
+    data = request.get_json() or {}
     search_term = (data.get('termo_pesquisa') or '').strip()
+    origin_sku = (data.get('origin_sku') or '').strip().upper()
     n_pages = max(1, min(int(data.get('n_pages', 1) or 1), 3))
 
     if not search_term or len(search_term) < 2:
@@ -157,7 +247,7 @@ def search_catalogs():
 
     thread = threading.Thread(
         target=_search_catalogs_thread,
-        args=(search_id, user_id, search_term, n_pages),
+        args=(search_id, user_id, search_term, n_pages, origin_sku),
         daemon=True
     )
     thread.start()
@@ -165,8 +255,8 @@ def search_catalogs():
     return jsonify({'search_id': search_id})
 
 
-def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pages: int):
-    """Thread de busca de catálogos."""
+def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pages: int, origin_sku: str = ''):
+    """Thread de busca de catálogos com vinculação automática de SKU."""
     try:
         catalog_search_status[search_id].update({
             'status': 'buscando',
@@ -201,6 +291,19 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
                 'user_id': user_id,
             })
 
+            # Se houver SKU de origem, realiza o vínculo automático em sku_catalogs
+            if origin_sku:
+                try:
+                    db_manager.link_catalog_to_sku(
+                        user_id=user_id,
+                        sku=origin_sku,
+                        catalog_id=cat['catalog_id'],
+                        catalog_title=cat.get('nome', ''),
+                        catalog_image=cat.get('imagem', '')
+                    )
+                except Exception as e_link:
+                    print(f"Aviso ao auto-vincular catálogo {cat['catalog_id']} ao SKU {origin_sku}: {e_link}")
+
         catalog_search_status[search_id].update({
             'status': 'concluida',
             'progress': 100,
@@ -217,6 +320,48 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
             'error': str(e),
             'completed': True,
         })
+
+
+@catalog_bp.route('/link-sku', methods=['POST'])
+def link_sku():
+    """Vincula manualmente um catálogo a um SKU do inventário."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+    
+    data = request.get_json() or {}
+    sku = (data.get('sku') or '').strip().upper()
+    catalog_id = (data.get('catalog_id') or '').strip().upper()
+    user_id = session['user_id']
+    
+    if not sku or not catalog_id:
+        return jsonify({'error': 'SKU e Catalog ID são obrigatórios'}), 400
+    
+    try:
+        res = db_manager.link_catalog_to_sku(user_id=user_id, sku=sku, catalog_id=catalog_id)
+        return jsonify({'success': True, 'data': res, 'message': f'Catálogo {catalog_id} vinculado ao SKU {sku} com sucesso!'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@catalog_bp.route('/unlink-sku', methods=['POST'])
+def unlink_sku():
+    """Desvincula um catálogo de um SKU do inventário."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+    
+    data = request.get_json() or {}
+    sku = (data.get('sku') or '').strip().upper()
+    catalog_id = (data.get('catalog_id') or '').strip().upper()
+    user_id = session['user_id']
+    
+    if not sku or not catalog_id:
+        return jsonify({'error': 'SKU e Catalog ID são obrigatórios'}), 400
+    
+    try:
+        db_manager.unlink_catalog_from_sku(user_id=user_id, sku=sku, catalog_id=catalog_id)
+        return jsonify({'success': True, 'message': f'Catálogo {catalog_id} desvinculado do SKU {sku}!'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @catalog_bp.route('/status/<search_id>')

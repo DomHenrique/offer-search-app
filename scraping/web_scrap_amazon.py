@@ -280,6 +280,29 @@ class AmazonDirectScraper:
                     if container.select_one('.s-sponsored-label-info-icon') or "Patrocinado" in container.text:
                         product_data['SPONSORED'] = True
 
+                    # Extração de Marca / Vendedor do Anúncio
+                    brand_elem = (
+                        container.select_one('.a-row.a-size-base.a-color-secondary .a-size-base-plus') or
+                        container.select_one('h5 .a-size-base-plus, h5 span') or
+                        container.select_one('a[href*="/stores/"]') or
+                        container.select_one('.s-line-clamp-1 span')
+                    )
+                    brand_text = brand_elem.text.strip() if brand_elem else ""
+                    if not brand_text and product_data['TITLE']:
+                        if product_data['TITLE'].upper().startswith("EF ECOFLOW"):
+                            brand_text = "EF ECOFLOW"
+                        elif product_data['TITLE'].upper().startswith("ECOFLOW"):
+                            brand_text = "Ecoflow"
+                        elif product_data['TITLE'].upper().startswith("ZOUPW"):
+                            brand_text = "ZOUPW"
+                        else:
+                            first_word = product_data['TITLE'].split()[0]
+                            if len(first_word) >= 2 and not first_word.isdigit():
+                                brand_text = first_word
+
+                    product_data['STORE_NAME'] = brand_text or "Amazon Brasil"
+                    product_data['BRAND'] = brand_text
+
                     # Detecção Rigorosa de Múltiplas Ofertas / Concorrentes na Amazon
                     is_catalog = False
                     sellers_count = 1
@@ -289,7 +312,7 @@ class AmazonDirectScraper:
                     olp_link = container.select_one('a[href*="offer-listing"], a[href*="aod"], a[data-action="show-all-offers-display"]')
                     if olp_link:
                         olp_text = olp_link.text.strip()
-                        match_count = re.search(r'(\d+)\s*(?:outras?\s*ofertas?|opções\s*de\s*compra|vendedores|ofertas?\s*a\s*partir)', olp_text, re.IGNORECASE)
+                        match_count = re.search(r'(\d+)\s*(?:outras?\s*ofertas?|opções\s*de\s*compra|vendedores|ofertas?\s*a\s*partir|novas?\s*ofertas?)', olp_text, re.IGNORECASE)
                         if match_count:
                             sellers_count = int(match_count.group(1)) + 1
                             is_catalog = True
@@ -299,7 +322,7 @@ class AmazonDirectScraper:
 
                     # 2. Procura no texto do card por padrões explícitos de concorrência com contagem
                     if not is_catalog:
-                        multi_match = re.search(r'(?:outras?|mais)\s*(\d+)\s*(?:ofertas?|opções\s*de\s*compra|vendedores)', container_text, re.IGNORECASE)
+                        multi_match = re.search(r'(?:outras?|mais)\s*(\d+)\s*(?:ofertas?|opções\s*de\s*compra|vendedores|novas?\s*ofertas?)', container_text, re.IGNORECASE)
                         if multi_match:
                             extracted_count = int(multi_match.group(1))
                             if extracted_count >= 1:

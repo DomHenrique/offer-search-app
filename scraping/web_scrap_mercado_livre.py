@@ -8,6 +8,7 @@ import time
 import random
 import re
 import os
+import urllib.parse
 from typing import List, Dict, Optional, Tuple
 
 try:
@@ -201,417 +202,184 @@ class MercadoLivreScraper:
         except Exception as e:
             print(f"❌ Erro ao carregar página {url}: {e}")
             return None
-    
-    def extract_product_data(self) -> List[Dict]:
+            
+    def parse_html_products(self, html_content: str) -> List[Dict]:
         """
-        Extrai dados completos de cada produto de forma estruturada,
-        ignorando elementos que correspondem aos seletores configurados
+        Extrai dados completos de cada produto de forma estruturada em lote via BeautifulSoup,
+        executando em milissegundos sem overhead de IPC/Selenium.
         
+        Args:
+            html_content (str): Código HTML completo da página
+            
         Returns:
-            List[Dict]: Lista de dicionários com dados de cada produto
+            List[Dict]: Lista de dicionários com dados estruturados dos produtos
         """
         products = []
-        
-        if not self.driver:
+        if not html_content:
             return products
-        
+
         try:
-            # Procura pelos containers de produtos (suporta layout tradicional e poly-card)
-            product_containers = self.driver.find_elements(By.CSS_SELECTOR, 
-                "li.ui-search-layout__item, div.ui-search-result, div.poly-card, .ui-search-layout .ui-search-layout__item, .ui-search-results__item")
+            soup = BeautifulSoup(html_content, 'html.parser')
+            containers = soup.select('li.ui-search-layout__item, div.ui-search-result, div.poly-card, .ui-search-layout .ui-search-layout__item, .ui-search-results__item')
             
-            print(f"🔍 Encontrados {len(product_containers)} containers de produtos")
+            print(f"🔍 [ML Fast Parser] Encontrados {len(containers)} containers de produtos no HTML")
             
-            filtered_containers = []
-            ignored_count = 0
-            
-            # Filtra containers ignorados
-            for container in product_containers:
-                if self.is_element_ignored(container):
-                    ignored_count += 1
-                    continue
-                filtered_containers.append(container)
-            
-            print(f"🚫 {ignored_count} containers ignorados (propagandas/banners)")
-            print(f"✅ {len(filtered_containers)} containers válidos para processar")
-            
-            for i, container in enumerate(filtered_containers):
+            for i, container in enumerate(containers):
                 try:
-                    product_data = {
-                        'title': '',
-                        'price': '',
-                        'price_numeric': 0.0,
-                        'rating': 0,
-                        'review_count': 0,
-                        'image_url': '',
-                        'product_url': '',
-                        'store_name': ''
-                    }
-                    
                     # 1. TÍTULO
-                    title_selectors = [
-                        "h3.poly-component__title",
-                        "h2.poly-component__title", 
-                        "a.poly-component__title",
-                        ".ui-search-item__title",
-                        "h3", "h2"
-                    ]
-                    
-                    for selector in title_selectors:
-                        try:
-                            title_elem = container.find_element(By.CSS_SELECTOR, selector)
-                            # Verifica se o elemento do título não está em área ignorada
-                            if not self.is_element_ignored(title_elem):
-                                title_text = title_elem.text.strip()
-                                if len(title_text) > 10:  # Título válido
-                                    product_data['title'] = title_text
-                                    break
-                        except:
-                            continue
-                    
+                    title_elem = container.select_one(
+                        'h3.poly-component__title, h2.poly-component__title, a.poly-component__title, .ui-search-item__title, h3, h2'
+                    )
+                    title = title_elem.text.strip() if title_elem else ''
+                    if len(title) < 5:
+                        continue
+
                     # 2. PREÇO
-                    price_selectors = [
-                        ".andes-money-amount__fraction",
-                        ".price-tag-fraction",
-                        ".andes-money-amount",
-                        "span[class*='price']"
-                    ]
-                    
-                    for selector in price_selectors:
-                        try:
-                            price_elem = container.find_element(By.CSS_SELECTOR, selector)
-                            if not self.is_element_ignored(price_elem):
-                                price_text = price_elem.text.strip()
-                                if price_text and re.search(r'\d', price_text):
-                                    product_data['price'] = f"R$ {price_text}"
-                                    # Extrai valor numérico
-                                    numeric_price = re.sub(r'[^\d,.]', '', price_text)
-                                    numeric_price = numeric_price.replace('.', '').replace(',', '.')
-                                    try:
-                                        product_data['price_numeric'] = float(numeric_price)
-                                    except:
-                                        product_data['price_numeric'] = 0.0
-                                    break
-                        except:
-                            continue
-                    
-                    # 3. IMAGEM (melhorado)
-                    image_selectors = [
-                        "img.ui-search-result__image__element",
-                        ".ui-search-result__image .ui-search-result__image__element",
-                        "img.poly-component__picture",
-                        "div.poly-card__portada img",
-                        "img[src*='mlstatic']",
-                        ".ui-search-result__image img",
-                        "img"
-                    ]
-                    image_found = False
-                    for selector in image_selectors:
-                        try:
-                            img_elem = container.find_element(By.CSS_SELECTOR, selector)
-                            if not self.is_element_ignored(img_elem):
-                                # Busca em vários atributos
-                                img_src = (
-                                    img_elem.get_attribute('src') or
-                                    img_elem.get_attribute('data-src') or
-                                    img_elem.get_attribute('data-lazy-src') or
-                                    img_elem.get_attribute('data-original') or
-                                    img_elem.get_attribute('data-original-src')
-                                )
-                                if (img_src and 'mlstatic' in img_src and
-                                    not img_src.startswith('data:') and
-                                    len(img_src) > 20):
-                                    product_data['image_url'] = img_src
-                                    print(f"[DEBUG ML Imagem] URL da imagem extraída: {img_src}")
-                                    image_found = True
-                                    break
-                        except:
-                            continue
-                    # Fallback: busca em elementos filhos se não encontrou imagem
-                    if not image_found:
-                        try:
-                            child_imgs = container.find_elements(By.TAG_NAME, "img")
-                            for img_elem in child_imgs:
-                                if self.is_element_ignored(img_elem):
-                                    continue
-                                img_src = (
-                                    img_elem.get_attribute('src') or
-                                    img_elem.get_attribute('data-src') or
-                                    img_elem.get_attribute('data-lazy-src') or
-                                    img_elem.get_attribute('data-original') or
-                                    img_elem.get_attribute('data-original-src')
-                                )
-                                if (img_src and 'mlstatic' in img_src and
-                                    not img_src.startswith('data:') and
-                                    len(img_src) > 20):
-                                    product_data['image_url'] = img_src
-                                    print(f"[DEBUG ML Imagem Fallback] URL da imagem extraída: {img_src}")
-                                    image_found = True
-                                    break
-                        except Exception as e:
-                            print(f"[DEBUG ML Imagem Fallback] Erro ao buscar imagens em filhos: {e}")
-                    if not image_found:
-                        print(f"[DEBUG ML Imagem] Nenhuma imagem encontrada para produto: {product_data['title']}")
-                    
-                    # 4. LINK DO PRODUTO
-                    try:
-                        link_elem = container.find_element(By.CSS_SELECTOR, "a[href*='produto'], a[href*='item'], a[href*='MLB']")
-                        if not self.is_element_ignored(link_elem):
-                            product_url = link_elem.get_attribute('href')
-                            if product_url and 'mercadolivre' in product_url:
-                                product_data['product_url'] = product_url
-                    except:
-                        pass
-                    
-                    # 5. LOJA/VENDEDOR OFICIAL (GANHADOR DA BUYBOX / PDP / SEARCH CARD)
-                    store_selectors = [
-                        ".ui-seller-data-header__title span",
-                        ".ui-seller-data-header__title",
-                        ".ui-seller-data-header__title-container h2 span",
-                        ".ui-seller-data-header__title-container h2",
-                        ".ui-seller-data a[href*='/loja/']",
-                        "div.ui-seller-data a.ui-seller-data-header__main-info",
-                        "a[href*='/loja/']",
-                        "span.poly-component__seller",
-                        ".poly-component__seller",
-                        "a.poly-component__seller",
-                        ".poly-component__brand",
-                        ".ui-search-item__group__element--seller",
-                        ".ui-search-item__brand-title",
-                        ".ui-search-item__group__element--stores__name",
-                        "span.ui-search-item__store-name",
-                        ".ui-search-item__store-name a",
-                        "span.ui-pdp-seller__link-trigger",
-                        ".ui-pdp-seller__header_title a span",
-                        ".ui-pdp-seller__header_title",
-                        "a.ui-pdp-seller__link span",
-                        "a.ui-pdp-seller__link",
-                        ".ui-seller-info__title",
-                        "span[class*='seller']",
-                        "div[class*='seller'] span",
-                        "span.ui-search-color--BLACK"
-                    ]
-                    
-                    for selector in store_selectors:
-                        try:
-                            store_elem = container.find_element(By.CSS_SELECTOR, selector)
-                            if not self.is_element_ignored(store_elem):
-                                store_text = store_elem.text.strip()
-                                # Remove prefixos comuns como "Vendido por", "Por", "Loja oficial"
-                                clean_store = re.sub(r'^(vendido\s+por\s+|por\s+|loja\s+oficial\s+)', '', store_text, flags=re.IGNORECASE).strip()
-                                if (clean_store and 
-                                    len(clean_store) > 1 and 
-                                    len(clean_store) < 100 and
-                                    not clean_store.lower().startswith(('r$', 'em ', 'até ', 'de R$')) and
-                                    not clean_store.isdigit()):
-                                    product_data['store_name'] = clean_store
-                                    break
-                        except:
-                            continue
+                    price_elem = container.select_one(
+                        '.poly-price__current .andes-money-amount__fraction, .andes-money-amount__fraction, .price-tag-fraction'
+                    )
+                    price_str = price_elem.text.strip() if price_elem else ''
+                    price_cents_elem = container.select_one(
+                        '.poly-price__current .andes-money-amount__cents, .andes-money-amount__cents'
+                    )
+                    cents_str = price_cents_elem.text.strip() if price_cents_elem else '00'
 
-                    # Fallback: tenta extrair de links com /loja/ ou /perfil/ dentro do container
-                    if not product_data['store_name']:
+                    price_numeric = 0.0
+                    if price_str:
+                        clean_num = price_str.replace('.', '').replace(',', '.')
+                        if '.' not in clean_num and cents_str != '00':
+                            clean_num = f"{clean_num}.{cents_str}"
                         try:
-                            loja_links = container.find_elements(By.CSS_SELECTOR, "a[href*='/loja/'], a[href*='/perfil/']")
-                            for l in loja_links:
-                                if not self.is_element_ignored(l):
-                                    txt = l.text.strip()
-                                    clean_txt = re.sub(r'^(vendido\s+por\s+|por\s+|loja\s+oficial\s+)', '', txt, flags=re.IGNORECASE).strip()
-                                    if clean_txt and len(clean_txt) > 2 and not clean_txt.lower().startswith(('r$', 'em ', 'ir para')):
-                                        product_data['store_name'] = clean_txt
-                                        break
-                                    href = l.get_attribute('href') or ''
-                                    m_loja = re.search(r'/(?:loja|perfil)/([^/?&#]+)', href)
-                                    if m_loja:
-                                        slug = m_loja.group(1).replace('-', ' ').title()
-                                        if slug and len(slug) > 2:
-                                            product_data['store_name'] = slug
-                                            break
+                            price_numeric = float(clean_num)
                         except Exception:
-                            pass
+                            price_numeric = 0.0
 
-                    # Fallback adicional pela própria URL do produto
-                    if not product_data['store_name'] and product_data.get('product_url'):
-                        m_url = re.search(r'/loja/([^/?&#]+)', product_data['product_url'])
-                        if m_url:
-                            product_data['store_name'] = m_url.group(1).replace('-', ' ').title()
+                    price_display = f"R$ {price_str}" if price_str else ""
+
+                    # 3. IMAGEM
+                    img_elem = container.select_one(
+                        'img.poly-component__picture, img.ui-search-result__image__element, img[data-src], img[src]'
+                    )
+                    image_url = img_elem.get('data-src') or img_elem.get('src', '') if img_elem else ''
+
+                    # 4. URL DO PRODUTO
+                    link_elem = container.select_one(
+                        'a.poly-component__title, a.ui-search-link, a[href*="/MLB-"], a[href*="/p/MLB"], a[href*="MLB"]'
+                    )
+                    product_url = link_elem.get('href', '') if link_elem else ''
+                    if product_url.startswith('/'):
+                        product_url = f"https://www.mercadolivre.com.br{product_url}"
+
+                    # 5. NOME DA LOJA / VENDEDOR
+                    seller_elem = container.select_one(
+                        '.poly-component__seller, .ui-search-item__group__element--seller, .ui-search-official-store-label, a[href*="/loja/"], .ui-search-seller-link, span[class*="seller"]'
+                    )
+                    store_name = seller_elem.text.strip() if seller_elem else ''
                     
-                    # 6. AVALIAÇÕES (RATING)
-                    rating_selectors = [
-                        "div.poly-component__reviews",
-                        "span[class*='review']", 
-                        "div[class*='rating']",
-                        ".ui-search-reviews",
-                        "span.ui-search-reviews__rating-number"
-                    ]
-                    
-                    for selector in rating_selectors:
-                        try:
-                            rating_elem = container.find_element(By.CSS_SELECTOR, selector)
-                            if not self.is_element_ignored(rating_elem):
-                                aria_label = rating_elem.get_attribute('aria-label') or ''
-                                text_content = rating_elem.text.strip()
-                                
-                                # Procura por padrões como "4.8 de 5 estrelas" ou "4.5"
-                                rating_match = re.search(r'(\d+\.?\d*)\s*(?:de\s*5|estrelas?)?', aria_label + ' ' + text_content, re.IGNORECASE)
-                                
-                                if rating_match:
-                                    rating_str = rating_match.group(1)
-                                    rating_float = float(rating_str)
-                                    if rating_float > 5:
-                                        product_data['rating'] = 5  # Limita a 5 estrelas máximo
-                                    else:
-                                        product_data['rating'] = round(rating_float)
-                                    break
-                                else:
-                                    # Se não encontrar padrão, tenta extrair número direto
-                                    number_match = re.search(r'\d+', text_content)
-                                    if number_match:
-                                        rating_num = int(number_match.group())
-                                        product_data['rating'] = min(rating_num, 5)
-                                        break
-                        except:
-                            continue
-                    
-                    # 7. NÚMERO DE AVALIAÇÕES (REVIEW COUNT)
-                    review_count_selectors = [
-                        "span.poly-reviews__count",
-                        ".ui-search-reviews__amount",
-                        "span[class*='review-count']",
-                        "span[class*='reviews']"
-                    ]
-                    
-                    for selector in review_count_selectors:
-                        try:
-                            review_elem = container.find_element(By.CSS_SELECTOR, selector)
-                            if not self.is_element_ignored(review_elem):
-                                review_text = review_elem.text.strip()
-                                # Extrai número de avaliações (ex: "(123)" ou "123 avaliações")
-                                number_match = re.search(r'(\d+)', review_text)
-                                if number_match:
-                                    product_data['review_count'] = int(number_match.group(1))
-                                    break
-                        except:
-                            continue
-                    
-                    # Se não encontrou contagem específica, procura em qualquer elemento do container
-                    if product_data['review_count'] == 0:
-                        try:
-                            all_elements = container.find_elements(By.TAG_NAME, "span")
-                            for elem in all_elements:
-                                if not self.is_element_ignored(elem):
-                                    text = elem.text.strip()
-                                    if ('avaliação' in text.lower() or 'opinião' in text.lower()) and re.search(r'\d+', text):
-                                        number_match = re.search(r'(\d+)', text)
-                                        if number_match:
-                                            product_data['review_count'] = int(number_match.group(1))
-                                            break
-                        except:
-                            pass
-                    
-                    # 8. DETECÇÃO DE CATÁLOGO / BUYBOX / OPÇÕES DE COMPRA
-                    is_catalog = False
+                    if not store_name and '/loja/' in product_url:
+                        m_loja = re.search(r'/loja/([^/?&#]+)', product_url)
+                        if m_loja:
+                            store_name = m_loja.group(1).replace('-', ' ').title()
+
+                    # Limpeza de prefixos
+                    store_name = re.sub(r'^(por\s+|vendido\s+por\s+|loja\s+oficial\s+)', '', store_name, flags=re.IGNORECASE).strip()
+
+                    # 6. AVALIAÇÕES E REPUTAÇÃO
+                    rating = 0.0
+                    rating_elem = container.select_one(
+                        'span.poly-reviews__rating, .ui-search-reviews__rating-number, [aria-label*="estrelas"], [aria-label*="avaliações"]'
+                    )
+                    if rating_elem:
+                        r_txt = rating_elem.get('aria-label') or rating_elem.text
+                        m_r = re.search(r'(\d+[.,]\d+)', r_txt)
+                        if m_r:
+                            try:
+                                rating = float(m_r.group(1).replace(',', '.'))
+                            except Exception:
+                                pass
+
+                    review_count = 0
+                    rev_elem = container.select_one('span.poly-reviews__total, span.poly-reviews__count, .ui-search-reviews__amount')
+                    if rev_elem:
+                        m_rev = re.search(r'(\d+)', rev_elem.text.replace('.', ''))
+                        if m_rev:
+                            review_count = int(m_rev.group(1))
+
+                    # 7. DETECÇÃO DE CATÁLOGO / OPÇÕES DE COMPRA
+                    is_catalog = bool('/p/MLB' in product_url)
                     sellers_count = 1
                     buybox_min_price = 0.0
-                    try:
-                        # Verifica se a URL do produto já é de catálogo (/p/MLB...)
-                        prod_link = product_data.get('product_url', '')
-                        if re.search(r'/p/MLB\d+', prod_link):
+
+                    buybox_elem = container.select_one(
+                        '.poly-component__buybox, .poly-phrase-buybox, a[href*="/s#polycard_client"], a[href*="/s?"], a[href*="/s"]'
+                    )
+                    if buybox_elem:
+                        is_catalog = True
+                        b_text = buybox_elem.text.strip()
+                        m_cnt = re.search(r'(\d+)\s+produtos?\s+novos?', b_text, re.IGNORECASE)
+                        if m_cnt:
+                            sellers_count = int(m_cnt.group(1))
+                        m_p = re.search(r'a partir de\s*R\$\s*([\d\.,]+)', b_text, re.IGNORECASE)
+                        if m_p:
+                            try:
+                                buybox_min_price = float(m_p.group(1).replace('.', '').replace(',', '.'))
+                            except Exception:
+                                pass
+
+                    if not is_catalog:
+                        c_text = container.text
+                        if 'opções de compra' in c_text.lower() or 'produtos novos a partir de' in c_text.lower():
                             is_catalog = True
-                        
-                        # Verifica se possui elemento de buybox ou opções de compra de múltiplos sellers
-                        buybox_elems = container.find_elements(By.CSS_SELECTOR, 
-                            ".poly-component__buybox, .poly-phrase-buybox, a[href*='/s#polycard_client'], a[href*='/s?'], a[href*='/s'], span[class*='buybox'], .ui-search-item__group__element--buybox, .ui-pdp-products, .ui-pdp-products__list, .ui-pdp-products__button"
-                        )
-                        for b_el in buybox_elems:
-                            if b_el.is_displayed() and b_el.text.strip():
-                                is_catalog = True
-                                b_text = b_el.text.strip()
-                                # Extrai quantidade de produtos/sellers (ex: "22 produtos novos a partir de R$ 699")
-                                m_count = re.search(r'(\d+)\s+produtos?\s+novos?', b_text, re.IGNORECASE)
-                                if m_count:
-                                    sellers_count = int(m_count.group(1))
-                                m_price = re.search(r'a partir de\s*R\$\s*([\d\.,]+)', b_text, re.IGNORECASE)
-                                if m_price:
-                                    try:
-                                        buybox_min_price = float(m_price.group(1).replace('.', '').replace(',', '.'))
-                                    except:
-                                        pass
-                                break
-                        
-                        # Verifica textos explícitos de opções de compra no container
-                        if not is_catalog or sellers_count == 1:
-                            c_text = container.text
-                            if 'opções de compra' in c_text.lower() or 'produtos novos a partir de' in c_text.lower():
-                                is_catalog = True
-                                m_count = re.search(r'(\d+)\s+produtos?\s+novos?', c_text, re.IGNORECASE)
-                                if m_count:
-                                    sellers_count = int(m_count.group(1))
-                                m_price = re.search(r'a partir de\s*R\$\s*([\d\.,]+)', c_text, re.IGNORECASE)
-                                if m_price:
-                                    try:
-                                        buybox_min_price = float(m_price.group(1).replace('.', '').replace(',', '.'))
-                                    except:
-                                        pass
-                    except Exception:
-                        pass
+                            m_cnt = re.search(r'(\d+)\s+produtos?\s+novos?', c_text, re.IGNORECASE)
+                            if m_cnt:
+                                sellers_count = int(m_cnt.group(1))
 
-                    product_data['is_catalog'] = is_catalog
-                    product_data['sellers_count'] = sellers_count
-                    product_data['buybox_min_price'] = buybox_min_price
-
-                    # 9. FRETE / LOGÍSTICA (FULL, Flex, Grátis)
+                    # 8. FRETE E PARCELAMENTO
+                    c_text_lower = container.text.lower()
                     shipping_type = "Frete Grátis"
-                    try:
-                        container_text = container.text.lower()
-                        if 'full' in container_text or container.find_elements(By.CSS_SELECTOR, "svg[class*='full'], .poly-component__shipping--full, .ui-search-item__fulfillment"):
-                            shipping_type = "FULL"
-                        elif 'chegará hoje' in container_text or 'flex' in container_text:
-                            shipping_type = "Flex"
-                    except Exception:
-                        pass
-                    product_data['shipping_type'] = shipping_type
+                    if 'full' in c_text_lower or container.select_one("svg[class*='full'], .poly-component__shipping--full, .ui-search-item__fulfillment"):
+                        shipping_type = "FULL"
+                    elif 'chegará hoje' in c_text_lower or 'flex' in c_text_lower:
+                        shipping_type = "Flex"
 
-                    # 10. PARCELAMENTO
-                    installments = ""
-                    try:
-                        inst_elem = container.find_element(By.CSS_SELECTOR, ".poly-price__installments, span[class*='installments']")
-                        if inst_elem:
-                            installments = inst_elem.text.strip()
-                    except Exception:
-                        pass
-                    product_data['installments'] = installments
+                    inst_elem = container.select_one(".poly-price__installments, span[class*='installments']")
+                    installments = inst_elem.text.strip() if inst_elem else ""
 
-                    # 11. PREÇO ANTIGO (RISCADO)
-                    old_price = ""
-                    try:
-                        old_p_elem = container.find_element(By.CSS_SELECTOR, "s.andes-money-amount--previous .andes-money-amount__fraction, s[class*='previous'] .andes-money-amount__fraction")
-                        if old_p_elem:
-                            old_price = f"R$ {old_p_elem.text.strip()}"
-                    except Exception:
-                        pass
-                    product_data['old_price'] = old_price
+                    old_p_elem = container.select_one("s.andes-money-amount--previous .andes-money-amount__fraction, s[class*='previous'] .andes-money-amount__fraction")
+                    old_price = f"R$ {old_p_elem.text.strip()}" if old_p_elem else ""
 
-                    # Só adiciona se tem dados mínimos (título e preço)
-                    if product_data['title'] and product_data['price']:
+                    product_data = {
+                        'title': title,
+                        'price': price_display,
+                        'price_numeric': price_numeric,
+                        'rating': rating,
+                        'review_count': review_count,
+                        'image_url': image_url,
+                        'product_url': product_url,
+                        'store_name': store_name,
+                        'is_catalog': is_catalog,
+                        'sellers_count': sellers_count,
+                        'buybox_min_price': buybox_min_price,
+                        'shipping_type': shipping_type,
+                        'installments': installments,
+                        'old_price': old_price
+                    }
+
+                    if product_data['title'] and (product_data['price_numeric'] > 0 or product_data['price']):
                         products.append(product_data)
-                        review_info = f"{product_data['rating']}⭐ ({product_data['review_count']} reviews)" if product_data['rating'] > 0 or product_data['review_count'] > 0 else "Sem avaliações"
-                        cat_tag = "[CATÁLOGO]" if is_catalog else "[INDIVIDUAL]"
-                        print(f"✅ Produto {len(products)}: {cat_tag} {product_data['title'][:35]}... | {product_data['store_name'] or 'Loja'} | {product_data['price']} | {review_info}")
-                    
-                except Exception as e:
-                    print(f"❌ Erro ao processar produto {i+1}: {e}")
+
+                except Exception as e_item:
                     continue
-        
+
         except Exception as e:
-            print(f"❌ Erro ao extrair dados dos produtos: {e}")
-        
-        print(f"🎯 Total de produtos extraídos: {len(products)}")
+            print(f"❌ [ML Fast Parser] Erro no parsing HTML: {e}")
+
+        print(f"🎯 [ML Fast Parser] Total de {len(products)} produtos extraídos com sucesso em lote!")
         return products
     
     def scrape_page(self, url: str) -> Optional[List[Dict]]:
         """
-        Faz scraping de uma única página
+        Faz scraping de uma única página via BeautifulSoup em lote sobre o page_source
         
         Args:
             url (str): URL da página
@@ -626,7 +394,7 @@ class MercadoLivreScraper:
         if not page_source:
             return None
         
-        return self.extract_product_data()
+        return self.parse_html_products(page_source)
     
     def scrape_search(self, search_term: str, n_pages: int = 1, delay_range: Tuple[float, float] = (1, 3), user_id: Optional[str] = None) -> Optional[pd.DataFrame]:
         """
@@ -671,6 +439,21 @@ class MercadoLivreScraper:
                     
                     # Faz scraping da página
                     page_products = self.scrape_page(page_url)
+                    
+                    # Fallback Inteligente (se página 1 estiver vazia por causa do formato do slug)
+                    if page == 1 and not page_products:
+                        print("🔄 [ML Fallback] Slug direto vazio. Tentando busca por query string livre...")
+                        query_url = f"https://lista.mercadolivre.com.br/{urllib.parse.quote_plus(search_term)}"
+                        page_products = self.scrape_page(query_url)
+
+                        if not page_products:
+                            # Tenta com limpeza de termos técnicos restritivos (voltagens/potências)
+                            clean_sub = re.sub(r'\b\d+v[-_\s]?(eu|br|us|uk)?\b|\b\d+w\b|\b(painel\s+br|220v-eu|127v|220v|110v)\b', '', search_term, flags=re.IGNORECASE).strip()
+                            clean_sub = re.sub(r'\s+', ' ', clean_sub).strip()
+                            if clean_sub and clean_sub.lower() != search_term.lower() and len(clean_sub) >= 3:
+                                clean_slug = clean_sub.replace(' ', '-').lower()
+                                print(f"🔄 [ML Fallback Técnico] Tentando com termo sem ruído: '{clean_sub}'...")
+                                page_products = self.scrape_page(f"{self.base_url}{clean_slug}")
                     
                     if page_products:
                         all_products.extend(page_products)

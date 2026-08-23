@@ -637,6 +637,32 @@
             </div>
             {% endif %}
 
+            <!-- Alerta de Telemetria e Falha de Marketplace -->
+            {% if (stats.amazon_produtos or 0) > 0 and (stats.ml_produtos or 0) == 0 %}
+            <div class="alert alert-warning border-warning d-flex align-items-center justify-content-between p-3 mb-3 rounded-3 shadow-sm" id="mlFailureAlert">
+                <div class="d-flex align-items-center gap-3">
+                    <i class="fas fa-exclamation-triangle text-warning fa-2x"></i>
+                    <div>
+                        <strong class="d-block text-dark fs-6">Mercado Livre não retornou ofertas nesta busca</strong>
+                        <span class="text-muted small">A Amazon retornou {{ stats.amazon_produtos }} produtos, mas a coleta no Mercado Livre não obteve itens (possível bloqueio temporário ou timeout).</span>
+                    </div>
+                </div>
+                <button class="btn btn-warning btn-sm fw-bold px-3 py-2 shadow-sm text-dark d-flex align-items-center gap-2" id="btnRetryML" onclick="retryMercadoLivre('{{ termo_pesquisa }}')">
+                    <i class="fas fa-sync-alt"></i> Re-tentar Mercado Livre
+                </button>
+            </div>
+            {% elif (stats.ml_produtos or 0) > 0 and (stats.amazon_produtos or 0) == 0 %}
+            <div class="alert alert-warning border-warning d-flex align-items-center justify-content-between p-3 mb-3 rounded-3 shadow-sm" id="amzFailureAlert">
+                <div class="d-flex align-items-center gap-3">
+                    <i class="fas fa-exclamation-triangle text-warning fa-2x"></i>
+                    <div>
+                        <strong class="d-block text-dark fs-6">Amazon não retornou ofertas nesta busca</strong>
+                        <span class="text-muted small">O Mercado Livre retornou {{ stats.ml_produtos }} produtos, mas a coleta na Amazon não obteve itens.</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Abas de Marketplaces (Todos, Catálogo, Mercado Livre, Amazon) -->
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border-bottom pb-2 mb-3">
                 <ul class="nav nav-pills gap-2" id="marketplaceTabs">
@@ -2228,6 +2254,41 @@ function quickAlertModal(title, price) {
     const targetPrice = prompt(`Criar alerta de preço para "${title}":\nDigite o preço alvo (R$):`, price);
     if (targetPrice) {
         alert(`Alerta configurado com sucesso para R$ ${targetPrice}!`);
+    }
+}
+
+async function retryMercadoLivre(termo) {
+    const btn = document.getElementById('btnRetryML');
+    if (!btn) return;
+    
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Coletando Mercado Livre...';
+    
+    showTriageToast('🚀 Disparando motor de contingência do Mercado Livre...', 'info');
+
+    try {
+        const response = await fetch('/search/api/search/retry-ml', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ termo: termo })
+        });
+
+        const data = await response.json();
+        if (data.success && data.count > 0) {
+            showTriageToast(`🎉 Sucesso! ${data.count} ofertas do Mercado Livre adicionadas! Atualizando página...`, 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 1200);
+        } else {
+            showTriageToast(`⚠️ ${data.message || 'Mercado Livre não retornou ofertas para este termo.'}`, 'warning');
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    } catch (err) {
+        showTriageToast(`❌ Erro ao comunicar com o servidor: ${err.message}`, 'danger');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
     }
 }
 </script>

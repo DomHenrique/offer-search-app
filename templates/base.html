@@ -42,11 +42,6 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('search.') %}active{% endif %}" href="{{ url_for('search.search_page') }}">
-                            <i class="fas fa-search"></i>Buscar
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint and request.endpoint.startswith('catalog.') %}active{% endif %}" href="{{ url_for('catalog.catalog_list') }}">
                             <i class="fas fa-store text-warning"></i>Catálogos
                         </a>

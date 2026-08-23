@@ -276,11 +276,29 @@ class CatalogScraper:
                             except Exception:
                                 continue
 
+                        # Preço de mercado
+                        price_val = 0.0
+                        for p_sel in [
+                            ".poly-price__current .andes-money-amount__fraction",
+                            ".ui-search-price__second-line .andes-money-amount__fraction",
+                            ".andes-money-amount__fraction",
+                            "span.price-tag-fraction"
+                        ]:
+                            try:
+                                p_elem = container.find_element(By.CSS_SELECTOR, p_sel)
+                                p_text = (p_elem.text or '').replace('.', '').replace(',', '.').strip()
+                                if p_text:
+                                    price_val = float(p_text)
+                                    break
+                            except Exception:
+                                continue
+
                         if title and product_url:
                             all_products.append({
                                 'titulo': title,
                                 'produto_url': product_url,
                                 'imagem': image_url,
+                                'preco': price_val,
                             })
                     except Exception as e:
                         print(f"   ⚠️ Erro ao processar produto: {e}")
@@ -303,6 +321,7 @@ class CatalogScraper:
                         'nome': product['titulo'],
                         'imagem': product['imagem'],
                         'produto_url': product['produto_url'],
+                        'buybox_min_price': float(product.get('preco') or 0.0),
                     })
 
             print(f"✅ {len(catalogs)} catálogos únicos encontrados de {len(all_products)} produtos")

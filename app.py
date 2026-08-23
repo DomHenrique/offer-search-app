@@ -51,6 +51,7 @@ app.register_blueprint(settings_bp, url_prefix='/settings')
 app.register_blueprint(history_bp, url_prefix='/history')
 app.register_blueprint(alert_bp, url_prefix='/alert')
 app.register_blueprint(catalog_bp, url_prefix='/catalog')
+app.register_blueprint(catalog_bp, url_prefix='/catalogs', name='catalogs_alias')
 app.register_blueprint(inventory_bp, url_prefix='/inventory')
 app.register_blueprint(logs_bp, url_prefix='/logs')
 

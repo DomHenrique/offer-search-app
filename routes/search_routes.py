@@ -22,14 +22,16 @@ db_manager = DatabaseManager()
 # Armazena status das buscas em andamento
 search_status = {}
 
-@search_bp.route('/')
+@search_bp.route('', strict_slashes=False)
+@search_bp.route('/', strict_slashes=False)
 def search_page():
-    """Página principal de busca"""
+    """Página principal de busca - Redirecionada para a central de Catálogos"""
     if 'user_id' not in session:
         flash('Você precisa fazer login para acessar esta página.', 'warning')
         return redirect(url_for('auth.login'))
     
-    return render_template('search/search.html')
+    query_args = request.args.to_dict()
+    return redirect(url_for('catalog.catalog_list', **query_args))
 
 @search_bp.route('/execute', methods=['POST'])
 def execute_search():
@@ -144,47 +146,13 @@ def _execute_search_thread(search_id, user_id, user_email, termo_pesquisa, pagin
                 if not non_empty.empty:
                     relaxed_used = str(non_empty.iloc[0])
 
-            # Determina status do log
+            # Determina status do log e telemetria por marketplace
             log_status = 'SUCCESS'
             if len(results) == 0:
                 log_status = 'EMPTY'
             elif relaxed_used:
                 log_status = 'FALLBACK_RECOVERED'
 
-            # Calcula estatísticas
-            amazon_count = int(len([r for r in (results.to_dict('records') if hasattr(results, 'to_dict') else results) if r.get('marketplace') == 'Amazon']) or 0)
-            ml_count = int(len([r for r in (results.to_dict('records') if hasattr(results, 'to_dict') else results) if r.get('marketplace') == 'MercadoLivre']) or 0)
-            total_count = int(len(results) or 0)
-
-            # Grava log estruturado no banco
-            db_manager.save_search_log({
-                'user_id': user_id,
-                'user_email': user_email,
-                'termo_original': termo_pesquisa,
-                'termo_utilizado': relaxed_used or termo_pesquisa,
-                'status': log_status,
-                'total_ofertas': total_count,
-                'ml_ofertas': ml_count,
-                'amazon_ofertas': amazon_count,
-                'tempo_execucao_segundos': round(execution_time, 2)
-            })
-
-            stats = {
-                'total_produtos': total_count,
-                'amazon_produtos': amazon_count,
-                'ml_produtos': ml_count,
-                'preco_medio': float(sum(r.get('preco_numerico', 0) or 0 for r in (results.to_dict('records') if hasattr(results, 'to_dict') else results)) / total_count) if total_count > 0 else 0.0,
-                'preco_minimo': float(min((r.get('preco_numerico', 0) or 0) for r in (results.to_dict('records') if hasattr(results, 'to_dict') else results))) if total_count > 0 else 0.0,
-                'preco_maximo': float(max((r.get('preco_numerico', 0) or 0) for r in (results.to_dict('records') if hasattr(results, 'to_dict') else results))) if total_count > 0 else 0.0,
-                'tempo_execucao': int(execution_time or 0),
-                'relaxed_query_used': relaxed_used
-            }
-            print(f"📈 Estatísticas: {stats}")
-            
-            # Salva no histórico
-            history_id = db_manager.save_search_history(user_id, termo_pesquisa, stats)
-            print(f"💾 ID do histórico salvo: {history_id}")
-            
             # Busca resultados do banco para exibir
             print(f"🔍 Buscando ofertas do banco para termo: {termo_pesquisa}")
             ofertas = []
@@ -202,6 +170,55 @@ def _execute_search_thread(search_id, user_id, user_email, termo_pesquisa, pagin
                 print("ℹ️ Usando resultados diretos do scraper para exibição imediata")
                 ofertas = results if isinstance(results, list) else results.to_dict('records')
 
+            # Calcula estatísticas e telemetria
+            amazon_count = int(len([r for r in ofertas if (r.get('marketplace') or '').lower() == 'amazon']) or 0)
+            ml_count = int(len([r for r in ofertas if (r.get('marketplace') or '').lower() in ('mercadolivre', 'mercado livre', 'mercado_livre')]) or 0)
+            total_count = int(len(ofertas) or 0)
+
+            ml_status = 'SUCCESS' if ml_count > 0 else ('EMPTY' if total_count == 0 else 'FAILED')
+            amazon_status = 'SUCCESS' if amazon_count > 0 else ('EMPTY' if total_count == 0 else 'FAILED')
+            
+            telemetry = {
+                'amazon': {'status': amazon_status, 'count': amazon_count},
+                'mercadolivre': {'status': ml_status, 'count': ml_count}
+            }
+
+            # Grava log estruturado no banco
+            error_msg = None
+            if ml_count == 0 and amazon_count > 0:
+                error_msg = "Mercado Livre retornou 0 ofertas (possível bloqueio/timeout). Amazon retornou com sucesso."
+            elif amazon_count == 0 and ml_count > 0:
+                error_msg = "Amazon retornou 0 ofertas. Mercado Livre retornou com sucesso."
+
+            db_manager.save_search_log({
+                'user_id': user_id,
+                'user_email': user_email,
+                'termo_original': termo_pesquisa,
+                'termo_utilizado': relaxed_used or termo_pesquisa,
+                'status': log_status,
+                'total_ofertas': total_count,
+                'ml_ofertas': ml_count,
+                'amazon_ofertas': amazon_count,
+                'tempo_execucao_segundos': round(execution_time, 2),
+                'error_message': error_msg
+            })
+
+            stats = {
+                'total_produtos': total_count,
+                'amazon_produtos': amazon_count,
+                'ml_produtos': ml_count,
+                'preco_medio': float(sum(r.get('preco_numerico', 0) or 0 for r in ofertas) / total_count) if total_count > 0 else 0.0,
+                'preco_minimo': float(min((r.get('preco_numerico', 0) or 0) for r in ofertas)) if total_count > 0 else 0.0,
+                'preco_maximo': float(max((r.get('preco_numerico', 0) or 0) for r in ofertas)) if total_count > 0 else 0.0,
+                'tempo_execucao': int(execution_time or 0),
+                'relaxed_query_used': relaxed_used,
+                'telemetry': telemetry
+            }
+            print(f"📈 Estatísticas: {stats}")
+            
+            # Salva no histórico
+            history_id = db_manager.save_search_history(user_id, termo_pesquisa, stats)
+            print(f"💾 ID do histórico salvo: {history_id}")
             print(f"✅ Encontradas {len(ofertas)} ofertas para exibição")
             
             # Finaliza busca
@@ -211,13 +228,14 @@ def _execute_search_thread(search_id, user_id, user_email, termo_pesquisa, pagin
                 'message': f'Busca concluída! {len(ofertas)} produtos encontrados.' + (f' (Termo otimizado: "{relaxed_used}")' if relaxed_used else ''),
                 'results': ofertas,
                 'stats': stats,
+                'telemetry': telemetry,
                 'relaxed_query_used': relaxed_used,
                 'completed': True
             })
             # Salva no cache apenas se houver ofertas reais
             if ofertas:
                 cache_key = f"search:{user_id}:{termo_pesquisa}"
-                cache.set(cache_key, {'results': ofertas, 'stats': stats})
+                cache.set(cache_key, {'results': ofertas, 'stats': stats, 'telemetry': telemetry})
             print(f"🎉 Busca concluída com sucesso: {search_status[search_id]}")
             
         finally:
@@ -305,13 +323,21 @@ def enrich_product_intel(produto: dict) -> dict:
         raw_is_cat = p.get('is_catalogo')
     
     sellers_count = int(p.get('sellers_count') or p.get('SELLERS_COUNT') or 1)
+    
+    # Detecção de múltiplas ofertas em textos de metadados
+    offers_text = str(p.get('offers') or p.get('OFFERS') or p.get('ofertas_especiais') or p.get('etiquetas') or '')
+    offers_match = re.search(r'(\d+)\s*(?:outras?\s*ofertas?|opções\s*de\s*compra|vendedores|ofertas?\s*a\s*partir|novas?\s*ofertas?)', offers_text, re.IGNORECASE)
+    if offers_match:
+        sellers_count = max(sellers_count, int(offers_match.group(1)) + 1)
+
     has_buybox_sellers = sellers_count > 1
 
     if is_amazon:
-        # Na Amazon, o produto SÓ recebe rótulo de catálogo se tiver múltiplos vendedores confirmados (> 1)
-        is_cat = bool(raw_is_cat) and has_buybox_sellers
-        if not is_cat and sellers_count > 1:
-            is_cat = True
+        # Na Amazon, o produto é catálogo se tiver múltiplos vendedores confirmados (> 1), ou texto explícito de outras ofertas, ou link offer-listing
+        has_amazon_offers_link = 'offer-listing' in url or 'aod' in url
+        is_cat = (bool(raw_is_cat) and has_buybox_sellers) or sellers_count > 1 or bool(offers_match) or has_amazon_offers_link
+        if is_cat and sellers_count == 1:
+            sellers_count = 2
     else:
         # No Mercado Livre, /p/MLB... é a rota oficial de catálogo de produto
         ml_is_cat_url = bool(cat_match) and not is_user_post
@@ -341,13 +367,29 @@ def enrich_product_intel(produto: dict) -> dict:
             raw_store = loja_m.group(1).replace('-', ' ').title()
 
     clean_store = re.sub(r'^(vendido\s+por\s+|por\s+|loja\s+oficial\s+)', '', str(raw_store), flags=re.IGNORECASE).strip()
+    
+    # Sanitização: NUNCA usar ASIN ou código de produto como nome de vendedor
+    if re.match(r'^(B0[A-Z0-9]{8}|[A-Z0-9]{10}|MLB\d+)$', clean_store, re.IGNORECASE):
+        clean_store = ""
+
     if not clean_store or clean_store.lower() in ('loja não identificada', 'loja', 'none', 'null'):
-        # Fallback tenta extrair da URL se for loja oficial
-        loja_url_match = re.search(r'/loja/([^/?&#]+)', url)
-        if loja_url_match:
-            clean_store = loja_url_match.group(1).replace('-', ' ').title()
+        # Tenta extrair a marca do produto ou título
+        brand_val = str(p.get('marca') or p.get('brand') or '').strip()
+        if brand_val and not re.match(r'^(B0[A-Z0-9]{8}|[A-Z0-9]{10}|MLB\d+)$', brand_val, re.IGNORECASE):
+            clean_store = brand_val
+        elif title.upper().startswith("EF ECOFLOW"):
+            clean_store = "EF ECOFLOW"
+        elif title.upper().startswith("ECOFLOW"):
+            clean_store = "Ecoflow"
+        elif title.upper().startswith("ZOUPW"):
+            clean_store = "ZOUPW"
         else:
-            clean_store = "Vendedor Oficial" if is_cat else ("Vendedor Mercado Livre" if 'mercadolivre' in url.lower() else "Amazon Brasil")
+            # Fallback tenta extrair da URL se for loja oficial
+            loja_url_match = re.search(r'/loja/([^/?&#]+)', url)
+            if loja_url_match:
+                clean_store = loja_url_match.group(1).replace('-', ' ').title()
+            else:
+                clean_store = "Vendedor Oficial" if is_cat else ("Vendedor Mercado Livre" if 'mercadolivre' in url.lower() else "Amazon Brasil")
             
     p['store_name'] = clean_store
     p['winner_seller_name'] = clean_store
@@ -549,9 +591,15 @@ def results_page():
         sidebar_metrics = compute_sidebar_metrics(enriched_results)
         sidebar_metrics['has_previous_history'] = has_history
         
+        telemetry = stats.get('telemetry') or {
+            'amazon': {'status': 'SUCCESS' if stats.get('amazon_produtos', 0) > 0 else 'EMPTY', 'count': stats.get('amazon_produtos', 0)},
+            'mercadolivre': {'status': 'SUCCESS' if stats.get('ml_produtos', 0) > 0 else ('FAILED' if stats.get('amazon_produtos', 0) > 0 and stats.get('ml_produtos', 0) == 0 else 'EMPTY'), 'count': stats.get('ml_produtos', 0)}
+        }
+
         return render_template('search/results.html',
                                results=enriched_results,
                                stats=stats,
+                               telemetry=telemetry,
                                sidebar_metrics=sidebar_metrics,
                                search_id=search_id,
                                busca_id=busca_id,
@@ -559,6 +607,54 @@ def results_page():
     
     flash('Busca não encontrada ou expirada. Realize uma nova busca.', 'info')
     return redirect(url_for('search.search_page'))
+
+
+@search_bp.route('/api/search/retry-ml', methods=['POST'])
+def retry_mercadolivre_search():
+    """Re-executa exclusivamente a busca no Mercado Livre para um termo específico e salva no Supabase"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+    
+    data = request.get_json() or {}
+    termo = data.get('termo', '').strip()
+    if not termo:
+        return jsonify({'error': 'Termo de pesquisa obrigatório'}), 400
+        
+    user_id = session['user_id']
+    try:
+        from scraping.unificar_dados import _fetch_ml_worker, padronizar_colunas_ml
+        from database.supabase_client import SupabaseDB
+        
+        df_ml, tel_ml = _fetch_ml_worker(termo, paginas_ml=1, user_id=str(user_id))
+        if df_ml is not None and not df_ml.empty:
+            df_ml_pad = padronizar_colunas_ml(df_ml)
+            df_ml_pad['termo_pesquisa'] = termo
+            db = SupabaseDB()
+            db.salvar_ofertas(df_ml_pad)
+            
+            # Invalida cache de busca do usuário
+            _invalidate_user_search_cache(user_id)
+            
+            records = df_ml_pad.to_dict('records')
+            enriched = [enrich_product_intel(r) for r in records]
+            return jsonify({
+                'success': True,
+                'count': len(enriched),
+                'results': enriched,
+                'message': f'{len(enriched)} ofertas coletadas do Mercado Livre com sucesso!'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'count': 0,
+                'message': 'Mercado Livre não retornou produtos para este termo.'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': f'Erro ao re-tentar Mercado Livre: {e}'
+        }), 500
 
 @search_bp.route('/recent')
 def recent_searches():

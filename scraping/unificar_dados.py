@@ -2,9 +2,11 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import time
 import os
 import re
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
+from concurrent.futures import ThreadPoolExecutor
 
 # Importa as funções dos scrapers
 from scraping.serpapi_amazon_func import buscar_produtos_amazon
@@ -95,6 +97,8 @@ def padronizar_colunas_amazon(df: pd.DataFrame) -> pd.DataFrame:
         'REVIEWS_COUNT': 'NUM_AVALIACOES',
         'IMAGE_URL': 'IMAGEM_URL',
         'PRODUCT_URL': 'PRODUTO_URL',
+        'STORE_NAME': 'LOJA_OFICIAL',
+        'BRAND': 'MARCA',
         'SEARCH_TERM': 'TERMO_BUSCA',
         'SCRAPY_DATETIME': 'DATA_SCRAPING',
         'MARKETPLACE': 'MARKETPLACE',
@@ -124,6 +128,8 @@ def padronizar_colunas_amazon(df: pd.DataFrame) -> pd.DataFrame:
         'NUM_AVALIACOES': 0,
         'IMAGEM_URL': '',
         'PRODUTO_URL': '',
+        'LOJA_OFICIAL': 'Amazon Brasil',
+        'MARCA': '',
         'TERMO_BUSCA': '',
         'DATA_SCRAPING': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'MARKETPLACE': 'Amazon',
@@ -149,6 +155,9 @@ def padronizar_colunas_amazon(df: pd.DataFrame) -> pd.DataFrame:
     # Converte número de avaliações para int
     if 'NUM_AVALIACOES' in df_padronizado.columns:
         df_padronizado['NUM_AVALIACOES'] = pd.to_numeric(df_padronizado['NUM_AVALIACOES'], errors='coerce').fillna(0).astype(int)
+    
+    # Remove qualquer coluna duplicada
+    df_padronizado = df_padronizado.loc[:, ~df_padronizado.columns.duplicated()].copy()
     
     return df_padronizado
 
@@ -234,6 +243,9 @@ def padronizar_colunas_ml(df: pd.DataFrame) -> pd.DataFrame:
     # Converte número de avaliações para int
     if 'NUM_AVALIACOES' in df_padronizado.columns:
         df_padronizado['NUM_AVALIACOES'] = pd.to_numeric(df_padronizado['NUM_AVALIACOES'], errors='coerce').fillna(0).astype(int)
+    
+    # Remove qualquer coluna duplicada
+    df_padronizado = df_padronizado.loc[:, ~df_padronizado.columns.duplicated()].copy()
     
     return df_padronizado
 
@@ -579,68 +591,103 @@ def unificar_dados_amazon_mercadolivre(
     return df_final
 
 
+def _fetch_amazon_worker(termo: str, user_id: Optional[str] = None) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """Worker para busca na Amazon com telemetria detalhada"""
+    start_t = time.time()
+    telemetry = {"status": "SUCCESS", "count": 0, "duration": 0.0, "error": None}
+    print(f"🛒 [Thread Amazon] Buscando produtos para '{termo}'...")
+    try:
+        df_amazon = get_amazon_direct_data(termo, user_id=user_id)
+        if df_amazon is None or df_amazon.empty:
+            relaxed_amz = relax_search_query(termo, max_words=5)
+            if relaxed_amz and relaxed_amz.lower() != termo.lower() and len(relaxed_amz) >= 3:
+                print(f"🔄 [Amazon Auto-Recuperação] Tentando com termo otimizado: '{relaxed_amz}'...")
+                df_amazon = get_amazon_direct_data(relaxed_amz, user_id=user_id)
+        if df_amazon is None or df_amazon.empty:
+            print("⚠️ [Amazon] Tentando via SerpApi (Fallback)...")
+            df_amazon = buscar_produtos_amazon(termo)
+            
+        if df_amazon is not None and not df_amazon.empty:
+            telemetry["count"] = len(df_amazon)
+            telemetry["status"] = "SUCCESS"
+            print(f"✅ [Thread Amazon] {len(df_amazon)} produtos encontrados")
+        else:
+            telemetry["status"] = "EMPTY"
+            print("⚠️ [Thread Amazon] Nenhum produto encontrado")
+            df_amazon = pd.DataFrame()
+    except Exception as e:
+        telemetry["status"] = "FAILED"
+        telemetry["error"] = str(e)
+        print(f"❌ [Thread Amazon] Erro na busca: {e}")
+        df_amazon = pd.DataFrame()
+    finally:
+        telemetry["duration"] = round(time.time() - start_t, 2)
+    return df_amazon, telemetry
+
+
+def _fetch_ml_worker(termo: str, paginas_ml: int = 1, user_id: Optional[str] = None) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """Worker para busca no Mercado Livre com telemetria detalhada e auto-recuperação progressiva"""
+    start_t = time.time()
+    telemetry = {"status": "SUCCESS", "count": 0, "duration": 0.0, "error": None}
+    print(f"🛒 [Thread Mercado Livre] Buscando produtos para '{termo}'...")
+    try:
+        df_ml = get_mercado_livre_data(termo, paginas_ml, user_id=user_id)
+
+        # 1º Nível de Auto-Recuperação: Limpeza de 5 termos principais
+        if df_ml is None or df_ml.empty:
+            relaxed_ml = relax_search_query(termo, max_words=5)
+            if relaxed_ml and relaxed_ml.lower() != termo.lower() and len(relaxed_ml) >= 3:
+                print(f"🔄 [ML Auto-Recuperação Nível 1] Tentando no ML com termo otimizado: '{relaxed_ml}'...")
+                df_ml = get_mercado_livre_data(relaxed_ml, paginas_ml, user_id=user_id)
+
+        # 2º Nível de Auto-Recuperação: Termo curto focado (3 palavras-chave)
+        if df_ml is None or df_ml.empty:
+            relaxed_short = relax_search_query(termo, max_words=3)
+            if relaxed_short and relaxed_short.lower() != termo.lower() and len(relaxed_short) >= 3:
+                print(f"🔄 [ML Auto-Recuperação Nível 2] Tentando no ML com termo focado: '{relaxed_short}'...")
+                df_ml = get_mercado_livre_data(relaxed_short, paginas_ml, user_id=user_id)
+                
+        if df_ml is not None and not df_ml.empty:
+            telemetry["count"] = len(df_ml)
+            telemetry["status"] = "SUCCESS"
+            print(f"✅ [Thread Mercado Livre] {len(df_ml)} produtos encontrados")
+        else:
+            telemetry["status"] = "EMPTY"
+            print("⚠️ [Thread Mercado Livre] Nenhum produto encontrado")
+            df_ml = pd.DataFrame()
+    except Exception as e:
+        telemetry["status"] = "FAILED"
+        telemetry["error"] = str(e)
+        print(f"❌ [Thread Mercado Livre] Erro na busca: {e}")
+        df_ml = pd.DataFrame()
+    finally:
+        telemetry["duration"] = round(time.time() - start_t, 2)
+    return df_ml, telemetry
+
+
 def _executar_busca_marketplaces(
     termo: str,
     paginas_ml: int = 1,
     salvar_supabase: bool = False,
     user_id: Optional[str] = None
 ) -> pd.DataFrame:
-    """Executa a coleta bruta nos marketplaces para um termo específico."""
-    # Busca dados da Amazon
-    print(f"🛒 Buscando produtos na Amazon para '{termo}'...")
-    try:
-        df_amazon = get_amazon_direct_data(termo, user_id=user_id)
+    """Executa a coleta paralela nos marketplaces (Amazon + Mercado Livre) com ThreadPoolExecutor."""
+    print(f"⚡ [Busca Concorrente] Disparando Amazon e Mercado Livre em paralelo para '{termo}'...")
+    
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        fut_amazon = executor.submit(_fetch_amazon_worker, termo, user_id)
+        time.sleep(0.5)  # Staggering para evitar colisão na inicialização simultânea do driver
+        fut_ml = executor.submit(_fetch_ml_worker, termo, paginas_ml, user_id)
         
-        # Se a Amazon retornar 0 para o termo original, tenta auto-recuperação específica
-        if df_amazon is None or df_amazon.empty:
-            relaxed_amz = relax_search_query(termo, max_words=5)
-            if relaxed_amz and relaxed_amz.lower() != termo.lower() and len(relaxed_amz) >= 3:
-                print(f"🔄 [Amazon Auto-Recuperação] Termo original veio vazio na Amazon.")
-                print(f"   Tentando na Amazon com termo otimizado: '{relaxed_amz}'...")
-                df_amazon = get_amazon_direct_data(relaxed_amz, user_id=user_id)
+        df_amazon, telemetry_amazon = fut_amazon.result()
+        df_ml, telemetry_ml = fut_ml.result()
 
-        # Fallback de contingência via SerpApi caso ainda esteja vazio
-        if df_amazon is None or df_amazon.empty:
-            print("⚠️ Tentando via SerpApi (Fallback)...")
-            df_amazon = buscar_produtos_amazon(termo)
-            
-        if df_amazon is not None and not df_amazon.empty:
-            print(f"✅ Amazon: {len(df_amazon)} produtos encontrados")
-        else:
-            print("⚠️ Amazon: Nenhum produto encontrado")
-            df_amazon = pd.DataFrame()
-            
-    except Exception as e:
-        print(f"❌ Erro na busca Amazon Direta: {e}")
-        try:
-            df_amazon = buscar_produtos_amazon(termo)
-            if df_amazon is None:
-                df_amazon = pd.DataFrame()
-        except Exception:
-            df_amazon = pd.DataFrame()
-    
-    # Busca dados do Mercado Livre
-    print(f"🛒 Buscando produtos no Mercado Livre para '{termo}'...")
-    try:
-        df_ml = get_mercado_livre_data(termo, paginas_ml, user_id=user_id)
-        
-        # Se o Mercado Livre retornar 0 para o termo original, tenta auto-recuperação específica
-        if df_ml is None or df_ml.empty:
-            relaxed_ml = relax_search_query(termo, max_words=5)
-            if relaxed_ml and relaxed_ml.lower() != termo.lower() and len(relaxed_ml) >= 3:
-                print(f"🔄 [ML Auto-Recuperação] Termo original veio vazio no Mercado Livre.")
-                print(f"   Tentando no ML com termo otimizado: '{relaxed_ml}'...")
-                df_ml = get_mercado_livre_data(relaxed_ml, paginas_ml, user_id=user_id)
-                
-        if df_ml is not None and not df_ml.empty:
-            print(f"✅ Mercado Livre: {len(df_ml)} produtos encontrados")
-        else:
-            print("⚠️ Mercado Livre: Nenhum produto encontrado")
-            df_ml = pd.DataFrame()
-    except Exception as e:
-        print(f"❌ Erro na busca Mercado Livre: {e}")
-        df_ml = pd.DataFrame()
-    
+    telemetry_combined = {
+        "amazon": telemetry_amazon,
+        "mercadolivre": telemetry_ml
+    }
+    print(f"📊 [Telemetria Busca] {telemetry_combined}")
+
     # Padroniza colunas
     df_amazon_padronizado = padronizar_colunas_amazon(df_amazon)
     df_ml_padronizado = padronizar_colunas_ml(df_ml)
@@ -649,13 +696,17 @@ def _executar_busca_marketplaces(
                    if df is not None and not df.empty]
     
     if not dfs_validos:
-        return pd.DataFrame()
+        empty_df = pd.DataFrame()
+        empty_df.attrs['telemetry'] = telemetry_combined
+        return empty_df
     
     df_unificado = pd.concat(dfs_validos, ignore_index=True)
     df_filtrado = filtrar_produtos_validos(df_unificado)
     
     if df_filtrado.empty:
-        return pd.DataFrame()
+        empty_df = pd.DataFrame()
+        empty_df.attrs['telemetry'] = telemetry_combined
+        return empty_df
     
     df_final = adicionar_metricas_comparacao(df_filtrado)
     
@@ -663,6 +714,9 @@ def _executar_busca_marketplaces(
         df_final = df_final.sort_values('SCORE_PRODUTO', ascending=False).reset_index(drop=True)
     else:
         df_final = df_final.sort_values('PRECO_NUM', ascending=True).reset_index(drop=True)
+    
+    # Anexa telemetria ao DataFrame final
+    df_final.attrs['telemetry'] = telemetry_combined
     
     gerar_relatorio_unificado(df_final, termo)
     return df_final

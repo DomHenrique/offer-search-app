@@ -2,6 +2,106 @@
 
 {% block title %}Catálogos ML - Offer Search App{% endblock %}
 
+{% block extra_styles %}
+<style>
+/* Painel de Preços dentro do Card de Catálogo */
+.catalog-price-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.78rem;
+}
+.price-box-label {
+    color: #64748b;
+    font-weight: 500;
+    font-size: 0.72rem;
+}
+.price-box-val {
+    font-size: 0.84rem;
+}
+
+/* Badges Semânticos de Competitividade */
+.comp-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 4px 6px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-align: center;
+}
+.comp-badge-win {
+    background: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+}
+.comp-badge-lose {
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+.comp-badge-tie {
+    background: #fefce8;
+    color: #a16207;
+    border: 1px solid #fef08a;
+}
+.comp-badge-neutral {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+}
+.comp-badge-orphan {
+    background: #f3e8ff;
+    color: #7e22ce;
+    border: 1px solid #d8b4fe;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.comp-badge-orphan:hover {
+    background: #e9d5ff;
+}
+
+/* Pílulas de Filtro de Competitividade na Toolbar */
+.status-pill-btn {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #475569;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.status-pill-btn:hover {
+    background: #f1f5f9;
+}
+.status-pill-btn.active {
+    background: #0f172a;
+    color: #fff;
+    border-color: #0f172a;
+}
+.status-pill-btn.active.pill-win {
+    background: #059669;
+    border-color: #059669;
+    color: #fff;
+}
+.status-pill-btn.active.pill-lose {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #fff;
+}
+.status-pill-btn.active.pill-orphan {
+    background: #7e22ce;
+    border-color: #7e22ce;
+    color: #fff;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="app-container">
 
@@ -76,7 +176,7 @@
     <!-- Catálogos salvos para monitoramento agrupados por termo -->
     {% if saved_catalogs %}
     <div class="mt-4">
-        <!-- Toolbar com Filtro em Tempo Real e Controles de Expansão -->
+        <!-- Toolbar com Filtro em Tempo Real, Preço, Competitividade e Expansão -->
         <div class="table-saas-card p-3 mb-3">
             <div class="row align-items-center g-3">
                 <div class="col-md-3">
@@ -110,20 +210,97 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Linha 2: Filtros de Preço, Competitividade e Ordenação -->
+            <div class="row align-items-center g-3 pt-3 mt-1 border-top">
+                <!-- Faixa de Preço -->
+                <div class="col-lg-4 col-md-6">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="small fw-semibold text-secondary flex-shrink-0">
+                            <i class="fas fa-dollar-sign text-success me-1"></i> Preço:
+                        </span>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white" style="font-size:0.75rem;">R$</span>
+                            <input type="number" id="filterPriceMin" class="form-control" placeholder="Mín" min="0" step="50" oninput="filterCatalogsLive()">
+                            <span class="input-group-text bg-white" style="font-size:0.75rem;">até R$</span>
+                            <input type="number" id="filterPriceMax" class="form-control" placeholder="Máx" min="0" step="50" oninput="filterCatalogsLive()">
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearPriceFilter()" title="Limpar faixa de preço">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status Competitivo -->
+                <div class="col-lg-5 col-md-6">
+                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                        <span class="small fw-semibold text-secondary me-1">
+                            <i class="fas fa-balance-scale text-primary me-1"></i> Status:
+                        </span>
+                        <button type="button" class="status-pill-btn active" data-status-filter="all" onclick="setStatusFilter('all', this)">
+                            Todos
+                        </button>
+                        <button type="button" class="status-pill-btn pill-win" data-status-filter="vencendo" onclick="setStatusFilter('vencendo', this)">
+                            🟢 Loja Vencendo
+                        </button>
+                        <button type="button" class="status-pill-btn pill-lose" data-status-filter="perdendo" onclick="setStatusFilter('perdendo', this)">
+                            🔴 Concorrente Vence
+                        </button>
+                        <button type="button" class="status-pill-btn pill-orphan" data-status-filter="sem_sku" onclick="setStatusFilter('sem_sku', this)">
+                            ⚪ Sem SKU
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Ordenação -->
+                <div class="col-lg-3 col-md-12 text-lg-end">
+                    <div class="d-flex align-items-center justify-content-lg-end gap-2">
+                        <span class="small fw-semibold text-secondary flex-shrink-0">
+                            <i class="fas fa-sort text-warning me-1"></i> Ordenar:
+                        </span>
+                        <select id="sortCatalogsSelect" class="form-select form-select-sm" style="max-width: 180px;" onchange="filterCatalogsLive()">
+                            <option value="default">Padrão</option>
+                            <option value="price_asc">Menor Preço Concorrente</option>
+                            <option value="price_desc">Maior Preço Concorrente</option>
+                            <option value="diff_desc">Maior Oportunidade</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Seções Agrupadas por Termo de Busca -->
+        <!-- Seções Agrupadas por Termo de Busca / SKU de Origem -->
         <div id="catalogGroupsContainer">
             {% if grouped_catalogs %}
-                {% for term, catalogs in grouped_catalogs.items() %}
+                {% for group_key, group_data in grouped_catalogs.items() %}
                 <div class="catalog-search-group" id="group-{{ loop.index }}">
                     <!-- Cabeçalho do Grupo (Clicável para Expandir/Recolher) -->
                     <div class="search-group-header" onclick="toggleGroup('group-{{ loop.index }}')">
-                        <div class="search-group-title">
-                            <i class="fas fa-layer-group text-primary"></i>
-                            <span>{{ term }}</span>
+                        <div class="search-group-title d-flex align-items-center gap-2 flex-wrap">
+                            {% if not group_data.is_orphan and group_data.sku_info %}
+                                <span class="badge-saas" style="background:#f3e8ff; color:#7e22ce; border:1px solid #d8b4fe; font-size:0.8rem; font-weight:700;">
+                                    <i class="fas fa-barcode me-1"></i> SKU: {{ group_data.sku_code }}
+                                </span>
+                                <span class="fw-bold text-dark fs-6">{{ group_data.sku_info.descricao }}</span>
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style="font-size:0.75rem;">
+                                    <i class="fas fa-boxes-stacked me-1"></i> {{ group_data.sku_info.quantidade_total }} UN em Estoque
+                                </span>
+                                {% if group_data.sku_info.preco_revenda %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style="font-size:0.75rem;">
+                                    <i class="fas fa-tag me-1"></i> Preço Loja: R$ {{ "%.2f"|format(group_data.sku_info.preco_revenda)|replace('.', ',') }}
+                                </span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge-saas badge-saas-neutral" style="font-size:0.8rem;">
+                                    <i class="fas fa-search me-1"></i> Busca Avulsa
+                                </span>
+                                <span class="fw-bold text-dark fs-6">{{ group_data.term }}</span>
+                                <button type="button" class="btn btn-xs btn-outline-primary ms-2 py-0 px-2" style="font-size:0.72rem;" onclick="event.stopPropagation(); openQuickLinkModal('{{ group_data.term }}', '')" title="Vincular busca a um SKU do estoque">
+                                    <i class="fas fa-link me-1"></i> Vincular a SKU
+                                </button>
+                            {% endif %}
                             <span class="badge-saas badge-saas-primary font-tabular group-count-badge">
-                                {{ catalogs|length }} {{ 'catálogo' if catalogs|length == 1 else 'catálogos' }}
+                                {{ group_data.catalogs|length }} {{ 'catálogo' if group_data.catalogs|length == 1 else 'catálogos' }}
                             </span>
                         </div>
                         <div class="d-flex align-items-center gap-2">
@@ -135,11 +312,19 @@
                     <!-- Corpo do Grupo (Grade de Cards) -->
                     <div class="search-group-body">
                         <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3">
-                            {% for cat in catalogs %}
+                            {% for cat in group_data.catalogs %}
                             <div class="col catalog-item-wrapper"
                                  data-title="{{ (cat.nome or '')|lower }}"
                                  data-id="{{ (cat.catalog_id or '')|lower }}"
-                                 data-term="{{ (cat.termo_pesquisa or '')|lower }}">
+                                 data-term="{{ (cat.termo_pesquisa or '')|lower }}"
+                                 data-sku="{{ (group_data.sku_code or '')|lower }}"
+                                 data-price="{{ cat.competitor_price|default(0.0) }}"
+                                 data-my-revenda="{{ cat.my_revenda|default(0.0) }}"
+                                 data-my-pix="{{ cat.my_pix|default(0.0) }}"
+                                 data-my-custo="{{ cat.my_custo|default(0.0) }}"
+                                 data-status="{{ cat.status_competitivo|default('sem_sku') }}"
+                                 data-diff="{{ cat.diff_price|default(0.0) }}"
+                                 data-margin="{{ cat.margin_pct|default(0.0) }}">
                                 <div class="saas-catalog-card">
                                     <!-- Topbar do Card -->
                                     <div class="saas-card-topbar">
@@ -147,15 +332,17 @@
                                             <i class="fas fa-copy" style="font-size: 0.65rem;"></i>
                                             {{ cat.catalog_id }}
                                         </span>
-                                        {% if cat.marketplace == 'Amazon' or not cat.catalog_id.startswith('MLB') %}
-                                            <span class="badge-saas" style="background:#fff7ed; color:#c2410c; border:1px solid #fed7aa;">
-                                                <i class="fab fa-amazon"></i> Amazon
-                                            </span>
-                                        {% else %}
-                                            <span class="badge-saas" style="background:#fef9c3; color:#a16207; border:1px solid #fde047;">
-                                                <i class="fas fa-layer-group"></i> ML
-                                            </span>
-                                        {% endif %}
+                                        <div class="d-flex align-items-center gap-1">
+                                            {% if cat.marketplace == 'Amazon' or not cat.catalog_id.startswith('MLB') %}
+                                                <span class="badge-saas" style="background:#fff7ed; color:#c2410c; border:1px solid #fed7aa;">
+                                                    <i class="fab fa-amazon"></i> Amazon
+                                                </span>
+                                            {% else %}
+                                                <span class="badge-saas" style="background:#fef9c3; color:#a16207; border:1px solid #fde047;">
+                                                    <i class="fas fa-layer-group"></i> ML
+                                                </span>
+                                            {% endif %}
+                                        </div>
                                     </div>
 
                                     <!-- Imagem com Respiro e Moldura -->
@@ -175,6 +362,80 @@
                                         </h6>
                                         <div class="small text-muted text-truncate mb-2" title="ID: {{ cat.catalog_id }}">
                                             <i class="fas fa-barcode me-1 text-secondary opacity-75"></i> {{ cat.catalog_id }}
+                                        </div>
+
+                                        <!-- Painel Comparativo de Preços -->
+                                        <div class="catalog-price-box mb-2">
+                                            <!-- Linha Concorrência (Menor Preço BuyBox) -->
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="price-box-label">
+                                                    <i class="fas fa-shopping-cart text-warning me-1"></i> Concorrência:
+                                                </span>
+                                                <span class="price-box-val text-dark fw-bold">
+                                                    {% if cat.competitor_price and cat.competitor_price > 0 %}
+                                                        R$ {{ "%.2f"|format(cat.competitor_price)|replace('.', ',') }}
+                                                    {% else %}
+                                                        <span class="text-muted small">A consultar</span>
+                                                    {% endif %}
+                                                </span>
+                                            </div>
+
+                                            <!-- Preços da Loja (Revenda e PIX) se vinculado a SKU -->
+                                            {% if cat.my_revenda and cat.my_revenda > 0 %}
+                                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                                    <span class="price-box-label">
+                                                        <i class="fas fa-store text-primary me-1"></i> Preço Loja:
+                                                    </span>
+                                                    <span class="price-box-val text-primary fw-bold">
+                                                        R$ {{ "%.2f"|format(cat.my_revenda)|replace('.', ',') }}
+                                                    </span>
+                                                </div>
+                                                {% if cat.my_pix and cat.my_pix > 0 %}
+                                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                                    <span class="price-box-label">
+                                                        <i class="fas fa-bolt text-success me-1"></i> Preço PIX:
+                                                    </span>
+                                                    <span class="price-box-val text-success fw-bold">
+                                                        R$ {{ "%.2f"|format(cat.my_pix)|replace('.', ',') }}
+                                                    </span>
+                                                </div>
+                                                {% endif %}
+                                                {% if cat.my_custo and cat.my_custo > 0 %}
+                                                <div class="d-flex justify-content-between align-items-center text-muted mt-1 pt-1 border-top" style="font-size:0.7rem;">
+                                                    <span>Custo: R$ {{ "%.2f"|format(cat.my_custo)|replace('.', ',') }}</span>
+                                                    {% if cat.margin_pct and cat.margin_pct > 0 %}
+                                                        <span class="badge bg-light text-secondary border">Margem: {{ "%.1f"|format(cat.margin_pct) }}%</span>
+                                                    {% endif %}
+                                                </div>
+                                                {% endif %}
+
+                                                <!-- Status Competitivo -->
+                                                <div class="mt-2 pt-1 border-top">
+                                                    {% if cat.status_competitivo == 'vencendo' %}
+                                                        <div class="comp-badge comp-badge-win">
+                                                            <i class="fas fa-check-circle me-1"></i> Loja Vencendo (-R$ {{ "%.2f"|format(cat.diff_price|abs)|replace('.', ',') }})
+                                                        </div>
+                                                    {% elif cat.status_competitivo == 'perdendo' %}
+                                                        <div class="comp-badge comp-badge-lose">
+                                                            <i class="fas fa-exclamation-triangle me-1"></i> Concorrente + Barato (+R$ {{ "%.2f"|format(cat.diff_price|abs)|replace('.', ',') }})
+                                                        </div>
+                                                    {% elif cat.status_competitivo == 'empatado' %}
+                                                        <div class="comp-badge comp-badge-tie">
+                                                            <i class="fas fa-equals me-1"></i> Preço Empatado
+                                                        </div>
+                                                    {% else %}
+                                                        <div class="comp-badge comp-badge-neutral">
+                                                            <i class="fas fa-info-circle me-1"></i> Sem comparação
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            {% else %}
+                                                <div class="mt-2 pt-1 border-top">
+                                                    <div class="comp-badge comp-badge-orphan" onclick="event.stopPropagation(); openQuickLinkModal('{{ cat.termo_pesquisa }}', '{{ cat.catalog_id }}')" title="Clique para vincular este produto ao estoque">
+                                                        <i class="fas fa-link me-1"></i> Sem SKU (Vincular)
+                                                    </div>
+                                                </div>
+                                            {% endif %}
                                         </div>
                                     </div>
 
@@ -235,6 +496,42 @@
         </div>
     </div>
     {% endif %}
+</div>
+
+<!-- Modal de Vinculação Rápida a SKU -->
+<div class="modal fade" id="quickLinkSkuModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-bold text-dark">
+                    <i class="fas fa-link text-primary me-2"></i> Vincular Busca a um SKU do Estoque
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="text-muted small mb-3">
+                    Associe esta pesquisa a um produto cadastrado no seu inventário para acompanhar o estoque e comparar o preço praticado pela sua loja com os concorrentes do Mercado Livre.
+                </p>
+                <input type="hidden" id="quickLinkCatalogId">
+                <input type="hidden" id="quickLinkSearchTerm">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-secondary">SELECIONE O PRODUTO (SKU)</label>
+                    <select class="form-select" id="quickLinkSkuSelect">
+                        <option value="">-- Escolha o SKU do inventário --</option>
+                        {% for inv in inventory %}
+                        <option value="{{ inv.sku }}">{{ inv.sku }} - {{ inv.descricao }} ({{ inv.quantidade_total }} UN)</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary fw-bold" onclick="submitQuickSkuLink()">
+                        <i class="fas fa-check me-1"></i> Vincular Agora
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- ========================================================================= -->
@@ -300,12 +597,46 @@ let catalogStatusInterval = null;
 let activeDrawerCatalogId = null;
 let drawerSellersPollingInterval = null;
 let competitorsDrawerInstance = null;
+let quickLinkModalInstance = null;
 
-// Inicializa a instância do Drawer quando a página carregar
+// Inicializa a instância do Drawer e Modal quando a página carregar
 document.addEventListener('DOMContentLoaded', () => {
     const drawerEl = document.getElementById('competitorsDrawer');
     if (drawerEl && typeof bootstrap !== 'undefined') {
         competitorsDrawerInstance = bootstrap.Offcanvas.getOrCreateInstance(drawerEl);
+    }
+    const modalEl = document.getElementById('quickLinkSkuModal');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        quickLinkModalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+    }
+
+    // Leitura e auto-execução de busca contextual disparada do Inventário
+    const urlParams = new URLSearchParams(window.location.search);
+    const query = urlParams.get('q');
+    const sku = urlParams.get('sku');
+    const auto = urlParams.get('auto') || urlParams.get('autostart');
+
+    if (query) {
+        const input = document.getElementById('catalogSearchInput');
+        if (input) input.value = query;
+    }
+
+    if (sku) {
+        const form = document.getElementById('catalogSearchForm');
+        if (form) form.setAttribute('data-origin-sku', sku);
+    }
+
+    if (auto === '1' && query && query.length >= 2) {
+        // Limpa parâmetros da URL no histórico do navegador para evitar loop ao recarregar
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        // Dispara busca automaticamente com leve atraso de renderização
+        setTimeout(() => {
+            const form = document.getElementById('catalogSearchForm');
+            if (form) {
+                form.dispatchEvent(new Event('submit'));
+            }
+        }, 300);
     }
 });
 
@@ -714,22 +1045,69 @@ function collapseAllGroups() {
     });
 }
 
-// ─── Filtro em Tempo Real Inteligente (Suporta Grupos) ───────────
+// ─── Filtro em Tempo Real Inteligente (Texto, Preço, Status e Ordenação) ───
+let currentStatusFilter = 'all';
+
+function setStatusFilter(status, btn) {
+    currentStatusFilter = status;
+    document.querySelectorAll('.status-pill-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    filterCatalogsLive();
+}
+
+function clearPriceFilter() {
+    const minInput = document.getElementById('filterPriceMin');
+    const maxInput = document.getElementById('filterPriceMax');
+    if (minInput) minInput.value = '';
+    if (maxInput) maxInput.value = '';
+    filterCatalogsLive();
+}
+
 function filterCatalogsLive() {
-    const query = document.getElementById('catalogFilterInput').value.trim().toLowerCase();
+    const queryInput = document.getElementById('catalogFilterInput');
+    const query = queryInput ? queryInput.value.trim().toLowerCase() : '';
+    
+    const minVal = document.getElementById('filterPriceMin') ? parseFloat(document.getElementById('filterPriceMin').value) : NaN;
+    const maxVal = document.getElementById('filterPriceMax') ? parseFloat(document.getElementById('filterPriceMax').value) : NaN;
+    const sortVal = document.getElementById('sortCatalogsSelect') ? document.getElementById('sortCatalogsSelect').value : 'default';
+
     const groups = document.querySelectorAll('.catalog-search-group');
     let totalVisible = 0;
 
     groups.forEach(group => {
-        const items = group.querySelectorAll('.catalog-item-wrapper');
+        const rowGrid = group.querySelector('.search-group-body .row');
+        const items = Array.from(group.querySelectorAll('.catalog-item-wrapper'));
         let groupVisibleCount = 0;
 
         items.forEach(item => {
             const title = item.getAttribute('data-title') || '';
             const id = item.getAttribute('data-id') || '';
             const term = item.getAttribute('data-term') || '';
+            const sku = item.getAttribute('data-sku') || '';
+            const price = parseFloat(item.getAttribute('data-price')) || 0;
+            const status = item.getAttribute('data-status') || 'sem_sku';
 
-            if (!query || title.includes(query) || id.includes(query) || term.includes(query)) {
+            // 1. Filtro textual
+            const matchText = !query || title.includes(query) || id.includes(query) || term.includes(query) || sku.includes(query);
+
+            // 2. Filtro de faixa de preço (considera apenas itens com preço válido > 0 se filtro estiver preenchido)
+            let matchPrice = true;
+            if (!isNaN(minVal) && minVal > 0) {
+                matchPrice = matchPrice && (price >= minVal);
+            }
+            if (!isNaN(maxVal) && maxVal > 0) {
+                matchPrice = matchPrice && (price > 0 && price <= maxVal);
+            }
+
+            // 3. Filtro por status competitivo
+            let matchStatus = true;
+            if (currentStatusFilter !== 'all') {
+                matchStatus = (status === currentStatusFilter);
+            }
+
+            const isVisible = matchText && matchPrice && matchStatus;
+
+            if (isVisible) {
                 item.style.display = 'block';
                 groupVisibleCount++;
                 totalVisible++;
@@ -737,6 +1115,29 @@ function filterCatalogsLive() {
                 item.style.display = 'none';
             }
         });
+
+        // 4. Reordenação dinâmica dentro da grade do grupo
+        if (rowGrid && sortVal !== 'default') {
+            const sortedItems = [...items].sort((a, b) => {
+                const priceA = parseFloat(a.getAttribute('data-price')) || 0;
+                const priceB = parseFloat(b.getAttribute('data-price')) || 0;
+                const diffA = Math.abs(parseFloat(a.getAttribute('data-diff')) || 0);
+                const diffB = Math.abs(parseFloat(b.getAttribute('data-diff')) || 0);
+
+                if (sortVal === 'price_asc') {
+                    if (priceA === 0) return 1;
+                    if (priceB === 0) return -1;
+                    return priceA - priceB;
+                } else if (sortVal === 'price_desc') {
+                    return priceB - priceA;
+                } else if (sortVal === 'diff_desc') {
+                    return diffB - diffA;
+                }
+                return 0;
+            });
+
+            sortedItems.forEach(card => rowGrid.appendChild(card));
+        }
 
         if (groupVisibleCount > 0) {
             group.style.display = 'block';
@@ -761,10 +1162,12 @@ function filterCatalogsLive() {
 
 function clearCatalogFilter() {
     const input = document.getElementById('catalogFilterInput');
-    if (input) {
-        input.value = '';
-        filterCatalogsLive();
-    }
+    if (input) input.value = '';
+    clearPriceFilter();
+    setStatusFilter('all', document.querySelector('.status-pill-btn[data-status-filter="all"]'));
+    const sortSelect = document.getElementById('sortCatalogsSelect');
+    if (sortSelect) sortSelect.value = 'default';
+    filterCatalogsLive();
 }
 
 // ─── Extrair Catálogos das Buscas Recentes ────────────────────────
@@ -801,19 +1204,24 @@ document.getElementById('catalogSearchForm').addEventListener('submit', async fu
 
     const termo = document.getElementById('catalogSearchInput').value.trim();
     const nPages = parseInt(document.getElementById('catalogNPages').value);
+    const originSku = this.getAttribute('data-origin-sku') || '';
 
     if (!termo || termo.length < 2) {
         alert('Digite um termo com pelo menos 2 caracteres.');
         return;
     }
 
-    showOverlay('Buscando catálogos no ML...', 'Iniciando o robô de busca do Mercado Livre...');
+    showOverlay('Buscando catálogos no ML...', `Iniciando robô de busca para "${termo}"...`);
 
     try {
         const res = await fetch('/catalog/search', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({termo_pesquisa: termo, n_pages: nPages})
+            body: JSON.stringify({
+                termo_pesquisa: termo, 
+                n_pages: nPages,
+                origin_sku: originSku
+            })
         });
         const data = await res.json();
 
@@ -827,6 +1235,74 @@ document.getElementById('catalogSearchForm').addEventListener('submit', async fu
         alert('Erro: ' + err.message);
     }
 });
+
+// ─── Funções de Vinculação Rápida a SKU ──────────────────────────
+function openQuickLinkModal(searchTerm, catalogId) {
+    const termInput = document.getElementById('quickLinkSearchTerm');
+    const catInput = document.getElementById('quickLinkCatalogId');
+    const skuSelect = document.getElementById('quickLinkSkuSelect');
+    
+    if (termInput) termInput.value = searchTerm || '';
+    if (catInput) catInput.value = catalogId || '';
+    if (skuSelect) skuSelect.value = '';
+    
+    if (quickLinkModalInstance) {
+        quickLinkModalInstance.show();
+    }
+}
+
+async function submitQuickSkuLink() {
+    const sku = document.getElementById('quickLinkSkuSelect').value;
+    const catalogId = document.getElementById('quickLinkCatalogId').value;
+    const searchTerm = document.getElementById('quickLinkSearchTerm').value;
+
+    if (!sku) {
+        alert('Por favor, selecione um SKU do inventário.');
+        return;
+    }
+
+    showOverlay('Vinculando ao SKU...', `Associando catálogos com o SKU ${sku}...`);
+
+    try {
+        let catalogIds = [];
+        if (catalogId) {
+            catalogIds = [catalogId];
+        } else if (searchTerm) {
+            // Busca todos os IDs dos cards do grupo
+            const groupItems = document.querySelectorAll(`.catalog-item-wrapper[data-term="${searchTerm.toLowerCase()}"]`);
+            groupItems.forEach(item => {
+                const cid = item.getAttribute('data-id');
+                if (cid) catalogIds.push(cid.toUpperCase());
+            });
+        }
+
+        if (!catalogIds.length) {
+            hideOverlay();
+            alert('Nenhum catálogo encontrado para vincular.');
+            return;
+        }
+
+        let linkedCount = 0;
+        for (const cid of catalogIds) {
+            const res = await fetch('/catalog/link-sku', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({sku: sku, catalog_id: cid})
+            });
+            if (res.ok) linkedCount++;
+        }
+
+        hideOverlay();
+        if (quickLinkModalInstance) quickLinkModalInstance.hide();
+        showToast(`${linkedCount} catálogo(s) vinculado(s) ao SKU ${sku}!`);
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+    } catch (err) {
+        hideOverlay();
+        alert('Erro ao vincular: ' + err.message);
+    }
+}
 
 // ─── Polling de status da busca de catálogos ──────────────────────
 async function checkCatalogStatus() {
