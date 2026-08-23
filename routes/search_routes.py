@@ -297,25 +297,40 @@ def enrich_product_intel(produto: dict) -> dict:
     price = float(p.get('preco_numerico') or 0)
     reviews = int(p.get('avaliacoes') or p.get('num_avaliacoes') or 0)
     
+    # Normaliza o campo marketplace (scraper entrega MARKETPLACE uppercase)
+    raw_mp = p.get('marketplace') or p.get('MARKETPLACE') or ''
+    raw_mp_lower = raw_mp.lower().strip()
+    if 'amazon' in raw_mp_lower or 'amazon.com' in url.lower():
+        p['marketplace'] = 'Amazon'
+    else:
+        p['marketplace'] = 'MercadoLivre'
+    
     # 1. Classificação Precisa de Catálogo com Concorrência de Sellers vs Anúncio de Vendedor Único
     # Mercado Livre: catálogo oficial (/p/MLB...)
     # Amazon: produto com ASIN (/dp/ASIN) e múltiplas opções de compra
     is_user_post = '/up/' in url or 'MLBU' in url
     
     # Extrai o Catalog ID se houver (Mercado Livre ou Amazon ASIN)
+    # Prioridade: URL /p/MLB > campo CATALOG_ID do scraper > catalog_id do banco > ASIN
     cat_match = re.search(r'/p/(MLB\d+)', url)
     asin_match = re.search(r'/dp/([A-Z0-9]{10})', url) or re.search(r'([A-Z0-9]{10})', str(p.get('codigo_produto') or p.get('ASIN') or ''))
     
-    is_amazon = (p.get('marketplace') or '').lower() == 'amazon' or 'amazon.com' in url.lower()
+    is_amazon = (p.get('marketplace') or p.get('MARKETPLACE') or '').lower() == 'amazon' or 'amazon.com' in url.lower()
+    
+    # catalog_id do scraper (campo novo CATALOG_ID ou catalog_id)
+    scraper_catalog_id = str(p.get('CATALOG_ID') or p.get('catalog_id') or '').strip()
     
     if cat_match:
         raw_cat_id = cat_match.group(1)
+    elif scraper_catalog_id and scraper_catalog_id.startswith('MLB'):
+        raw_cat_id = scraper_catalog_id
     elif is_amazon and asin_match:
         raw_cat_id = asin_match.group(1)
     else:
-        raw_cat_id = p.get('catalog_id') or ''
+        raw_cat_id = ''
     
     # Flags vindas do scraper, banco ou metadados
+    # O sinal do scraper tem PRIORIDADE — se o scraper detectou catálogo, acreditamos nele
     raw_is_cat = p.get('is_catalog')
     if raw_is_cat is None:
         raw_is_cat = p.get('IS_CATALOG')
@@ -333,22 +348,28 @@ def enrich_product_intel(produto: dict) -> dict:
     has_buybox_sellers = sellers_count > 1
 
     if is_amazon:
-        # Na Amazon, o produto é catálogo se tiver múltiplos vendedores confirmados (> 1), ou texto explícito de outras ofertas, ou link offer-listing
+        # Na Amazon: sinal do scraper é suficiente (is_catalog=True já indica buybox compartilhado)
+        # Também considera múltiplos vendedores, texto explícito de ofertas, ou link offer-listing
         has_amazon_offers_link = 'offer-listing' in url or 'aod' in url
-        is_cat = (bool(raw_is_cat) and has_buybox_sellers) or sellers_count > 1 or bool(offers_match) or has_amazon_offers_link
+        is_cat = bool(raw_is_cat) or sellers_count > 1 or bool(offers_match) or has_amazon_offers_link
         if is_cat and sellers_count == 1:
             sellers_count = 2
     else:
-        # No Mercado Livre, /p/MLB... é a rota oficial de catálogo de produto
+        # No Mercado Livre, o scraper melhorado já detecta /p/MLB e wid= corretamente
+        # raw_is_cat tem prioridade — não sobrescrever com heurística negativa
         ml_is_cat_url = bool(cat_match) and not is_user_post
         has_options_link = bool(re.search(r'/p/MLB\d+/s', url)) or ('type=product' in url and bool(p.get('opcoes_compra')))
         is_explicit_cat = p.get('origem') == 'catalogo' and bool(p.get('tem_concorrentes'))
-        is_cat = (bool(raw_is_cat) or ml_is_cat_url or has_buybox_sellers or has_options_link or is_explicit_cat) and not is_user_post
+        # raw_is_cat agora é sinal de primeira classe — se o scraper detectou catálogo, mantém
+        is_cat = (bool(raw_is_cat) or ml_is_cat_url or has_buybox_sellers or has_options_link or is_explicit_cat or bool(scraper_catalog_id)) and not is_user_post
+        # Garante sellers_count mínimo para produtos de catálogo confirmados
+        if is_cat and sellers_count == 1:
+            sellers_count = 2
 
     p['is_catalog'] = bool(is_cat)
     p['sellers_count'] = sellers_count
     
-    p['catalog_id'] = raw_cat_id if (raw_cat_id and is_cat) else (raw_cat_id if (is_amazon and is_cat) else '')
+    p['catalog_id'] = raw_cat_id if (raw_cat_id and is_cat) else ''
     
     wid_match = re.search(r'wid=(MLB\d+)', url)
     p['winner_item_id'] = wid_match.group(1) if wid_match else (raw_cat_id if (is_amazon and is_cat) else '')

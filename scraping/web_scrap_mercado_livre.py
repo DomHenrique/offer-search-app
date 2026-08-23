@@ -306,7 +306,38 @@ class MercadoLivreScraper:
                             review_count = int(m_rev.group(1))
 
                     # 7. DETECÇÃO DE CATÁLOGO / OPÇÕES DE COMPRA
-                    is_catalog = bool('/p/MLB' in product_url)
+                    # Coleta TODOS os hrefs das âncoras do card (não só o link do título)
+                    # Isso resolve anúncios patrocinados que usam tracking URL no título
+                    # mas ainda têm /p/MLB em links secundários (buybox, comparação, etc.)
+                    all_hrefs_in_card = [
+                        a.get('href', '')
+                        for a in container.select('a')
+                        if a.get('href')
+                    ]
+                    all_hrefs_str = ' '.join(all_hrefs_in_card)
+
+                    # Busca /p/MLB em qualquer href do card
+                    p_mlb_links = [h for h in all_hrefs_in_card if '/p/MLB' in h]
+                    is_catalog = bool(p_mlb_links)
+
+                    # Se encontrou URL de catálogo em link secundário, usa ela como product_url canônica
+                    if p_mlb_links and '/p/MLB' not in product_url:
+                        product_url = p_mlb_links[0]
+                        if product_url.startswith('/'):
+                            product_url = f"https://www.mercadolivre.com.br{product_url}"
+
+                    # Para ads patrocinados (tracking URL sem /p/MLB em nenhum link),
+                    # tenta extrair catalog_id do parâmetro wid=MLB\d+
+                    catalog_id_from_wid = ''
+                    if not is_catalog:
+                        wid_match = re.search(r'wid=(MLB\d+)', all_hrefs_str)
+                        if wid_match:
+                            catalog_id_from_wid = wid_match.group(1)
+                            is_catalog = True
+                            # Constrói URL canônica do catálogo a partir do catalog_id
+                            if 'click1.mercadolivre.com' in product_url or not product_url:
+                                product_url = f"https://www.mercadolivre.com.br/p/{catalog_id_from_wid}"
+
                     sellers_count = 1
                     buybox_min_price = 0.0
 
@@ -358,6 +389,7 @@ class MercadoLivreScraper:
                         'product_url': product_url,
                         'store_name': store_name,
                         'is_catalog': is_catalog,
+                        'catalog_id': catalog_id_from_wid,
                         'sellers_count': sellers_count,
                         'buybox_min_price': buybox_min_price,
                         'shipping_type': shipping_type,
@@ -489,6 +521,7 @@ class MercadoLivreScraper:
                     'STORE_NAME': product['store_name'],
                     'SEARCH_TERM': search_term,
                     'IS_CATALOG': product.get('is_catalog', False),
+                    'CATALOG_ID': product.get('catalog_id', ''),
                     'SELLERS_COUNT': product.get('sellers_count', 1),
                     'BUYBOX_MIN_PRICE': product.get('buybox_min_price', 0.0),
                     'SHIPPING_TYPE': product.get('shipping_type', 'Frete Grátis'),
