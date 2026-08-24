@@ -256,14 +256,37 @@ class CatalogScraper:
                             except Exception:
                                 continue
 
-                        # URL do produto
+                        # URL do produto — varre TODOS os hrefs do card (não só o primeiro)
+                        # Isso resolve anúncios patrocinados com URL de rastreamento no link principal
                         product_url = ''
+                        catalog_id_direct = None
                         try:
-                            link = container.find_element(
-                                By.CSS_SELECTOR,
-                                "a[href*='mercadolivre'], a[href*='mercadolibre']"
-                            )
-                            product_url = link.get_attribute('href') or ''
+                            all_links = container.find_elements(By.CSS_SELECTOR, "a")
+                            all_hrefs = []
+                            for a in all_links:
+                                href = a.get_attribute('href') or ''
+                                if href:
+                                    all_hrefs.append(href)
+
+                            # Prioridade 1: link com /p/MLB diretamente
+                            p_mlb_hrefs = [h for h in all_hrefs if '/p/MLB' in h]
+                            if p_mlb_hrefs:
+                                product_url = p_mlb_hrefs[0]
+                                m = re.search(r'/p/(MLB\d+)', product_url)
+                                if m:
+                                    catalog_id_direct = m.group(1)
+                            else:
+                                # Prioridade 2: wid=MLB\d+ em qualquer href (ads patrocinados)
+                                all_hrefs_str = ' '.join(all_hrefs)
+                                wid_m = re.search(r'wid=(MLB\d+)', all_hrefs_str)
+                                if wid_m:
+                                    catalog_id_direct = wid_m.group(1)
+                                    product_url = f"https://www.mercadolivre.com.br/p/{catalog_id_direct}"
+                                else:
+                                    # Fallback: primeiro link de mercadolivre
+                                    ml_links = [h for h in all_hrefs if 'mercadolivre' in h or 'mercadolibre' in h]
+                                    if ml_links:
+                                        product_url = ml_links[0]
                         except Exception:
                             pass
 
@@ -309,6 +332,7 @@ class CatalogScraper:
                                 'produto_url': product_url,
                                 'imagem': image_url,
                                 'preco': price_val,
+                                'catalog_id_direct': catalog_id_direct,  # já extraído
                             })
                     except Exception as e:
                         print(f"   ⚠️ Erro ao processar produto: {e}")
@@ -323,7 +347,9 @@ class CatalogScraper:
             catalogs = []
 
             for product in all_products:
-                catalog_id = extract_catalog_id_from_url(product['produto_url'])
+                # Usa o catalog_id já extraído durante o scraping (mais confiável),
+                # ou tenta extrair da URL como fallback
+                catalog_id = product.get('catalog_id_direct') or extract_catalog_id_from_url(product['produto_url'])
                 if catalog_id and catalog_id not in seen_ids:
                     seen_ids.add(catalog_id)
                     catalogs.append({
