@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Offer Search - Session Sync",
-  "version": "1.1.0",
-  "description": "Sincroniza as sessões ativas do Mercado Livre e Amazon com a sua aplicação Offer Search App.",
+  "name": "Offer Search - In-Page Stock & Catalog Intel",
+  "version": "1.2.0",
+  "description": "Sincroniza sessões e injeta comparativo de estoque, custos, BuyBox e vinculação rápida de SKUs direto no Mercado Livre e Amazon.",
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Offer Search Session Sync",
+    "default_title": "Offer Search Assistant",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
@@ -19,7 +19,8 @@
   },
   "permissions": [
     "cookies",
-    "storage"
+    "storage",
+    "tabs"
   ],
   "host_permissions": [
     "*://*.mercadolivre.com.br/*",
@@ -30,5 +31,31 @@
     "http://localhost/*",
     "http://127.0.0.1/*",
     "https://*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.mercadolivre.com.br/*",
+        "*://*.mercadolivre.com/*",
+        "*://*.mercadolibre.com/*",
+        "*://*.amazon.com.br/*",
+        "*://*.amazon.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*", "content.css"],
+      "matches": [
+        "*://*.mercadolivre.com.br/*",
+        "*://*.mercadolivre.com/*",
+        "*://*.mercadolibre.com/*",
+        "*://*.amazon.com.br/*",
+        "*://*.amazon.com/*"
+      ]
+    }
   ]
 }
