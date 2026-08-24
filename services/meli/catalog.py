@@ -68,10 +68,12 @@ class MeliCatalogService:
         limit: int = 50,
         offset: int = 0,
         site_id: str = "MLB",
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        only_active: bool = True
     ) -> Dict[str, Any]:
         """
         Busca produtos de catálogo no Mercado Livre via GET /products/search.
+        Filtra automaticamente catálogos com vendedores e preço ativo quando only_active=True.
         """
         params = {
             "status": "active",
@@ -100,10 +102,18 @@ class MeliCatalogService:
             # Enriquece os produtos encontrados com o menor preço e contagem de vendedores
             self._enrich_prices(parsed_products, user_id=user_id)
 
+            # Filtro estrito de catálogo ativo: descarta fichas mestres com 0 vendedores e preço 0
+            if only_active:
+                parsed_products = [
+                    p for p in parsed_products
+                    if (int(p.get("sellers_count") or 0) > 0 or (p.get("buy_box_winner") and p.get("buy_box_winner", {}).get("price")))
+                    and float(p.get("price") or p.get("buybox_min_price") or 0.0) > 0
+                ]
+
             return {
                 "success": True,
                 "results": parsed_products,
-                "total": paging.get("total", len(parsed_products)),
+                "total": len(parsed_products),
                 "offset": paging.get("offset", offset),
                 "limit": paging.get("limit", limit)
             }

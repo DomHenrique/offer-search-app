@@ -274,22 +274,24 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
         
         # 1. Tenta buscar via API Oficial do Mercado Livre (/products/search)
         try:
-            api_res = meli_catalog.search_catalog_products(clean_search, limit=50, user_id=user_id)
+            api_res = meli_catalog.search_catalog_products(clean_search, limit=50, user_id=user_id, only_active=True)
             if api_res.get('success') and api_res.get('results'):
                 for p in api_res['results']:
                     p_price = float(p.get('price') or p.get('buybox_min_price') or p.get('preco') or 0.0)
-                    catalogs.append({
-                        'catalog_id': p['catalog_id'],
-                        'nome': p.get('name') or p.get('title'),
-                        'imagem': p.get('image_url', ''),
-                        'preco': p_price,
-                        'buybox_min_price': p_price,
-                        'competitor_price': p_price,
-                        'sellers_count': int(p.get('sellers_count') or 1),
-                        'url': p.get('permalink', ''),
-                        'buy_box_winner': p.get('buy_box_winner')
-                    })
-                print(f"✅ [Catalog] {len(catalogs)} catálogos encontrados via API Oficial Meli.")
+                    sellers = int(p.get('sellers_count') or 0)
+                    if p_price > 0 and (sellers > 0 or p.get('buy_box_winner')):
+                        catalogs.append({
+                            'catalog_id': p['catalog_id'],
+                            'nome': p.get('name') or p.get('title'),
+                            'imagem': p.get('image_url', ''),
+                            'preco': p_price,
+                            'buybox_min_price': p_price,
+                            'competitor_price': p_price,
+                            'sellers_count': max(1, sellers),
+                            'url': p.get('permalink', ''),
+                            'buy_box_winner': p.get('buy_box_winner')
+                        })
+                print(f"✅ [Catalog] {len(catalogs)} catálogos ativos encontrados via API Oficial Meli.")
         except Exception as e_api:
             print(f"⚠️ [Catalog] Falha na API Oficial Meli, acionando fallback de scraping: {e_api}")
 
@@ -310,10 +312,15 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
             raw_cats = result.get('catalogs', [])
             for rc in raw_cats:
                 rc_price = float(rc.get('buybox_min_price') or rc.get('preco') or rc.get('price') or 0.0)
-                rc['preco'] = rc_price
-                rc['buybox_min_price'] = rc_price
-                rc['competitor_price'] = rc_price
-                catalogs.append(rc)
+                if rc_price > 0:
+                    rc['preco'] = rc_price
+                    rc['buybox_min_price'] = rc_price
+                    rc['competitor_price'] = rc_price
+                    rc['sellers_count'] = int(rc.get('sellers_count') or 1)
+                    catalogs.append(rc)
+
+        # Filtro estrito final de garantia
+        catalogs = [c for c in catalogs if float(c.get('preco') or 0.0) > 0]
 
         catalog_search_status[search_id].update({
             'progress': 70,
