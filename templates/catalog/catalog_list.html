@@ -135,6 +135,38 @@
     0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
     70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
     100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+/* Floating Bulk Action Bar */
+.floating-action-bar {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1050;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    border-radius: 50px;
+    box-shadow: 0 16px 40px -6px rgba(15, 23, 42, 0.2), 0 6px 16px rgba(0, 0, 0, 0.08);
+    padding: 10px 22px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    max-width: 95vw;
+}
+.floating-action-bar.d-none {
+    display: none !important;
+    transform: translateX(-50%) translateY(30px);
+    opacity: 0;
+}
+.card-deleting {
+    opacity: 0 !important;
+    transform: scale(0.85) !important;
+    transition: all 0.4s ease !important;
+}
+.catalog-select-cb {
+    width: 1.1rem;
+    height: 1.1rem;
+    cursor: pointer;
+    margin: 0;
 }
 </style>
 {% endblock %}
@@ -193,22 +225,43 @@
         </div>
     </div>
 
-    <!-- Formulário de busca rápida de novos catálogos -->
+    <!-- Formulário de busca rápida de novos catálogos (Híbrido: Estoque + Termo Livre) -->
     <div class="table-saas-card p-4 mb-4">
         <form id="catalogSearchForm" onsubmit="event.preventDefault(); return false;">
             <div class="row g-3 align-items-end">
                 <div class="col-md-7">
-                    <label class="form-label small fw-semibold text-secondary mb-1">
-                        <i class="fas fa-search me-1 text-primary"></i> BUSCAR NOVOS CATÁLOGOS NO MERCADO LIVRE
-                    </label>
-                    <div class="search-input-wrapper">
-                        <i class="fas fa-search search-icon"></i>
-                        <input type="text"
-                               id="catalogSearchInput"
-                               class="form-control"
-                               placeholder="Ex: EcoFlow River 3, iPhone 14, Fone Bluetooth..."
-                               required
-                               minlength="2">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-semibold text-secondary mb-0">
+                            <i class="fas fa-search me-1 text-primary"></i> BUSCAR NOVOS CATÁLOGOS NO MERCADO LIVRE
+                        </label>
+                        <span class="badge bg-light text-muted border" style="font-size: 0.68rem;">
+                            <i class="fas fa-boxes me-1 text-primary"></i> Selecione do estoque ou digite livre
+                        </span>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-5">
+                            <select class="form-select form-select-sm" id="catalogSkuSelect" onchange="handleCatalogSkuSelect(this)">
+                                <option value="">-- Produto do Estoque --</option>
+                                <option value="__custom__">✏️ Outro (Digitar termo livre...)</option>
+                                {% for inv in inventory %}
+                                <option value="{{ inv.sku }}" data-desc="{{ inv.descricao }}" data-commercial="{{ inv.termo_comercial or inv.descricao }}">
+                                    {{ inv.sku }} - {{ inv.descricao|truncate(35) }} ({{ inv.quantidade_total }} UN)
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-7">
+                            <div class="search-input-wrapper">
+                                <i class="fas fa-search search-icon"></i>
+                                <input type="text"
+                                       id="catalogSearchInput"
+                                       class="form-control form-control-sm"
+                                       placeholder="Ex: EcoFlow River 3, iPhone 14, Fone Bluetooth..."
+                                       required
+                                       minlength="2">
+                                <input type="hidden" id="catalogOriginSku" value="">
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="col-md-2">
@@ -393,24 +446,50 @@
                                  data-status="{{ cat.status_competitivo|default('sem_sku') }}"
                                  data-diff="{{ cat.diff_price|default(0.0) }}"
                                  data-margin="{{ cat.margin_pct|default(0.0) }}">
-                                <div class="saas-catalog-card">
+                                <div class="saas-catalog-card" id="card-catalog-{{ cat.catalog_id }}" data-catalog-id="{{ cat.catalog_id }}" data-linked-sku="{{ group_data.sku_code or '' }}">
                                     <!-- Topbar do Card -->
-                                    <div class="saas-card-topbar">
-                                        <span class="catalog-chip" onclick="copyCatalogId('{{ cat.catalog_id }}')" title="Clique para copiar ID">
-                                            <i class="fas fa-copy" style="font-size: 0.65rem;"></i>
-                                            {{ cat.catalog_id }}
-                                        </span>
+                                    <div class="saas-card-topbar d-flex justify-content-between align-items-center">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <input type="checkbox"
+                                                   class="form-check-input catalog-select-cb"
+                                                   data-catalog-id="{{ cat.catalog_id }}"
+                                                   data-title="{{ (cat.nome or cat.titulo or '')|replace('\"', '&quot;') }}"
+                                                   data-image="{{ cat.imagem or cat.imagem_url or '' }}"
+                                                   onchange="updateCatalogBulkBar()">
+                                            <span class="catalog-chip" onclick="copyCatalogId('{{ cat.catalog_id }}')" title="Clique para copiar ID">
+                                                <i class="fas fa-copy" style="font-size: 0.65rem;"></i>
+                                                {{ cat.catalog_id }}
+                                            </span>
+                                        </div>
                                         <div class="d-flex align-items-center gap-1">
                                             {% if cat.marketplace == 'Amazon' or not cat.catalog_id.startswith('MLB') %}
                                                 <span class="badge-saas" style="background:#fff7ed; color:#c2410c; border:1px solid #fed7aa;">
-                                                    <i class="fab fa-amazon"></i> Amazon
+                                                    <i class="fab fa-amazon"></i>
                                                 </span>
                                             {% else %}
                                                 <span class="badge-saas" style="background:#fef9c3; color:#a16207; border:1px solid #fde047;">
-                                                    <i class="fas fa-layer-group"></i> ML
+                                                    <i class="fas fa-layer-group"></i>
                                                 </span>
                                             {% endif %}
+                                            <button type="button" class="btn btn-xs btn-outline-danger border-0 p-1 lh-1" onclick="confirmSingleDelete('{{ cat.catalog_id }}', '{{ (cat.nome or cat.titulo or '')|replace('\'', '\\\'')|replace('\"', '&quot;') }}')" title="Excluir catálogo da visualização">
+                                                <i class="fas fa-times"></i>
+                                            </button>
                                         </div>
+                                    </div>
+
+                                    <!-- Rótulo de Status de Vínculo com SKU (Badge de Destaque no Topo) -->
+                                    <div class="px-3 pt-2 pb-1 catalog-link-badge-container">
+                                        {% if group_data.sku_code %}
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill d-inline-flex align-items-center w-100 justify-content-between" style="font-size:0.7rem;" title="Vinculado ao SKU {{ group_data.sku_code }}">
+                                                <span class="text-truncate"><i class="fas fa-check-circle me-1"></i>{{ group_data.sku_code }}</span>
+                                                <span class="badge bg-success text-white ms-1" style="font-size:0.6rem;">Estoque</span>
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-light text-muted border px-2 py-1 rounded-pill d-inline-flex align-items-center w-100 justify-content-between" style="font-size:0.7rem;">
+                                                <span><i class="fas fa-unlink me-1 text-secondary"></i>Não Vinculado</span>
+                                                <span class="badge bg-secondary text-white ms-1" style="font-size:0.6rem;">Avulso</span>
+                                            </span>
+                                        {% endif %}
                                     </div>
 
                                     <!-- Imagem com Respiro e Moldura -->
@@ -499,7 +578,7 @@
                                                 </div>
                                             {% else %}
                                                 <div class="mt-2 pt-1 border-top">
-                                                    <div class="comp-badge comp-badge-orphan" onclick="event.stopPropagation(); openQuickLinkModal('{{ cat.termo_pesquisa }}', '{{ cat.catalog_id }}')" title="Clique para vincular este produto ao estoque">
+                                                    <div class="comp-badge comp-badge-orphan" onclick="event.stopPropagation(); openQuickLinkModal('{{ cat.termo_pesquisa }}', '{{ cat.catalog_id }}', '{{ group_data.sku_code or '' }}')" title="Clique para vincular este produto ao estoque">
                                                         <i class="fas fa-link me-1"></i> Sem SKU (Vincular)
                                                     </div>
                                                 </div>
@@ -513,6 +592,12 @@
                                                 class="btn btn-sm btn-primary flex-grow-1"
                                                 onclick="openCompetitorsDrawer('{{ cat.catalog_id }}', '{{ (cat.nome or cat.titulo or '')|replace('\'', '\\\'')|replace('\"', '&quot;') }}', '{{ cat.imagem or cat.imagem_url or '' }}')">
                                             <i class="fas fa-users"></i> Concorrentes
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-primary px-2 btn-link-card"
+                                                onclick="openQuickLinkModal('{{ cat.termo_pesquisa }}', '{{ cat.catalog_id }}', '{{ group_data.sku_code or '' }}')"
+                                                title="{{ 'Alterar SKU vinculado' if group_data.sku_code else 'Vincular a um SKU do estoque' }}">
+                                            <i class="fas fa-link"></i>
                                         </button>
                                         {% if cat.marketplace == 'Amazon' or not cat.catalog_id.startswith('MLB') %}
                                             <a href="https://www.amazon.com.br/dp/{{ cat.catalog_id }}"
@@ -571,34 +656,85 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
             <div class="modal-header border-0 pb-0">
-                <h6 class="modal-title fw-bold text-dark">
-                    <i class="fas fa-link text-primary me-2"></i> Vincular Busca a um SKU do Estoque
+                <h6 class="modal-title fw-bold text-dark" id="quickLinkModalTitle">
+                    <i class="fas fa-link text-primary me-2"></i> Vincular Produto a um SKU do Estoque
                 </h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
-                <p class="text-muted small mb-3">
-                    Associe esta pesquisa a um produto cadastrado no seu inventário para acompanhar o estoque e comparar o preço praticado pela sua loja com os concorrentes do Mercado Livre.
+                <p class="text-muted small mb-3" id="quickLinkModalSub">
+                    Associe este catálogo a um produto cadastrado no seu estoque para acompanhar margens, custos e comparação de concorrentes.
                 </p>
                 <input type="hidden" id="quickLinkCatalogId">
                 <input type="hidden" id="quickLinkSearchTerm">
                 <div class="mb-3">
-                    <label class="form-label small fw-bold text-secondary">SELECIONE O PRODUTO (SKU)</label>
+                    <label class="form-label small fw-bold text-secondary">SELECIONE O PRODUTO (SKU DO ESTOQUE)</label>
                     <select class="form-select" id="quickLinkSkuSelect">
                         <option value="">-- Escolha o SKU do inventário --</option>
                         {% for inv in inventory %}
-                        <option value="{{ inv.sku }}">{{ inv.sku }} - {{ inv.descricao }} ({{ inv.quantidade_total }} UN)</option>
+                        <option value="{{ inv.sku }}" data-desc="{{ inv.descricao }}" data-commercial="{{ inv.termo_comercial or inv.descricao }}">
+                            {{ inv.sku }} - {{ inv.descricao }} ({{ inv.quantidade_total }} UN | Custo: R$ {{ "%.2f"|format(inv.preco_custo or 0.0)|replace('.', ',') }})
+                        </option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="d-flex justify-content-end gap-2 mt-4">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary fw-bold" onclick="submitQuickSkuLink()">
+                    <button type="button" class="btn btn-primary fw-bold" id="quickLinkSubmitBtn" onclick="submitQuickSkuLink()">
                         <i class="fas fa-check me-1"></i> Vincular Agora
                     </button>
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão de Catálogo -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-bold text-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i> Confirmar Exclusão
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="text-dark mb-2" id="confirmDeleteMessage">
+                    Deseja realmente excluir este catálogo da visualização e do monitoramento?
+                </p>
+                <div class="p-3 bg-light rounded-3 text-muted small border mb-3" id="confirmDeleteDetails">
+                    Esta ação removerá o catálogo do banco de dados e das comparações de concorrência.
+                </div>
+                <input type="hidden" id="deleteTargetCatalogIds" value="">
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger fw-bold" id="confirmDeleteSubmitBtn" onclick="executeDeleteCatalog()">
+                        <i class="fas fa-trash-alt me-1"></i> Sim, Excluir
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Barra Flutuante de Ações em Massa de Catálogo -->
+<div id="catalogBulkActionBar" class="floating-action-bar d-none">
+    <div class="d-flex align-items-center gap-3">
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary rounded-pill px-2 py-1 fw-bold" id="bulkSelectedCount">0</span>
+            <span class="small fw-bold text-dark d-none d-sm-inline">selecionado(s)</span>
+        </div>
+        <div class="vr mx-1 d-none d-sm-block"></div>
+        <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm" onclick="openBulkLinkSkuModal()">
+            <i class="fas fa-link me-1"></i> Vincular a SKU
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3 shadow-sm" onclick="confirmBulkDelete()">
+            <i class="fas fa-trash-alt me-1"></i> Excluir Selecionados
+        </button>
+        <button type="button" class="btn btn-sm btn-light border rounded-pill px-2" onclick="clearCatalogSelection()" title="Desmarcar todos">
+            <i class="fas fa-times"></i>
+        </button>
     </div>
 </div>
 
@@ -1349,6 +1485,292 @@ async function triggerCatalogSearch(termo, nPages = 1, originSku = '') {
     }
 }
 
+// ─── Manipulador da Barra de Busca Híbrida (Estoque / Termo Livre) ───
+function handleCatalogSkuSelect(selectEl) {
+    const searchInput = document.getElementById('catalogSearchInput');
+    const originSkuInput = document.getElementById('catalogOriginSku');
+    const selectedOption = selectEl.options[selectEl.selectedIndex];
+    
+    if (!selectedOption || !selectedOption.value) {
+        if (originSkuInput) originSkuInput.value = '';
+        return;
+    }
+    
+    if (selectedOption.value === '__custom__') {
+        if (originSkuInput) originSkuInput.value = '';
+        if (searchInput) {
+            searchInput.value = '';
+            searchInput.placeholder = 'Digite o nome ou modelo do produto...';
+            searchInput.focus();
+        }
+        return;
+    }
+    
+    const sku = selectedOption.value;
+    const commercial = selectedOption.getAttribute('data-commercial') || selectedOption.getAttribute('data-desc') || sku;
+    
+    if (originSkuInput) originSkuInput.value = sku;
+    if (searchInput) {
+        searchInput.value = commercial;
+    }
+}
+
+// ─── Barra de Ações em Massa (Bulk Action Bar) ─────────────────────
+function updateCatalogBulkBar() {
+    const checkboxes = document.querySelectorAll('.catalog-select-cb:checked');
+    const count = checkboxes.length;
+    const bar = document.getElementById('catalogBulkActionBar');
+    const countBadge = document.getElementById('bulkSelectedCount');
+    
+    if (!bar) return;
+    
+    if (count > 0) {
+        if (countBadge) countBadge.textContent = count;
+        bar.classList.remove('d-none');
+    } else {
+        bar.classList.add('d-none');
+    }
+}
+
+function clearCatalogSelection() {
+    document.querySelectorAll('.catalog-select-cb').forEach(cb => cb.checked = false);
+    updateCatalogBulkBar();
+}
+
+// ─── Exclusão Individual e em Massa com Modal de Confirmação ───────
+let deleteModalInstance = null;
+
+function confirmSingleDelete(catalogId, title) {
+    const modalEl = document.getElementById('confirmDeleteModal');
+    if (!modalEl) return;
+    
+    if (!deleteModalInstance) {
+        deleteModalInstance = new bootstrap.Modal(modalEl);
+    }
+    
+    document.getElementById('deleteTargetCatalogIds').value = JSON.stringify([catalogId]);
+    document.getElementById('confirmDeleteMessage').innerHTML = `Deseja realmente excluir o catálogo <strong>"${escHtml(title || catalogId)}"</strong> da visualização e do monitoramento?`;
+    document.getElementById('confirmDeleteDetails').textContent = 'Esta ação removerá o catálogo do banco de dados e de todas as comparações.';
+    
+    deleteModalInstance.show();
+}
+
+function confirmBulkDelete() {
+    const checked = Array.from(document.querySelectorAll('.catalog-select-cb:checked'));
+    if (!checked.length) return;
+    
+    const ids = checked.map(cb => cb.getAttribute('data-catalog-id')).filter(Boolean);
+    const modalEl = document.getElementById('confirmDeleteModal');
+    if (!modalEl) return;
+    
+    if (!deleteModalInstance) {
+        deleteModalInstance = new bootstrap.Modal(modalEl);
+    }
+    
+    document.getElementById('deleteTargetCatalogIds').value = JSON.stringify(ids);
+    document.getElementById('confirmDeleteMessage').innerHTML = `Deseja realmente excluir os <strong>${ids.length} catálogo(s) selecionado(s)</strong> da visualização e do monitoramento?`;
+    document.getElementById('confirmDeleteDetails').textContent = `Esta ação removerá permanentemente ${ids.length} item(ns) do banco de dados.`;
+    
+    deleteModalInstance.show();
+}
+
+async function executeDeleteCatalog() {
+    const idsJson = document.getElementById('deleteTargetCatalogIds').value;
+    let ids = [];
+    try {
+        ids = JSON.parse(idsJson);
+    } catch (e) {
+        ids = idsJson ? [idsJson] : [];
+    }
+    
+    if (!ids.length) return;
+    
+    const submitBtn = document.getElementById('confirmDeleteSubmitBtn');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i> Excluindo...`;
+    }
+    
+    try {
+        const res = await fetch('/catalog/delete-batch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ catalog_ids: ids })
+        });
+        const data = await res.json();
+        
+        if (!res.ok) throw new Error(data.error || 'Erro ao excluir catálogo(s)');
+        
+        // Remove elementos do DOM com animação
+        ids.forEach(cid => {
+            document.querySelectorAll(`[data-catalog-id="${cid}"], [data-id="${cid.toLowerCase()}"]`).forEach(el => {
+                const cardWrapper = el.closest('.col') || el;
+                cardWrapper.classList.add('card-deleting');
+                setTimeout(() => cardWrapper.remove(), 400);
+            });
+        });
+        
+        // Atualiza contadores
+        const savedBadge = document.getElementById('savedCountBadge');
+        if (savedBadge) {
+            const cur = parseInt(savedBadge.textContent) || 0;
+            savedBadge.textContent = Math.max(0, cur - ids.length);
+        }
+        const resultCount = document.getElementById('resultCount');
+        if (resultCount) {
+            const curRes = parseInt(resultCount.textContent) || 0;
+            resultCount.textContent = Math.max(0, curRes - ids.length);
+        }
+        
+        clearCatalogSelection();
+        if (deleteModalInstance) deleteModalInstance.hide();
+        showToast(`${ids.length} catálogo(s) excluído(s) com sucesso!`);
+        
+    } catch (err) {
+        alert('Erro ao excluir: ' + err.message);
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = `<i class="fas fa-trash-alt me-1"></i> Sim, Excluir`;
+        }
+    }
+}
+
+// ─── Modal de Vinculação Rápida Inteligente ─────────────────────────
+function openBulkLinkSkuModal() {
+    const checked = Array.from(document.querySelectorAll('.catalog-select-cb:checked'));
+    if (!checked.length) return;
+    
+    const ids = checked.map(cb => cb.getAttribute('data-catalog-id')).filter(Boolean);
+    const originSku = document.getElementById('catalogOriginSku') ? document.getElementById('catalogOriginSku').value : '';
+    
+    const titleEl = document.getElementById('quickLinkModalTitle');
+    const subEl = document.getElementById('quickLinkModalSub');
+    if (titleEl) titleEl.innerHTML = `<i class="fas fa-link text-primary me-2"></i> Vincular ${ids.length} Catálogos ao SKU`;
+    if (subEl) subEl.textContent = `Selecione o produto do estoque para associar aos ${ids.length} catálogos selecionados.`;
+    
+    openQuickLinkModal('', ids.join(','), originSku);
+}
+
+function openQuickLinkModal(searchTerm, catalogId, currentSku) {
+    const termInput = document.getElementById('quickLinkSearchTerm');
+    const catInput = document.getElementById('quickLinkCatalogId');
+    const skuSelect = document.getElementById('quickLinkSkuSelect');
+    const titleEl = document.getElementById('quickLinkModalTitle');
+    
+    if (termInput) termInput.value = searchTerm || '';
+    if (catInput) catInput.value = catalogId || '';
+    
+    // Tenta pré-selecionar o SKU
+    let targetSku = currentSku || (document.getElementById('catalogOriginSku') ? document.getElementById('catalogOriginSku').value : '');
+    
+    if (skuSelect) {
+        skuSelect.value = targetSku || '';
+        
+        // Se ainda não selecionou e temos searchTerm, tenta encontrar opção correspondente
+        if (!skuSelect.value && searchTerm) {
+            for (let i = 0; i < skuSelect.options.length; i++) {
+                const opt = skuSelect.options[i];
+                if (opt.value && (opt.text.toLowerCase().includes(searchTerm.toLowerCase()) || searchTerm.toLowerCase().includes(opt.value.toLowerCase()))) {
+                    skuSelect.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+    }
+    
+    if (catalogId && !catalogId.includes(',')) {
+        if (titleEl) titleEl.innerHTML = `<i class="fas fa-link text-primary me-2"></i> Vincular Catálogo ${catalogId}`;
+    }
+    
+    if (quickLinkModalInstance) {
+        quickLinkModalInstance.show();
+    }
+}
+
+async function submitQuickSkuLink() {
+    const sku = document.getElementById('quickLinkSkuSelect').value;
+    const catalogIdVal = document.getElementById('quickLinkCatalogId').value;
+    const searchTerm = document.getElementById('quickLinkSearchTerm').value;
+    const submitBtn = document.getElementById('quickLinkSubmitBtn');
+
+    if (!sku) {
+        alert('Por favor, selecione um SKU do inventário.');
+        return;
+    }
+
+    let catalogIds = [];
+    if (catalogIdVal) {
+        catalogIds = catalogIdVal.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+    } else if (searchTerm) {
+        document.querySelectorAll('.catalog-search-group').forEach(grp => {
+            const title = grp.querySelector('.search-group-title');
+            if (title && title.textContent.toLowerCase().includes(searchTerm.toLowerCase())) {
+                grp.querySelectorAll('.catalog-item-wrapper').forEach(item => {
+                    const cid = item.getAttribute('data-id');
+                    if (cid) catalogIds.push(cid.toUpperCase());
+                });
+            }
+        });
+    }
+
+    if (!catalogIds.length) {
+        alert('Nenhum catálogo identificado para vinculação.');
+        return;
+    }
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i> Vinculando...`;
+    }
+
+    try {
+        const res = await fetch('/catalog/link-sku-batch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                sku: sku,
+                catalog_items: catalogIds
+            })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Falha ao vincular');
+
+        // Atualização Reativa do DOM
+        catalogIds.forEach(cid => {
+            const cards = document.querySelectorAll(`[data-catalog-id="${cid}"], #card-catalog-${cid}`);
+            cards.forEach(card => {
+                card.setAttribute('data-linked-sku', sku);
+                const badgeContainer = card.querySelector('.catalog-link-badge-container');
+                if (badgeContainer) {
+                    badgeContainer.innerHTML = `
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill d-inline-flex align-items-center w-100 justify-content-between" style="font-size:0.7rem;" title="Vinculado ao SKU ${sku}">
+                            <span class="text-truncate"><i class="fas fa-check-circle me-1"></i>${sku}</span>
+                            <span class="badge bg-success text-white ms-1" style="font-size:0.6rem;">Estoque</span>
+                        </span>`;
+                }
+                const linkBtn = card.querySelector('.btn-link-card');
+                if (linkBtn) {
+                    linkBtn.title = 'Alterar SKU vinculado';
+                }
+            });
+        });
+
+        clearCatalogSelection();
+        if (quickLinkModalInstance) quickLinkModalInstance.hide();
+        showToast(`${catalogIds.length} catálogo(s) vinculado(s) ao SKU ${sku}!`);
+
+    } catch (err) {
+        alert('Erro ao vincular: ' + err.message);
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = `<i class="fas fa-check me-1"></i> Vincular Agora`;
+        }
+    }
+}
+
 // ─── Formulário de busca de novos catálogos ──────────────────────
 const searchFormEl = document.getElementById('catalogSearchForm');
 if (searchFormEl) {
@@ -1360,77 +1782,11 @@ if (searchFormEl) {
 
         const termo = document.getElementById('catalogSearchInput').value.trim();
         const nPages = parseInt(document.getElementById('catalogNPages').value) || 1;
-        const originSku = this.getAttribute('data-origin-sku') || '';
+        const originSku = (document.getElementById('catalogOriginSku') ? document.getElementById('catalogOriginSku').value : '') || this.getAttribute('data-origin-sku') || '';
 
         triggerCatalogSearch(termo, nPages, originSku);
         return false;
     });
-}
-
-// ─── Funções de Vinculação Rápida a SKU ──────────────────────────
-function openQuickLinkModal(searchTerm, catalogId) {
-    const termInput = document.getElementById('quickLinkSearchTerm');
-    const catInput = document.getElementById('quickLinkCatalogId');
-    const skuSelect = document.getElementById('quickLinkSkuSelect');
-    
-    if (termInput) termInput.value = searchTerm || '';
-    if (catInput) catInput.value = catalogId || '';
-    if (skuSelect) skuSelect.value = '';
-    
-    if (quickLinkModalInstance) {
-        quickLinkModalInstance.show();
-    }
-}
-
-async function submitQuickSkuLink() {
-    const sku = document.getElementById('quickLinkSkuSelect').value;
-    const catalogId = document.getElementById('quickLinkCatalogId').value;
-    const searchTerm = document.getElementById('quickLinkSearchTerm').value;
-
-    if (!sku) {
-        alert('Por favor, selecione um SKU do inventário.');
-        return;
-    }
-
-    showOverlay('Vinculando ao SKU...', `Associando catálogos com o SKU ${sku}...`);
-
-    try {
-        let catalogIds = [];
-        if (catalogId) {
-            catalogIds = [catalogId];
-        } else if (searchTerm) {
-            document.querySelectorAll('.catalog-search-group').forEach(grp => {
-                const title = grp.querySelector('.search-group-title');
-                if (title && title.textContent.toLowerCase().includes(searchTerm.toLowerCase())) {
-                    grp.querySelectorAll('.catalog-item-wrapper').forEach(item => {
-                        const cid = item.getAttribute('data-id');
-                        if (cid) catalogIds.push(cid.toUpperCase());
-                    });
-                }
-            });
-        }
-
-        const res = await fetch('/catalog/link-sku', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                sku: sku,
-                catalog_id: catalogId || null,
-                catalog_ids: catalogIds
-            })
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Falha ao vincular');
-
-        showOverlay('Sucesso!', 'Catálogos vinculados ao SKU com sucesso. Atualizando...');
-        setTimeout(() => {
-            window.location.reload();
-        }, 1000);
-    } catch (err) {
-        hideOverlay();
-        alert('Erro ao vincular: ' + err.message);
-    }
 }
 
 // ─── Polling de status da busca de catálogos ──────────────────────
@@ -1521,16 +1877,47 @@ function renderCatalogResults(catalogs) {
     count.textContent = catalogs.length;
     grid.innerHTML = catalogs.map(cat => {
         const escapedTitle = (cat.nome || '').replace(/'/g, "\\'").replace(/"/g, "&quot;");
+        const isLinked = Boolean(cat.linked_sku || cat.is_linked);
+        const skuCode = cat.linked_sku || '';
         return `
         <div class="col">
-            <div class="saas-catalog-card">
-                <div class="saas-card-topbar">
-                    <span class="catalog-chip" onclick="copyCatalogId('${cat.catalog_id}')" title="Clique para copiar ID">
-                        <i class="fas fa-copy" style="font-size: 0.65rem;"></i>
-                        ${cat.catalog_id}
-                    </span>
-                    <span class="badge-saas badge-saas-warning"><i class="fas fa-fire me-1"></i>Novo</span>
+            <div class="saas-catalog-card" id="card-catalog-${cat.catalog_id}" data-catalog-id="${cat.catalog_id}" data-linked-sku="${skuCode}">
+                <div class="saas-card-topbar d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="checkbox"
+                               class="form-check-input catalog-select-cb"
+                               data-catalog-id="${cat.catalog_id}"
+                               data-title="${escapedTitle}"
+                               data-image="${cat.imagem || ''}"
+                               onchange="updateCatalogBulkBar()">
+                        <span class="catalog-chip" onclick="copyCatalogId('${cat.catalog_id}')" title="Clique para copiar ID">
+                            <i class="fas fa-copy" style="font-size: 0.65rem;"></i>
+                            ${cat.catalog_id}
+                        </span>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <span class="badge-saas badge-saas-warning"><i class="fas fa-fire me-1"></i>Novo</span>
+                        <button type="button" class="btn btn-xs btn-outline-danger border-0 p-1 lh-1" onclick="confirmSingleDelete('${cat.catalog_id}', '${escapedTitle}')" title="Excluir da visualização">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
                 </div>
+
+                <!-- Rótulo de Status de Vínculo com SKU -->
+                <div class="px-3 pt-2 pb-1 catalog-link-badge-container">
+                    ${isLinked ? `
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill d-inline-flex align-items-center w-100 justify-content-between" style="font-size:0.7rem;" title="Vinculado ao SKU ${skuCode}">
+                            <span class="text-truncate"><i class="fas fa-check-circle me-1"></i>${skuCode}</span>
+                            <span class="badge bg-success text-white ms-1" style="font-size:0.6rem;">Estoque</span>
+                        </span>
+                    ` : `
+                        <span class="badge bg-light text-muted border px-2 py-1 rounded-pill d-inline-flex align-items-center w-100 justify-content-between" style="font-size:0.7rem;">
+                            <span><i class="fas fa-unlink me-1 text-secondary"></i>Não Vinculado</span>
+                            <span class="badge bg-secondary text-white ms-1" style="font-size:0.6rem;">Avulso</span>
+                        </span>
+                    `}
+                </div>
+
                 <div class="saas-img-frame">
                     ${cat.imagem
                         ? `<img src="${cat.imagem}" alt="${escHtml(cat.nome)}" loading="lazy"
@@ -1550,6 +1937,11 @@ function renderCatalogResults(catalogs) {
                     <button type="button" class="btn btn-sm btn-primary flex-grow-1"
                             onclick="openCompetitorsDrawer('${cat.catalog_id}', '${escapedTitle}', '${cat.imagem || ''}')">
                         <i class="fas fa-users"></i> Concorrentes
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary px-2 btn-link-card"
+                            onclick="openQuickLinkModal('', '${cat.catalog_id}', '${skuCode}')"
+                            title="${isLinked ? 'Alterar SKU vinculado' : 'Vincular a um SKU do estoque'}">
+                        <i class="fas fa-link"></i>
                     </button>
                     <a href="https://www.mercadolivre.com.br/p/${cat.catalog_id}" target="_blank" class="btn btn-sm btn-secondary px-2" title="Abrir no ML">
                         <i class="fas fa-external-link-alt"></i>

@@ -595,6 +595,10 @@ def results_page():
         previous_known_ids = db_manager.get_previous_search_identifiers(user_id, termo or '')
         has_history = len(previous_known_ids) > 0
         
+        # Obtém inventário e vínculos existentes com SKUs
+        inventory = db_manager.get_inventory(user_id=user_id)
+        existing_sku_links = {item['catalog_id']: item['sku'] for item in db_manager.get_sku_catalogs(user_id=user_id)}
+        
         # Enriquece os produtos com inteligência de mercado e flag de novidades
         enriched_results = []
         for p in raw_results:
@@ -607,6 +611,8 @@ def results_page():
                 if p_url and (p_url not in previous_known_ids) and (not p_cat or p_cat not in previous_known_ids):
                     is_new = True
             enriched['is_new'] = is_new
+            enriched['linked_sku'] = existing_sku_links.get(p_cat)
+            enriched['is_linked'] = bool(enriched['linked_sku'])
             enriched_results.append(enriched)
 
         sidebar_metrics = compute_sidebar_metrics(enriched_results)
@@ -619,6 +625,7 @@ def results_page():
 
         return render_template('search/results.html',
                                results=enriched_results,
+                               inventory=inventory,
                                stats=stats,
                                telemetry=telemetry,
                                sidebar_metrics=sidebar_metrics,

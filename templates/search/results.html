@@ -792,9 +792,13 @@
                                     <span class="badge-amazon-avantpro">
                                         <i class="fab fa-amazon"></i> Amazon
                                     </span>
+                                {% if prod.linked_sku %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill" style="font-size:0.68rem;" title="Vinculado ao SKU {{ prod.linked_sku }}">
+                                        <i class="fas fa-check-circle me-1"></i>{{ prod.linked_sku }}
+                                    </span>
                                 {% else %}
-                                    <span class="badge bg-light text-secondary border small">
-                                        <i class="fas fa-store"></i> Anúncio ML
+                                    <span class="badge bg-light text-muted border px-2 py-1 rounded-pill" style="font-size:0.68rem;">
+                                        <i class="fas fa-unlink me-1 text-secondary"></i>Sem SKU
                                     </span>
                                 {% endif %}
                             </div>
@@ -848,6 +852,15 @@
                                         data-price="{{ prod.preco_numerico }}"
                                         onclick="quickAlertFromCard(this)" title="Criar Alerta de Preço">
                                     <i class="fas fa-bell"></i>
+                                </button>
+                                <button type="button" class="btn-action-icon btn-act-red" 
+                                        style="background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5;"
+                                        data-id="{{ prod.id }}"
+                                        data-url="{{ prod.url_produto }}"
+                                        data-title="{{ prod.titulo }}"
+                                        onclick="confirmDeleteSingleOffer(this)" 
+                                        title="Excluir da visualização">
+                                    <i class="fas fa-times"></i>
                                 </button>
                             </div>
                         </div>
@@ -1890,6 +1903,19 @@ function updateSelectedCount() {
 
 // ─── 1. Exclusão em Lote com Confirmação e Recálculo de KPIs ───────
 let deleteConfirmModalInstance = null;
+
+function confirmDeleteSingleOffer(btn) {
+    const cardCol = btn.closest('.product-card-col');
+    if (!cardCol) return;
+    
+    // Desmarca outros e marca apenas este checkbox
+    document.querySelectorAll('.item-checkbox').forEach(cb => cb.checked = false);
+    const cb = cardCol.querySelector('.item-checkbox');
+    if (cb) cb.checked = true;
+    updateSelectedCount();
+    
+    openDeleteConfirmationModal();
+}
 
 function openDeleteConfirmationModal() {
     const selectedCbs = document.querySelectorAll('.item-checkbox:checked');

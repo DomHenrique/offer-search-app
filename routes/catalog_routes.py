@@ -310,10 +310,14 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
             'message': f'Salvando {len(catalogs)} catálogos...'
         })
 
+        # Obtém vínculos existentes do usuário
+        existing_links = {item['catalog_id']: item['sku'] for item in db_manager.get_sku_catalogs(user_id=user_id)}
+
         # Persiste catálogos no Supabase
         for cat in catalogs:
+            cid = str(cat['catalog_id']).strip().upper()
             db_manager.save_catalog({
-                'catalog_id': cat['catalog_id'],
+                'catalog_id': cid,
                 'nome': cat.get('nome') or cat.get('title', ''),
                 'imagem': cat.get('imagem') or cat.get('image_url', ''),
                 'termo_pesquisa': search_term,
@@ -326,12 +330,16 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
                     db_manager.link_catalog_to_sku(
                         user_id=user_id,
                         sku=origin_sku,
-                        catalog_id=cat['catalog_id'],
+                        catalog_id=cid,
                         catalog_title=cat.get('nome', ''),
                         catalog_image=cat.get('imagem', '')
                     )
+                    existing_links[cid] = origin_sku
                 except Exception as e_link:
-                    print(f"Aviso ao auto-vincular catálogo {cat['catalog_id']} ao SKU {origin_sku}: {e_link}")
+                    print(f"Aviso ao auto-vincular catálogo {cid} ao SKU {origin_sku}: {e_link}")
+
+            cat['linked_sku'] = existing_links.get(cid)
+            cat['is_linked'] = bool(cat['linked_sku'])
 
         catalog_search_status[search_id].update({
             'status': 'concluida',
@@ -389,6 +397,81 @@ def unlink_sku():
     try:
         db_manager.unlink_catalog_from_sku(user_id=user_id, sku=sku, catalog_id=catalog_id)
         return jsonify({'success': True, 'message': f'Catálogo {catalog_id} desvinculado do SKU {sku}!'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@catalog_bp.route('/delete-batch', methods=['POST'])
+def delete_batch():
+    """Exclui múltiplos catálogos do banco e da visualização."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+
+    data = request.get_json() or {}
+    catalog_ids = data.get('catalog_ids', [])
+    if isinstance(catalog_ids, str):
+        catalog_ids = [catalog_ids]
+    
+    if not catalog_ids:
+        return jsonify({'error': 'Nenhum catálogo informado para exclusão'}), 400
+
+    user_id = session['user_id']
+    try:
+        deleted = db_manager.delete_catalogs(user_id=user_id, catalog_ids=catalog_ids)
+        return jsonify({
+            'success': True,
+            'deleted_count': deleted,
+            'message': f'{deleted} catálogo(s) excluído(s) com sucesso.'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@catalog_bp.route('/link-sku-batch', methods=['POST'])
+def link_sku_batch():
+    """Vincula múltiplos catálogos a um SKU do inventário."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+
+    data = request.get_json() or {}
+    sku = (data.get('sku') or '').strip().upper()
+    catalog_items = data.get('catalog_items', [])
+    user_id = session['user_id']
+
+    if not sku:
+        return jsonify({'error': 'SKU é obrigatório'}), 400
+    if not catalog_items:
+        return jsonify({'error': 'Nenhum catálogo informado para vinculação'}), 400
+
+    linked_count = 0
+    try:
+        for item in catalog_items:
+            if isinstance(item, str):
+                cid = item.strip().upper()
+                ctitle, curl, cimg = f'Catálogo {cid}', f'https://www.mercadolivre.com.br/p/{cid}', ''
+            else:
+                cid = str(item.get('catalog_id') or '').strip().upper()
+                ctitle = item.get('title') or item.get('nome') or f'Catálogo {cid}'
+                curl = item.get('url') or item.get('url_produto') or f'https://www.mercadolivre.com.br/p/{cid}'
+                cimg = item.get('image') or item.get('imagem') or ''
+            
+            if cid:
+                db_manager.link_catalog_to_sku(
+                    user_id=user_id,
+                    sku=sku,
+                    catalog_id=cid,
+                    catalog_title=ctitle,
+                    catalog_url=curl,
+                    catalog_image=cimg
+                )
+                linked_count += 1
+
+        return jsonify({
+            'success': True,
+            'linked_count': linked_count,
+            'sku': sku,
+            'message': f'{linked_count} catálogo(s) vinculado(s) ao SKU {sku} com sucesso!'
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

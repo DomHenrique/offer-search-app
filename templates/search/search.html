@@ -51,17 +51,40 @@
                         <form id="searchForm">
                             <div class="row g-3 align-items-end">
                                 <div class="col-md-8">
-                                    <label for="termo_pesquisa" class="form-label small fw-semibold text-secondary mb-1">
-                                        <i class="fas fa-search me-1 text-primary"></i> TERMO DE PESQUISA / PRODUTO
-                                    </label>
-                                    <div class="search-input-wrapper">
-                                        <i class="fas fa-search search-icon"></i>
-                                        <input type="text" 
-                                               class="form-control" 
-                                               id="termo_pesquisa" 
-                                               name="termo_pesquisa" 
-                                               placeholder="Ex: smartphone, notebook, fone de ouvido, ecoflow..."
-                                               required>
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <label for="termo_pesquisa" class="form-label small fw-semibold text-secondary mb-0">
+                                            <i class="fas fa-search me-1 text-primary"></i> TERMO DE PESQUISA / PRODUTO
+                                        </label>
+                                        <span class="badge bg-light text-muted border" style="font-size: 0.68rem;">
+                                            <i class="fas fa-boxes me-1 text-primary"></i> Estoque ou texto livre
+                                        </span>
+                                    </div>
+                                    <div class="row g-2">
+                                        <div class="col-md-5">
+                                            <select class="form-select form-select-sm" id="searchSkuSelect" onchange="handleSearchSkuSelect(this)">
+                                                <option value="">-- Produto do Estoque --</option>
+                                                <option value="__custom__">✏️ Outro (Digitar termo livre...)</option>
+                                                {% if inventory %}
+                                                    {% for inv in inventory %}
+                                                    <option value="{{ inv.sku }}" data-desc="{{ inv.descricao }}" data-commercial="{{ inv.termo_comercial or inv.descricao }}">
+                                                        {{ inv.sku }} - {{ inv.descricao|truncate(35) }}
+                                                    </option>
+                                                    {% endfor %}
+                                                {% endif %}
+                                            </select>
+                                        </div>
+                                        <div class="col-md-7">
+                                            <div class="search-input-wrapper">
+                                                <i class="fas fa-search search-icon"></i>
+                                                <input type="text" 
+                                                       class="form-control form-control-sm" 
+                                                       id="termo_pesquisa" 
+                                                       name="termo_pesquisa" 
+                                                       placeholder="Ex: smartphone, notebook, fone de ouvido, ecoflow..."
+                                                       required>
+                                                <input type="hidden" id="searchOriginSku" name="origin_sku" value="">
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 
@@ -317,8 +340,34 @@
 </style>
 
 <script>
-let currentSearchId = null;
-let statusCheckInterval = null;
+function handleSearchSkuSelect(selectEl) {
+    const searchInput = document.getElementById('termo_pesquisa');
+    const originSkuInput = document.getElementById('searchOriginSku');
+    const selectedOption = selectEl.options[selectEl.selectedIndex];
+    
+    if (!selectedOption || !selectedOption.value) {
+        if (originSkuInput) originSkuInput.value = '';
+        return;
+    }
+    
+    if (selectedOption.value === '__custom__') {
+        if (originSkuInput) originSkuInput.value = '';
+        if (searchInput) {
+            searchInput.value = '';
+            searchInput.placeholder = 'Digite o nome ou modelo do produto...';
+            searchInput.focus();
+        }
+        return;
+    }
+    
+    const sku = selectedOption.value;
+    const commercial = selectedOption.getAttribute('data-commercial') || selectedOption.getAttribute('data-desc') || sku;
+    
+    if (originSkuInput) originSkuInput.value = sku;
+    if (searchInput) {
+        searchInput.value = commercial;
+    }
+}
 
 document.getElementById('searchForm').addEventListener('submit', async function(e) {
     e.preventDefault();

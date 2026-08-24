@@ -646,6 +646,34 @@ class DatabaseManager:
             print(f"Erro ao salvar catálogo {catalog_data.get('catalog_id')}: {e}")
             return False
 
+    def delete_catalogs(self, user_id: str, catalog_ids: List[str]) -> int:
+        """
+        Remove um ou múltiplos catálogos do banco de dados (tabelas catalogos, sku_catalogs e catalog_sellers).
+        """
+        if not catalog_ids:
+            return 0
+        try:
+            user_uuid = self._get_user_uuid(user_id)
+            count = 0
+            for cid in catalog_ids:
+                cid_clean = str(cid).strip().upper()
+                if not cid_clean:
+                    continue
+                # Remove de catalogos
+                self.supabase.table("catalogos").delete().eq("catalog_id", cid_clean).execute()
+                # Remove de sku_catalogs
+                self.supabase.table("sku_catalogs").delete().eq("user_id", user_uuid).eq("catalog_id", cid_clean).execute()
+                # Remove de catalog_sellers
+                try:
+                    self.supabase.table("catalog_sellers").delete().eq("catalog_id", cid_clean).execute()
+                except Exception:
+                    pass
+                count += 1
+            return count
+        except Exception as e:
+            print(f"Erro ao deletar catálogos: {e}")
+            return 0
+
     def save_catalog_sellers(self, catalog_id: str, sellers: List[Dict]) -> int:
         """
         Insere vendedores de um catálogo na tabela catalog_sellers.
