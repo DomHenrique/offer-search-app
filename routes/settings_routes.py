@@ -54,6 +54,13 @@ def settings_page():
                          meli_status=meli_status)
 
 
+def _get_meli_redirect_uri():
+    redirect_uri = request.host_url.rstrip('/') + url_for('settings.meli_callback')
+    if request.headers.get('X-Forwarded-Proto') == 'https' or not ('localhost' in request.host or '127.0.0.1' in request.host):
+        redirect_uri = redirect_uri.replace('http://', 'https://')
+    return redirect_uri
+
+
 # === ROTAS OAUTH DA API OFICIAL DO MERCADO LIVRE ===
 
 @settings_bp.route('/meli/connect')
@@ -62,8 +69,7 @@ def meli_connect():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
     
-    # Monta a URL de callback com base no host atual
-    redirect_uri = request.host_url.rstrip('/') + url_for('settings.meli_callback')
+    redirect_uri = _get_meli_redirect_uri()
     auth_url = meli_auth.get_authorization_url(redirect_uri=redirect_uri, state=str(session['user_id']))
     return redirect(auth_url)
 
@@ -86,7 +92,7 @@ def meli_callback():
         return redirect(url_for('settings.settings_page') + '?meli_error=no_code')
 
     user_id = session['user_id']
-    redirect_uri = request.host_url.rstrip('/') + url_for('settings.meli_callback')
+    redirect_uri = _get_meli_redirect_uri()
     
     success, result = meli_auth.exchange_code_for_tokens(code=code, redirect_uri=redirect_uri, user_id=user_id)
     if success:

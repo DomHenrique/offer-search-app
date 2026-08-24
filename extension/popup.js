@@ -209,6 +209,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnText.textContent = 'Sincronizar Sessões';
   });
 
+  // Handler para conectar API Oficial OAuth
+  const btnMeliOAuth = document.getElementById('btnMeliOAuth');
+  if (btnMeliOAuth) {
+    btnMeliOAuth.addEventListener('click', () => {
+      let targetUrl = (apiUrlInput.value.trim() || 'https://offer-search.hnperformancedigital.com.br').replace(/\/+$/, '');
+      if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+        targetUrl = 'https://' + targetUrl;
+      }
+      chrome.tabs.create({ url: `${targetUrl}/settings/meli/connect` });
+    });
+  }
+
   function showFeedback(msg, type) {
     feedback.textContent = msg;
     feedback.className = `feedback ${type}`;
