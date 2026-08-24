@@ -476,17 +476,25 @@ def _scrape_sellers_thread(scrape_id: str, user_id: str, catalog_id: str):
                 if comp_data.get('success') and comp_data.get('competitors'):
                     for idx, c in enumerate(comp_data['competitors']):
                         sellers.append({
-                            'seller_name': c.get('seller_name', f'Vendedor #{c.get("seller_id", idx+1)}'),
-                            'preco': c.get('price', 0.0),
+                            'seller_name': c.get('seller_name') or f'Vendedor #{c.get("seller_id", idx+1)}',
+                            'preco': float(c.get('price', 0.0)),
                             'posicao': 1 if c.get('is_buy_box_winner') else idx + 1,
                             'is_best_offer': bool(c.get('is_buy_box_winner')),
                             'frete_full': c.get('logistic_type') == 'fulfillment',
                             'condicao': c.get('condition', 'new'),
+                            'reputation_level': c.get('reputation_level', 'none'),
+                            'power_seller_status': c.get('power_seller_status'),
+                            'city': c.get('city', ''),
+                            'state': c.get('state', ''),
                             'url_vendedor': c.get('permalink', ''),
                             'catalog_id': catalog_id,
                             'coletado_em': datetime.now().isoformat()
                         })
-                    print(f"✅ [Catalog] {len(sellers)} vendedores obtidos via API Oficial Meli para {catalog_id}.")
+                    # Ordena: Vencedor da Buy Box primeiro, seguido por menor preço
+                    sellers.sort(key=lambda s: (not s.get('is_best_offer', False), s.get('preco', 999999)))
+                    for idx, s in enumerate(sellers):
+                        s['posicao'] = idx + 1
+                    print(f"✅ [Catalog] {len(sellers)} vendedores enriquecidos via API Oficial Meli para {catalog_id}.")
             except Exception as e_api:
                 print(f"⚠️ [Catalog] Falha ao obter concorrentes via API Meli: {e_api}")
 

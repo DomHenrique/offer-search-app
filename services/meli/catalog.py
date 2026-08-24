@@ -17,6 +17,50 @@ class MeliCatalogService:
 
     def __init__(self, client: Optional[MeliClient] = None):
         self.client = client or MeliClient()
+        self._users_cache: Dict[str, Dict[str, Any]] = {}
+
+    def get_user_info(self, seller_id: Any, user_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Obtém informações e reputação do vendedor via GET /users/{seller_id} com cache em memória.
+        """
+        if not seller_id:
+            return {"seller_id": None, "nickname": "Vendedor", "reputation_level": "none", "power_seller_status": None}
+
+        clean_seller_id = str(seller_id).strip()
+        if clean_seller_id in self._users_cache:
+            return self._users_cache[clean_seller_id]
+
+        try:
+            response = self.client.get(f"users/{clean_seller_id}", user_id=user_id)
+            if response.status_code == 200:
+                data = response.json()
+                seller_reputation = data.get("seller_reputation", {})
+                transactions = seller_reputation.get("transactions", {})
+                
+                user_info = {
+                    "seller_id": clean_seller_id,
+                    "nickname": data.get("nickname") or f"Vendedor #{clean_seller_id}",
+                    "reputation_level": seller_reputation.get("level_id", "none"),
+                    "power_seller_status": seller_reputation.get("power_seller_status"),
+                    "transactions_completed": transactions.get("completed", 0),
+                    "city": data.get("address", {}).get("city", ""),
+                    "state": data.get("address", {}).get("state", ""),
+                    "country_id": data.get("country_id", "BR")
+                }
+                if len(self._users_cache) > 500:
+                    self._users_cache.clear()
+                self._users_cache[clean_seller_id] = user_info
+                return user_info
+        except Exception as e:
+            print(f"⚠️ [MeliCatalogService] Erro ao consultar dados do usuário {clean_seller_id}: {e}")
+
+        default_info = {
+            "seller_id": clean_seller_id,
+            "nickname": f"Vendedor #{clean_seller_id}",
+            "reputation_level": "none",
+            "power_seller_status": None
+        }
+        return default_info
 
     def search_catalog_products(
         self,
@@ -133,6 +177,13 @@ class MeliCatalogService:
         product_detail = self.get_product_detail(clean_id, user_id=user_id)
         buy_box_winner = product_detail.get("buy_box_winner") if product_detail else None
 
+        # Enriquece buy_box_winner se disponível
+        if buy_box_winner and buy_box_winner.get("seller_id"):
+            u_info = self.get_user_info(buy_box_winner.get("seller_id"), user_id=user_id)
+            buy_box_winner["seller_name"] = u_info.get("nickname") or buy_box_winner.get("seller_name", "Vendedor Oficial")
+            buy_box_winner["reputation_level"] = u_info.get("reputation_level", "none")
+            buy_box_winner["power_seller_status"] = u_info.get("power_seller_status")
+
         # 2. Busca lista de concorrentes em /products/{product_id}/items
         competitors = []
         try:
@@ -141,7 +192,7 @@ class MeliCatalogService:
                 items_data = response.json()
                 raw_items = items_data.get("results", []) if isinstance(items_data, dict) else items_data
                 for it in raw_items:
-                    competitor = self._parse_competitor_item(it, buy_box_winner)
+                    competitor = self._parse_competitor_item(it, buy_box_winner, user_id=user_id)
                     if competitor:
                         competitors.append(competitor)
         except Exception as e:
@@ -153,6 +204,8 @@ class MeliCatalogService:
                 "item_id": buy_box_winner.get("item_id"),
                 "seller_id": buy_box_winner.get("seller_id"),
                 "seller_name": buy_box_winner.get("seller_name", "Vendedor Oficial"),
+                "reputation_level": buy_box_winner.get("reputation_level", "none"),
+                "power_seller_status": buy_box_winner.get("power_seller_status"),
                 "price": buy_box_winner.get("price", 0.0),
                 "original_price": buy_box_winner.get("original_price"),
                 "currency_id": buy_box_winner.get("currency_id", "BRL"),
@@ -227,9 +280,14 @@ class MeliCatalogService:
             "is_catalog": True
         }
 
-    def _parse_competitor_item(self, item: Dict[str, Any], buy_box_winner: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def _parse_competitor_item(
+        self,
+        item: Dict[str, Any],
+        buy_box_winner: Optional[Dict[str, Any]],
+        user_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """
-        Normaliza um concorrente de catálogo.
+        Normaliza um concorrente de catálogo e enriquece com dados do lojista.
         """
         if not item or not isinstance(item, dict):
             return None
@@ -237,8 +295,12 @@ class MeliCatalogService:
         item_id = item.get("id") or item.get("item_id")
         price = item.get("price", 0.0)
         seller = item.get("seller", {})
-        seller_id = seller.get("id") if isinstance(seller, dict) else item.get("seller_id")
-        seller_name = seller.get("nickname") if isinstance(seller, dict) else item.get("seller_name", f"Vendedor #{seller_id}")
+        seller_id = (seller.get("id") if isinstance(seller, dict) else None) or item.get("seller_id") or (seller if isinstance(seller, (str, int)) else None)
+        
+        user_info = self.get_user_info(seller_id, user_id=user_id) if seller_id else {}
+        seller_name = (seller.get("nickname") if isinstance(seller, dict) else None) or (
+            user_info.get("nickname") or item.get("seller_name") or f"Vendedor #{seller_id}"
+        )
 
         winner_item_id = buy_box_winner.get("item_id") if buy_box_winner else None
         is_winner = (item_id == winner_item_id) if winner_item_id else False
@@ -250,6 +312,10 @@ class MeliCatalogService:
             "item_id": item_id,
             "seller_id": seller_id,
             "seller_name": seller_name,
+            "reputation_level": user_info.get("reputation_level", "none"),
+            "power_seller_status": user_info.get("power_seller_status"),
+            "city": user_info.get("city", ""),
+            "state": user_info.get("state", ""),
             "price": float(price) if price else 0.0,
             "original_price": item.get("original_price"),
             "currency_id": item.get("currency_id", "BRL"),

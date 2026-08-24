@@ -966,13 +966,12 @@ class DatabaseManager:
     def extract_and_save_catalogs_from_offers(self, user_id: Optional[str] = None) -> List[Dict]:
         """
         Analisa as ofertas salvas na tabela 'ofertas',
-        extrai exclusivamente catálogos confirmados (/p/MLB... do Mercado Livre) e salva na tabela 'catalogos'.
+        extrai catálogos confirmados (campo catalog_id ou /p/MLB... do Mercado Livre) e salva na tabela 'catalogos'.
         """
         try:
-            import re
             from scraping.web_scrap_catalog_ml import extract_catalog_id_from_url
 
-            query = self.supabase.table("ofertas").select("titulo, imagem, url_produto, termo_pesquisa, marketplace, criado_em")
+            query = self.supabase.table("ofertas").select("titulo, imagem, url_produto, termo_pesquisa, marketplace, catalog_id, codigo_produto, is_catalog, criado_em")
             resp = query.order("criado_em", desc=True).limit(500).execute()
             ofertas = resp.data or []
 
@@ -983,9 +982,15 @@ class DatabaseManager:
                 url = item.get("url_produto") or ""
                 mp = item.get("marketplace") or "MercadoLivre"
                 
-                # Apenas produtos com /p/MLB... no ML são catálogos garantidos
-                cat_id = None
-                if mp == "MercadoLivre" or "mercadolivre.com" in url.lower():
+                # 1. Prioriza o campo estruturado oficial catalog_id
+                cat_id = str(item.get("catalog_id") or "").strip()
+                if not cat_id or not cat_id.startswith("MLB"):
+                    cod = str(item.get("codigo_produto") or "").strip()
+                    if cod.startswith("MLB") and len(cod) > 6:
+                        cat_id = cod
+                
+                # 2. Fallback para extração de URL caso catalog_id não esteja preenchido
+                if not cat_id and (mp == "MercadoLivre" or "mercadolivre.com" in url.lower()):
                     cat_id = extract_catalog_id_from_url(url)
                     mp = "MercadoLivre"
 
@@ -997,7 +1002,7 @@ class DatabaseManager:
                         "titulo": item.get("titulo") or f"Catálogo {cat_id}",
                         "imagem": item.get("imagem") or "",
                         "imagem_url": item.get("imagem") or "",
-                        "url_produto": url,
+                        "url_produto": url or f"https://www.mercadolivre.com.br/p/{cat_id}",
                         "marketplace": mp,
                         "termo_pesquisa": item.get("termo_pesquisa") or "",
                         "user_id": user_id or "1"

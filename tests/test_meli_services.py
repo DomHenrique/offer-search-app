@@ -103,6 +103,64 @@ class TestMeliServices(unittest.TestCase):
         self.assertTrue(parsed["image_url"].startswith("https://"))
         self.assertTrue(parsed["image_url"].endswith("-O.jpg"))
 
+    @patch.object(MeliClient, 'get')
+    def test_get_user_info_and_cache(self, mock_get):
+        """Testa consulta de perfil de lojista e funcionamento do cache LRU"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": 998877,
+            "nickname": "ECOFLOW_BRASIL_OFICIAL",
+            "seller_reputation": {
+                "level_id": "5_green",
+                "power_seller_status": "platinum"
+            },
+            "address": {
+                "city": "São Paulo",
+                "state": "SP"
+            }
+        }
+        mock_get.return_value = mock_response
+
+        # 1ª chamada: deve consultar API
+        info1 = self.catalog_service.get_user_info(998877)
+        self.assertEqual(info1["nickname"], "ECOFLOW_BRASIL_OFICIAL")
+        self.assertEqual(info1["power_seller_status"], "platinum")
+        self.assertEqual(mock_get.call_count, 1)
+
+        # 2ª chamada: deve retornar do cache sem chamar API novamente
+        info2 = self.catalog_service.get_user_info("998877")
+        self.assertEqual(info2["nickname"], "ECOFLOW_BRASIL_OFICIAL")
+        self.assertEqual(mock_get.call_count, 1)
+
+    @patch.object(MeliCatalogService, 'get_user_info')
+    def test_competitor_enrichment(self, mock_user_info):
+        """Testa enriquecimento de concorrente com nome do vendedor"""
+        mock_user_info.return_value = {
+            "seller_id": "776655",
+            "nickname": "SOLAR_STORE_BR",
+            "reputation_level": "5_green",
+            "power_seller_status": "gold",
+            "city": "Curitiba",
+            "state": "PR"
+        }
+
+        raw_item = {
+            "id": "MLB332211",
+            "price": 4999.00,
+            "seller_id": 776655,
+            "shipping": {"logistic_type": "fulfillment"}
+        }
+        buy_box_winner = {"item_id": "MLB332211"}
+
+        parsed = self.catalog_service._parse_competitor_item(raw_item, buy_box_winner)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed["item_id"], "MLB332211")
+        self.assertEqual(parsed["seller_name"], "SOLAR_STORE_BR")
+        self.assertEqual(parsed["power_seller_status"], "gold")
+        self.assertTrue(parsed["is_buy_box_winner"])
+        self.assertEqual(parsed["logistic_type"], "fulfillment")
+
 
 if __name__ == "__main__":
     unittest.main()
