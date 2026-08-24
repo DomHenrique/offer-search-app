@@ -18,6 +18,8 @@ services:
       - SUPABASE_URL=https://povgswnmwispktahqxzk.supabase.co
       - SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvdmdzd25td2lzcGt0YWhxeHprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxMzgyNDIsImV4cCI6MjA5ODcxNDI0Mn0.dOStxqpn_stYSc6G8dLEyUsnThxDxfY5YCaTASAIAqk
       - SERPAPI_KEY=defc49145dee59efd53c9db61a682417bfa2993a
+      - MELI_APP_ID=4953283902208442
+      - MELI_CLIENT_SECRET=PJjqeilipeEQ5XWQeaBzV7obxW1ndBJ5
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=rede_gridd"

@@ -8,11 +8,13 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.db_manager import DatabaseManager
+from services.meli.catalog import MeliCatalogService
 from scraping.web_scrap_catalog_ml import get_catalog_list, get_catalog_sellers
 from scraping.web_scrap_amazon_catalog import get_amazon_catalog_sellers
 
 catalog_bp = Blueprint('catalog', __name__)
 db_manager = DatabaseManager()
+meli_catalog = MeliCatalogService()
 
 # Armazena status das buscas em andamento (em memória)
 catalog_search_status = {}
@@ -256,7 +258,7 @@ def search_catalogs():
 
 
 def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pages: int, origin_sku: str = ''):
-    """Thread de busca de catálogos com vinculação automática de SKU."""
+    """Thread de busca de catálogos com API Oficial do Mercado Livre e vinculação automática de SKU."""
     try:
         clean_search = search_term
         if origin_sku and origin_sku.upper().startswith('ECO') and 'ecoflow' not in clean_search.lower():
@@ -265,20 +267,43 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
         catalog_search_status[search_id].update({
             'status': 'buscando',
             'progress': 20,
-            'message': f'Buscando catálogos para "{clean_search}" no Mercado Livre...'
+            'message': f'Buscando catálogos para "{clean_search}" no Mercado Livre (API Oficial)...'
         })
 
-        result = get_catalog_list(clean_search, n_pages)
+        catalogs = []
+        
+        # 1. Tenta buscar via API Oficial do Mercado Livre (/products/search)
+        try:
+            api_res = meli_catalog.search_catalog_products(clean_search, limit=50, user_id=user_id)
+            if api_res.get('success') and api_res.get('results'):
+                for p in api_res['results']:
+                    catalogs.append({
+                        'catalog_id': p['catalog_id'],
+                        'nome': p.get('name') or p.get('title'),
+                        'imagem': p.get('image_url', ''),
+                        'preco': p.get('price', 0.0),
+                        'url': p.get('permalink', ''),
+                        'buy_box_winner': p.get('buy_box_winner')
+                    })
+                print(f"✅ [Catalog] {len(catalogs)} catálogos encontrados via API Oficial Meli.")
+        except Exception as e_api:
+            print(f"⚠️ [Catalog] Falha na API Oficial Meli, acionando fallback de scraping: {e_api}")
 
-        if not result['success']:
+        # 2. Se a API não retornou catálogos, executa fallback transparente para scraping
+        if not catalogs:
             catalog_search_status[search_id].update({
-                'status': 'erro',
-                'error': result.get('error', 'Erro desconhecido'),
-                'completed': True,
+                'progress': 40,
+                'message': f'Consultando catálogos via motor de busca secundário...'
             })
-            return
-
-        catalogs = result['catalogs']
+            result = get_catalog_list(clean_search, n_pages)
+            if not result['success']:
+                catalog_search_status[search_id].update({
+                    'status': 'erro',
+                    'error': result.get('error', 'Nenhum catálogo encontrado'),
+                    'completed': True,
+                })
+                return
+            catalogs = result.get('catalogs', [])
 
         catalog_search_status[search_id].update({
             'progress': 70,
@@ -289,8 +314,8 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
         for cat in catalogs:
             db_manager.save_catalog({
                 'catalog_id': cat['catalog_id'],
-                'nome': cat['nome'],
-                'imagem': cat['imagem'],
+                'nome': cat.get('nome') or cat.get('title', ''),
+                'imagem': cat.get('imagem') or cat.get('image_url', ''),
                 'termo_pesquisa': search_term,
                 'user_id': user_id,
             })
@@ -444,18 +469,47 @@ def _scrape_sellers_thread(scrape_id: str, user_id: str, catalog_id: str):
                 })
                 return
         else:
-            result = get_catalog_sellers(catalog_id, user_id=user_id)
-            if not result['success']:
+            sellers = []
+            # 1. Tenta obter concorrentes via API Oficial do Mercado Livre (/products/{id}/items)
+            try:
+                comp_data = meli_catalog.get_catalog_competition(catalog_id, user_id=user_id)
+                if comp_data.get('success') and comp_data.get('competitors'):
+                    for idx, c in enumerate(comp_data['competitors']):
+                        sellers.append({
+                            'seller_name': c.get('seller_name', f'Vendedor #{c.get("seller_id", idx+1)}'),
+                            'preco': c.get('price', 0.0),
+                            'posicao': 1 if c.get('is_buy_box_winner') else idx + 1,
+                            'is_best_offer': bool(c.get('is_buy_box_winner')),
+                            'frete_full': c.get('logistic_type') == 'fulfillment',
+                            'condicao': c.get('condition', 'new'),
+                            'url_vendedor': c.get('permalink', ''),
+                            'catalog_id': catalog_id,
+                            'coletado_em': datetime.now().isoformat()
+                        })
+                    print(f"✅ [Catalog] {len(sellers)} vendedores obtidos via API Oficial Meli para {catalog_id}.")
+            except Exception as e_api:
+                print(f"⚠️ [Catalog] Falha ao obter concorrentes via API Meli: {e_api}")
+
+            # 2. Se a API não retornou vendedores, executa fallback de scraping
+            if not sellers:
                 catalog_sellers_status[scrape_id].update({
-                    'status': 'erro',
-                    'error': result.get('error', 'Erro desconhecido'),
-                    'login_required': result.get('login_required', False),
-                    'completed': True,
+                    'progress': 50,
+                    'message': f'Consultando concorrentes via motor de busca secundário...'
                 })
-                return
-            sellers = result['sellers']
+                result = get_catalog_sellers(catalog_id, user_id=user_id)
+                if not result['success']:
+                    catalog_sellers_status[scrape_id].update({
+                        'status': 'erro',
+                        'error': result.get('error', 'Nenhum concorrente encontrado'),
+                        'login_required': result.get('login_required', False),
+                        'completed': True,
+                    })
+                    return
+                sellers = result.get('sellers', [])
+
             # Persiste sellers no Supabase
-            db_manager.save_catalog_sellers(catalog_id, sellers)
+            if sellers:
+                db_manager.save_catalog_sellers(catalog_id, sellers)
 
         catalog_sellers_status[scrape_id].update({
             'status': 'concluida',

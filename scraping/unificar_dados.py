@@ -12,6 +12,9 @@ from concurrent.futures import ThreadPoolExecutor
 from scraping.serpapi_amazon_func import buscar_produtos_amazon
 from scraping.web_scrap_mercado_livre import get_mercado_livre_data
 from scraping.web_scrap_amazon import get_amazon_direct_data
+from services.meli.search import MeliSearchService
+
+_meli_search_service = MeliSearchService()
 
 
 def limpar_preco_numerico(preco_str: str) -> float:
@@ -625,43 +628,101 @@ def _fetch_amazon_worker(termo: str, user_id: Optional[str] = None) -> Tuple[pd.
     return df_amazon, telemetry
 
 
+def _meli_results_to_df(offers: List[Dict[str, Any]], termo: str) -> pd.DataFrame:
+    """Converte lista de ofertas retornada pelo MeliSearchService para DataFrame padronizado"""
+    if not offers:
+        return pd.DataFrame()
+    rows = []
+    for item in offers:
+        price = float(item.get("price", 0.0))
+        orig_price = item.get("original_price")
+        installments_qty = item.get("installments_quantity", 1)
+        installments_amt = item.get("installments_amount", price)
+        is_interest_free = item.get("is_interest_free", False)
+        
+        installments_str = ""
+        if installments_qty > 1:
+            interest_str = "sem juros" if is_interest_free else ""
+            installments_str = f"em {installments_qty}x R$ {installments_amt:.2f} {interest_str}".strip()
+            
+        shipping_str = "Frete Full" if item.get("is_full") else ("Frete grátis" if item.get("free_shipping") else "")
+
+        rows.append({
+            "TITLE": item.get("title", ""),
+            "PRICE": f"R$ {price:.2f}".replace(".", ","),
+            "PRICE_NUMERIC": price,
+            "OLD_PRICE": f"R$ {orig_price:.2f}".replace(".", ",") if orig_price else "",
+            "RATING": 0.0,
+            "REVIEWS": 0,
+            "IMAGE_URL": item.get("image_url", ""),
+            "PRODUCT_URL": item.get("url", ""),
+            "STORE_NAME": item.get("seller_name", "Mercado Livre"),
+            "IS_CATALOG": item.get("is_catalog", False),
+            "SELLERS_COUNT": 1,
+            "BUYBOX_MIN_PRICE": price if item.get("is_catalog") else 0.0,
+            "SHIPPING_TYPE": shipping_str,
+            "INSTALLMENTS": installments_str,
+            "SEARCH_TERM": termo,
+            "SCRAPY_DATETIME": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "MARKETPLACE": "Mercado Livre",
+            "CATALOG_ID": item.get("catalog_id", "")
+        })
+    df = pd.DataFrame(rows)
+    return padronizar_colunas_ml(df)
+
+
 def _fetch_ml_worker(termo: str, paginas_ml: int = 1, user_id: Optional[str] = None) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """Worker para busca no Mercado Livre com telemetria detalhada e auto-recuperação progressiva"""
+    """Worker para busca no Mercado Livre com API Oficial prioritária e auto-recuperação progressiva"""
     start_t = time.time()
     telemetry = {"status": "SUCCESS", "count": 0, "duration": 0.0, "error": None}
     print(f"🛒 [Thread Mercado Livre] Buscando produtos para '{termo}'...")
+    
+    df_ml = pd.DataFrame()
+
+    # 1. Tentativa prioritária via API Oficial do Mercado Livre (/sites/MLB/search)
     try:
-        df_ml = get_mercado_livre_data(termo, paginas_ml, user_id=user_id)
+        limit = min(50 * paginas_ml, 50)
+        api_res = _meli_search_service.search_offers(termo, limit=limit, user_id=user_id)
+        if api_res.get("success") and api_res.get("results"):
+            df_ml = _meli_results_to_df(api_res["results"], termo)
+            if not df_ml.empty:
+                print(f"⚡ [Thread Mercado Livre] {len(df_ml)} produtos obtidos via API Oficial em {time.time() - start_t:.2f}s!")
+    except Exception as e_api:
+        print(f"⚠️ [Thread Mercado Livre] Falha na API Oficial, acionando fallback: {e_api}")
 
-        # 1º Nível de Auto-Recuperação: Limpeza de 5 termos principais
-        if df_ml is None or df_ml.empty:
-            relaxed_ml = relax_search_query(termo, max_words=5)
-            if relaxed_ml and relaxed_ml.lower() != termo.lower() and len(relaxed_ml) >= 3:
-                print(f"🔄 [ML Auto-Recuperação Nível 1] Tentando no ML com termo otimizado: '{relaxed_ml}'...")
-                df_ml = get_mercado_livre_data(relaxed_ml, paginas_ml, user_id=user_id)
+    # 2. Fallback para Web Scraping tradicional caso a API não retorne dados
+    if df_ml is None or df_ml.empty:
+        try:
+            print(f"🔄 [Thread Mercado Livre] Acionando motor secundário de busca...")
+            df_ml = get_mercado_livre_data(termo, paginas_ml, user_id=user_id)
 
-        # 2º Nível de Auto-Recuperação: Termo curto focado (3 palavras-chave)
-        if df_ml is None or df_ml.empty:
-            relaxed_short = relax_search_query(termo, max_words=3)
-            if relaxed_short and relaxed_short.lower() != termo.lower() and len(relaxed_short) >= 3:
-                print(f"🔄 [ML Auto-Recuperação Nível 2] Tentando no ML com termo focado: '{relaxed_short}'...")
-                df_ml = get_mercado_livre_data(relaxed_short, paginas_ml, user_id=user_id)
-                
-        if df_ml is not None and not df_ml.empty:
-            telemetry["count"] = len(df_ml)
-            telemetry["status"] = "SUCCESS"
-            print(f"✅ [Thread Mercado Livre] {len(df_ml)} produtos encontrados")
-        else:
-            telemetry["status"] = "EMPTY"
-            print("⚠️ [Thread Mercado Livre] Nenhum produto encontrado")
-            df_ml = pd.DataFrame()
-    except Exception as e:
-        telemetry["status"] = "FAILED"
-        telemetry["error"] = str(e)
-        print(f"❌ [Thread Mercado Livre] Erro na busca: {e}")
+            # 1º Nível de Auto-Recuperação: Limpeza de 5 termos principais
+            if df_ml is None or df_ml.empty:
+                relaxed_ml = relax_search_query(termo, max_words=5)
+                if relaxed_ml and relaxed_ml.lower() != termo.lower() and len(relaxed_ml) >= 3:
+                    print(f"🔄 [ML Auto-Recuperação Nível 1] Tentando no ML com termo otimizado: '{relaxed_ml}'...")
+                    df_ml = get_mercado_livre_data(relaxed_ml, paginas_ml, user_id=user_id)
+
+            # 2º Nível de Auto-Recuperação: Termo curto focado (3 palavras-chave)
+            if df_ml is None or df_ml.empty:
+                relaxed_short = relax_search_query(termo, max_words=3)
+                if relaxed_short and relaxed_short.lower() != termo.lower() and len(relaxed_short) >= 3:
+                    print(f"🔄 [ML Auto-Recuperação Nível 2] Tentando no ML com termo focado: '{relaxed_short}'...")
+                    df_ml = get_mercado_livre_data(relaxed_short, paginas_ml, user_id=user_id)
+        except Exception as e_scrap:
+            print(f"❌ [Thread Mercado Livre] Erro no fallback de scraping: {e_scrap}")
+            telemetry["error"] = str(e_scrap)
+
+    if df_ml is not None and not df_ml.empty:
+        telemetry["count"] = len(df_ml)
+        telemetry["status"] = "SUCCESS"
+        print(f"✅ [Thread Mercado Livre] {len(df_ml)} produtos consolidados no total")
+    else:
+        telemetry["status"] = "EMPTY"
+        print("⚠️ [Thread Mercado Livre] Nenhum produto encontrado")
         df_ml = pd.DataFrame()
-    finally:
-        telemetry["duration"] = round(time.time() - start_t, 2)
+        
+    telemetry["duration"] = round(time.time() - start_t, 2)
     return df_ml, telemetry
 
 

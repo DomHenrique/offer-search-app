@@ -41,6 +41,12 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="integrations-tab" data-bs-toggle="tab" 
+                            data-bs-target="#integrations" type="button" role="tab" aria-selected="false" aria-controls="integrations">
+                        <i class="fas fa-plug text-warning"></i> Integrações
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="environment-tab" data-bs-toggle="tab" 
                             data-bs-target="#environment" type="button" role="tab" aria-selected="false" aria-controls="environment">
                         <i class="fas fa-server"></i> Variáveis de Ambiente
@@ -203,7 +209,7 @@
                     </form>
                 </div>
 
-                <!-- Notificações -->
+                <!-- Aba Notificações -->
                 <div class="tab-pane fade" id="notifications" role="tabpanel">
                     <form id="notificationForm">
                         <div class="table-saas-card p-4">
@@ -233,6 +239,155 @@
                             </button>
                         </div>
                     </form>
+                </div>
+
+                <!-- Aba Integrações Oficiais -->
+                <div class="tab-pane fade" id="integrations" role="tabpanel">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+                        <div>
+                            <h5 class="fw-bold text-dark mb-1">
+                                <i class="fas fa-plug text-warning me-2"></i> Conexões & APIs de Marketplaces
+                            </h5>
+                            <p class="text-muted small mb-0">
+                                Gerencie as autenticações diretas para buscas ultrarrápidas em menos de 300ms e dados 100% determinísticos.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <!-- Card Mercado Livre Oficial -->
+                        <div class="col-lg-6">
+                            <div class="table-saas-card p-4 h-100 border {% if meli_status.connected %}border-success{% else %}border-warning{% endif %}">
+                                <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-3">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="bg-warning bg-opacity-25 p-2 rounded-circle text-dark d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                            <i class="fas fa-handshake fa-lg text-dark"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="fw-bold text-dark mb-0">Mercado Livre (API Oficial)</h6>
+                                            <small class="text-muted">OAuth 2.0 / Buscador de Produtos & Catálogo</small>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        {% if meli_status.connected %}
+                                            <span class="badge bg-success px-3 py-2">
+                                                <i class="fas fa-check-circle me-1"></i> Conectado
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary px-3 py-2">
+                                                <i class="fas fa-times-circle me-1"></i> Desconectado
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <ul class="list-unstyled small mb-3">
+                                        <li class="d-flex justify-content-between py-1 border-bottom">
+                                            <span class="text-muted">App Client ID:</span>
+                                            <span class="fw-semibold text-dark">{{ env_vars.MELI_APP_ID }}</span>
+                                        </li>
+                                        <li class="d-flex justify-content-between py-1 border-bottom">
+                                            <span class="text-muted">Status do Acesso:</span>
+                                            <span class="fw-semibold {% if meli_status.connected %}text-success{% else %}text-muted{% endif %}">
+                                                {% if meli_status.connected %}
+                                                    Token Ativo & Auto-Renovável
+                                                {% else %}
+                                                    Aguardando Autorização
+                                                {% endif %}
+                                            </span>
+                                        </li>
+                                        {% if meli_status.connected and meli_status.user_id %}
+                                        <li class="d-flex justify-content-between py-1 border-bottom">
+                                            <span class="text-muted">ID do Usuário Meli:</span>
+                                            <span class="fw-semibold text-dark">{{ meli_status.user_id }}</span>
+                                        </li>
+                                        {% endif %}
+                                        <li class="d-flex justify-content-between py-1 border-bottom">
+                                            <span class="text-muted">Escopos Ativos:</span>
+                                            <span class="badge bg-light text-dark border">Catálogo, BuyBox, Itens, Preços, FULL</span>
+                                        </li>
+                                        <li class="d-flex justify-content-between py-1">
+                                            <span class="text-muted">URL de Redirecionamento:</span>
+                                            <code class="text-primary small">{{ request.host_url.rstrip('/') }}/settings/meli/callback</code>
+                                        </li>
+                                    </ul>
+
+                                    <div class="alert alert-info py-2 px-3 small mb-3 d-flex align-items-center gap-2">
+                                        <i class="fas fa-bolt text-warning"></i>
+                                        <span>Buscas via API oficial retornam em <strong>~200ms</strong> com identificação determinística de catálogo e frete FULL.</span>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex flex-wrap gap-2 pt-2 border-top">
+                                    {% if meli_status.connected %}
+                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="refreshMeliToken()">
+                                            <i class="fas fa-sync-alt me-1"></i> Testar & Renovar Token
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="disconnectMeli()">
+                                            <i class="fas fa-unlink me-1"></i> Desconectar
+                                        </button>
+                                    {% else %}
+                                        <a href="{{ url_for('settings.meli_connect') }}" class="btn btn-warning fw-bold text-dark btn-sm px-4">
+                                            <i class="fas fa-external-link-alt me-1"></i> Conectar com Mercado Livre
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Amazon Oficial / SerpAPI -->
+                        <div class="col-lg-6">
+                            <div class="table-saas-card p-4 h-100 border border-secondary">
+                                <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-3">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="bg-primary bg-opacity-25 p-2 rounded-circle text-primary d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                            <i class="fab fa-amazon fa-lg"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="fw-bold text-dark mb-0">Amazon Brasil</h6>
+                                            <small class="text-muted">SerpAPI REST + Extensão de Sessão</small>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        {% if env_vars.SERPAPI_KEY %}
+                                            <span class="badge bg-success px-3 py-2">
+                                                <i class="fas fa-check-circle me-1"></i> SerpAPI Ativa
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary px-3 py-2">
+                                                <i class="fas fa-times-circle me-1"></i> Sem Chave
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <ul class="list-unstyled small mb-3">
+                                        <li class="d-flex justify-content-between py-1 border-bottom">
+                                            <span class="text-muted">Provedor de Busca:</span>
+                                            <span class="fw-semibold text-dark">SerpAPI Amazon Engine</span>
+                                        </li>
+                                        <li class="d-flex justify-content-between py-1 border-bottom">
+                                            <span class="text-muted">Chave SerpAPI:</span>
+                                            <span class="fw-semibold {% if env_vars.SERPAPI_KEY %}text-success{% else %}text-danger{% endif %}">
+                                                {{ 'Configurada' if env_vars.SERPAPI_KEY else 'Não configurada' }}
+                                            </span>
+                                        </li>
+                                        <li class="d-flex justify-content-between py-1">
+                                            <span class="text-muted">Suporte a Catálogo / ASIN:</span>
+                                            <span class="badge bg-light text-dark border">ASIN, Prime & Preço BuyBox</span>
+                                        </li>
+                                    </ul>
+
+                                    <div class="alert alert-light py-2 px-3 small mb-3 border">
+                                        <i class="fas fa-info-circle text-primary me-1"></i>
+                                        A busca na Amazon opera via API REST estruturada da SerpAPI com suporte a sincronização via extensão.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {% if is_admin %}
@@ -1032,5 +1187,59 @@ async function deleteTeamMember(memberId, memberName) {
         showAlert('danger', 'Erro na requisição: ' + err.message);
     }
 }
+
+async function refreshMeliToken() {
+    showAlert('info', 'Solicitando renovação de token à API do Mercado Livre...');
+    try {
+        const res = await fetch('/settings/meli/refresh', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        if (data.success) {
+            showAlert('success', data.message || 'Token renovado com sucesso!');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showAlert('danger', data.error || 'Erro ao renovar token.');
+        }
+    } catch (err) {
+        showAlert('danger', 'Erro na requisição: ' + err.message);
+    }
+}
+
+async function disconnectMeli() {
+    if (!confirm('Deseja realmente desconectar a conta do Mercado Livre?')) return;
+    try {
+        const res = await fetch('/settings/meli/disconnect', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        if (data.success) {
+            showAlert('success', 'Conta do Mercado Livre desconectada com sucesso.');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showAlert('danger', data.error || 'Erro ao desconectar.');
+        }
+    } catch (err) {
+        showAlert('danger', 'Erro na requisição: ' + err.message);
+    }
+}
+
+// Alerta pós-retorno de callback OAuth
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('meli_connected') === '1') {
+        showAlert('success', '🎉 Conta do Mercado Livre conectada com sucesso via OAuth 2.0!');
+        // Ativa a aba de integrações
+        const intTab = document.getElementById('integrations-tab');
+        if (intTab && typeof bootstrap !== 'undefined') {
+            const tab = new bootstrap.Tab(intTab);
+            tab.show();
+        }
+    } else if (urlParams.get('meli_error')) {
+        showAlert('danger', '❌ Falha ao autorizar no Mercado Livre: ' + urlParams.get('meli_error'));
+    }
+});
 </script>
 {% endblock %}

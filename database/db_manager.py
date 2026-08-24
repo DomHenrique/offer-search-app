@@ -1089,6 +1089,99 @@ class DatabaseManager:
             print(f"Erro ao buscar sessão ML: {e}")
             return None
 
+    # === MÉTODOS DE OAUTH E API OFICIAL DO MERCADO LIVRE ===
+
+    def save_meli_oauth_tokens(self, tokens: Dict, user_id: Optional[str] = None) -> bool:
+        """
+        Salva ou atualiza os tokens OAuth 2.0 oficiais do Mercado Livre na tabela configuracoes.
+        tokens: {
+            "access_token": "...",
+            "refresh_token": "...",
+            "expires_in": 21600,
+            "expires_at": "ISO_DATE",
+            "user_id": 123456789,
+            "updated_at": "ISO_DATE"
+        }
+        """
+        try:
+            now = datetime.now().isoformat()
+            payload = {
+                "access_token": tokens.get("access_token"),
+                "refresh_token": tokens.get("refresh_token"),
+                "expires_in": tokens.get("expires_in", 21600),
+                "expires_at": tokens.get("expires_at"),
+                "meli_user_id": tokens.get("user_id") or tokens.get("meli_user_id"),
+                "updated_at": now,
+                "status": "active"
+            }
+            response = self.supabase.table("configuracoes").upsert({
+                "user_id": user_id or "1",
+                "chave": "meli_oauth_tokens",
+                "valor": payload,
+                "descricao": "Tokens de autenticação OAuth 2.0 oficiais do Mercado Livre",
+                "tipo": "json"
+            }, on_conflict="user_id, chave").execute()
+            return len(response.data) > 0
+        except Exception as e:
+            print(f"Erro ao salvar tokens Meli OAuth: {e}")
+            return False
+
+    def get_meli_oauth_tokens(self, user_id: Optional[str] = None) -> Optional[Dict]:
+        """
+        Recupera os tokens OAuth 2.0 oficiais do Mercado Livre salvos no Supabase.
+        """
+        try:
+            import json
+            query = self.supabase.table("configuracoes").select("valor, atualizado_em").eq("chave", "meli_oauth_tokens")
+            if user_id:
+                query = query.eq("user_id", user_id)
+            
+            response = query.limit(1).execute()
+            if response.data and response.data[0].get("valor"):
+                val = response.data[0]["valor"]
+                if isinstance(val, str):
+                    try:
+                        return json.loads(val)
+                    except Exception:
+                        return None
+                elif isinstance(val, dict):
+                    return val
+            return None
+        except Exception as e:
+            print(f"Erro ao buscar tokens Meli OAuth: {e}")
+            return None
+
+    def delete_meli_oauth_tokens(self, user_id: Optional[str] = None) -> bool:
+        """
+        Remove os tokens OAuth 2.0 oficiais do Mercado Livre.
+        """
+        try:
+            query = self.supabase.table("configuracoes").delete().eq("chave", "meli_oauth_tokens")
+            if user_id:
+                query = query.eq("user_id", user_id)
+            response = query.execute()
+            return True
+        except Exception as e:
+            print(f"Erro ao deletar tokens Meli OAuth: {e}")
+            return False
+
+    def save_user_config(self, user_id: str, chave: str, valor: Any, descricao: str = "", tipo: str = "text") -> bool:
+        """
+        Salva ou atualiza uma configuração qualquer do usuário na tabela configuracoes.
+        """
+        try:
+            response = self.supabase.table("configuracoes").upsert({
+                "user_id": user_id,
+                "chave": chave,
+                "valor": valor,
+                "descricao": descricao,
+                "tipo": tipo
+            }, on_conflict="user_id, chave").execute()
+            return len(response.data) > 0
+        except Exception as e:
+            print(f"Erro ao salvar configuração {chave}: {e}")
+            return False
+
     # === MÉTODOS DE SESSÃO DA AMAZON ===
 
     def save_amazon_session(self, cookies: List[Dict], user_email: Optional[str] = None, user_id: Optional[str] = None) -> bool:

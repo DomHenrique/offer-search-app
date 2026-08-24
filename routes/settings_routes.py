@@ -4,9 +4,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import json
 from dateutil.parser import isoparse
+from services.meli.auth import MeliAuthManager
 
 settings_bp = Blueprint('settings', __name__)
 db = DatabaseManager()
+meli_auth = MeliAuthManager(db=db)
 
 @settings_bp.route('/')
 def settings_page():
@@ -23,6 +25,9 @@ def settings_page():
     # Adiciona o MIN_PRICE_FILTER
     min_price_filter = next((item['valor'] for item in user_configs if item['chave'] == 'MIN_PRICE_FILTER'), 400)
 
+    # Status da conexão oficial do Mercado Livre
+    meli_status = meli_auth.get_status(user_id)
+
     # Variáveis de ambiente disponíveis (mascaradas)
     env_vars = {
         'SUPABASE_URL': '***' if os.environ.get('SUPABASE_URL') else '',
@@ -32,7 +37,8 @@ def settings_page():
         'FLASK_DEBUG': os.environ.get('FLASK_DEBUG', 'False'),
         'PORT': os.environ.get('PORT', '5000'),
         'EVOLUTION_API_INSTANCE': os.environ.get('EVOLUTION_API_INSTANCE', ''),
-        'EVOLUTION_API_KEY': '***' if os.environ.get('EVOLUTION_API_KEY') else ''
+        'EVOLUTION_API_KEY': '***' if os.environ.get('EVOLUTION_API_KEY') else '',
+        'MELI_APP_ID': os.environ.get('MELI_APP_ID', meli_auth.DEFAULT_APP_ID)
     }
     
     is_admin = db.is_user_admin(user_id)
@@ -44,7 +50,86 @@ def settings_page():
                          env_vars=env_vars,
                          min_price_filter=min_price_filter,
                          is_admin=is_admin,
-                         team_members=team_members)
+                         team_members=team_members,
+                         meli_status=meli_status)
+
+
+# === ROTAS OAUTH DA API OFICIAL DO MERCADO LIVRE ===
+
+@settings_bp.route('/meli/connect')
+def meli_connect():
+    """Inicia o fluxo OAuth 2.0 com o Mercado Livre"""
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+    
+    # Monta a URL de callback com base no host atual
+    redirect_uri = request.host_url.rstrip('/') + url_for('settings.meli_callback')
+    auth_url = meli_auth.get_authorization_url(redirect_uri=redirect_uri, state=str(session['user_id']))
+    return redirect(auth_url)
+
+
+@settings_bp.route('/meli/callback')
+def meli_callback():
+    """Recebe o authorization_code do Mercado Livre e troca por tokens"""
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+    
+    code = request.args.get('code')
+    error = request.args.get('error')
+    error_description = request.args.get('error_description')
+
+    if error:
+        print(f"❌ [Meli OAuth Callback] Erro retornado: {error} - {error_description}")
+        return redirect(url_for('settings.settings_page') + f'?meli_error={error}')
+
+    if not code:
+        return redirect(url_for('settings.settings_page') + '?meli_error=no_code')
+
+    user_id = session['user_id']
+    redirect_uri = request.host_url.rstrip('/') + url_for('settings.meli_callback')
+    
+    success, result = meli_auth.exchange_code_for_tokens(code=code, redirect_uri=redirect_uri, user_id=user_id)
+    if success:
+        return redirect(url_for('settings.settings_page') + '?meli_connected=1')
+    else:
+        err_msg = result.get('error', 'Falha ao obter tokens')
+        return redirect(url_for('settings.settings_page') + f'?meli_error=exchange_failed')
+
+
+@settings_bp.route('/meli/status', methods=['GET'])
+def meli_status():
+    """Retorna o status JSON da integração Mercado Livre"""
+    if 'user_id' not in session:
+        return jsonify({'connected': False, 'error': 'Não autenticado'}), 401
+    
+    user_id = session['user_id']
+    status = meli_auth.get_status(user_id=user_id)
+    return jsonify(status)
+
+
+@settings_bp.route('/meli/refresh', methods=['POST'])
+def meli_refresh():
+    """Força a renovação do access_token"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Não autenticado'}), 401
+    
+    user_id = session['user_id']
+    success, result = meli_auth.refresh_access_token(user_id=user_id)
+    if success:
+        return jsonify({'success': True, 'message': 'Token do Mercado Livre renovado com sucesso!'})
+    else:
+        return jsonify({'success': False, 'error': result.get('error', 'Falha ao renovar token')}), 400
+
+
+@settings_bp.route('/meli/disconnect', methods=['POST'])
+def meli_disconnect():
+    """Desconecta a conta do Mercado Livre"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Não autenticado'}), 401
+    
+    user_id = session['user_id']
+    meli_auth.disconnect(user_id=user_id)
+    return jsonify({'success': True, 'message': 'Conta Mercado Livre desconectada com sucesso.'})
 
 @settings_bp.route('/update-min-price', methods=['POST'])
 def update_min_price():
