@@ -109,10 +109,13 @@
         headers: { 'Accept': 'application/json' },
         credentials: 'include'
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        console.warn(`[Offer Search Intel] Servidor retornou HTTP ${res.status}`);
+        return null;
+      }
       return await res.json();
     } catch (err) {
-      console.warn('[Offer Search Intel] Erro ao consultar backend:', err);
+      console.warn('[Offer Search Intel] Erro ao consultar backend:', err.message);
       return null;
     }
   }
