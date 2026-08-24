@@ -98,21 +98,33 @@ class CatalogScraper:
             finally:
                 self.driver = None
 
-    def _load_page(self, url: str, wait_time: int = 10) -> bool:
-        """Carrega uma URL e aguarda o body estar presente. Retorna True se OK."""
+    def _load_page(self, url: str, wait_time: int = 20) -> bool:
+        """Carrega uma URL e aguarda os itens de busca estarem presentes. Retorna True se OK."""
         if not self.driver:
             return False
         try:
             self.driver.get(url)
-            time.sleep(random.uniform(1.5, 3))
+            # Primeiro espera o body aparecer
             WebDriverWait(self.driver, wait_time).until(
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
+            # Espera os itens de resultado do ML renderizarem via JS
+            try:
+                WebDriverWait(self.driver, wait_time).until(
+                    EC.presence_of_element_located(
+                        (By.CSS_SELECTOR, "li.ui-search-layout__item, div.ui-search-result__wrapper")
+                    )
+                )
+            except Exception:
+                # Se nao encontrar itens, aguarda um tempo extra e continua
+                print("   ⏳ Aguardando renderização JS...")
+                time.sleep(5)
             # Scroll suave para carregar lazy content
+            time.sleep(random.uniform(1.0, 2.0))
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight / 2);")
-            time.sleep(0.8)
+            time.sleep(1.5)
             self.driver.execute_script("window.scrollTo(0, 0);")
-            time.sleep(0.5)
+            time.sleep(0.8)
             return True
         except Exception as e:
             print(f"⚠️ Erro ao carregar página {url}: {e}")
@@ -237,6 +249,16 @@ class CatalogScraper:
                 if not self._load_page(url):
                     print(f"⚠️ Falha ao carregar página {page}")
                     continue
+
+                # Aguarda explicitamente pelos items de resultado (JS-rendered)
+                try:
+                    WebDriverWait(self.driver, 20).until(
+                        EC.presence_of_all_elements_located(
+                            (By.CSS_SELECTOR, "li.ui-search-layout__item")
+                        )
+                    )
+                except Exception:
+                    print(f"   ⚠️ Timeout aguardando items na página {page}")
 
                 containers = self.driver.find_elements(By.CSS_SELECTOR, "li.ui-search-layout__item")
                 print(f"   Encontrados {len(containers)} produtos")
