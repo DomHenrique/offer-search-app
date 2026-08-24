@@ -13,12 +13,18 @@ db_manager = DatabaseManager()
 
 
 def _get_current_user_id() -> str:
-    """Obtém user_id da sessão ativa ou de cabeçalhos/parâmetros"""
+    """Obtém user_id da sessão ativa ou de cabeçalhos/parâmetros com fallback inteligente"""
     user_id = session.get('user_id')
     if not user_id:
-        # Fallback para token ou header enviado pela extensão
-        user_id = request.headers.get('X-User-Id') or request.args.get('user_id') or "1"
-    return str(user_id)
+        user_id = request.headers.get('X-User-Id') or request.args.get('user_id')
+    if not user_id:
+        try:
+            u_res = db_manager.supabase.table("users").select("id").eq("ativo", True).limit(1).execute()
+            if u_res.data:
+                user_id = str(u_res.data[0]["id"])
+        except Exception:
+            pass
+    return str(user_id or "1")
 
 
 def _calculate_margin_metrics(cost: float, sell_price: float, fee_pct: float = 0.16, fixed_fee: float = 0.0) -> Dict:
@@ -74,7 +80,11 @@ def _calculate_margin_metrics(cost: float, sell_price: float, fee_pct: float = 0
 @extension_bp.after_request
 def add_cors_headers(response):
     """Permite requisições da extensão Chrome e páginas de marketplace"""
-    response.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+    origin = request.headers.get('Origin')
+    if origin:
+        response.headers['Access-Control-Allow-Origin'] = origin
+    else:
+        response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Credentials'] = 'true'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-User-Id'
@@ -110,8 +120,9 @@ def get_product_intel():
         matched_link = next((item for item in all_links if item.get('catalog_id', '').upper() == item_id or item_id in (item.get('catalog_url') or '')), None)
 
     # 2. Busca inventário do usuário
-    inventory = db_manager.get_inventory(user_id=user_id)
-    inventory_by_sku = {str(inv.get('sku', '')).upper(): inv for inv in inventory}
+    inventory = db_manager.get_consolidated_inventory(user_id=user_id)
+    normalize_sku = lambda s: re.sub(r'[^A-Za-z0-9]', '', str(s or '')).upper()
+    inventory_by_norm_sku = {normalize_sku(inv.get('sku')): inv for inv in inventory}
 
     # Preço do concorrente / BuyBox na página
     current_price = 0.0
@@ -122,12 +133,13 @@ def get_product_intel():
             pass
 
     if matched_link:
-        sku = str(matched_link.get('sku', '')).upper()
-        inv_item = inventory_by_sku.get(sku, {})
+        sku = str(matched_link.get('sku', '')).strip().upper()
+        norm_sku = normalize_sku(sku)
+        inv_item = inventory_by_norm_sku.get(norm_sku, {})
         
         cost_price = float(inv_item.get('preco_custo') or 0.0)
-        resale_price = float(inv_item.get('preco_site_pix') or inv_item.get('preco_venda') or 0.0)
-        stock_qty = int(inv_item.get('estoque_total') or inv_item.get('estoque_unidades') or 0)
+        resale_price = float(inv_item.get('preco_site_pix') or inv_item.get('preco_revenda') or 0.0)
+        stock_qty = int(inv_item.get('quantidade_total') or inv_item.get('estoque_total') or 0)
         
         buybox_price = current_price if current_price > 0 else float(matched_link.get('buybox_min_price') or 0.0)
         
@@ -138,7 +150,7 @@ def get_product_intel():
             'catalog_id': catalog_id or matched_link.get('catalog_id'),
             'sku': sku,
             'descricao': inv_item.get('descricao') or matched_link.get('catalog_title') or 'Produto Cadastrado',
-            'termo_comercial': inv_item.get('termo_comercial') or '',
+            'termo_comercial': inv_item.get('termo_busca') or inv_item.get('termo_comercial') or '',
             'estoque_total': stock_qty,
             'preco_custo': cost_price,
             'preco_venda': resale_price,
@@ -154,11 +166,11 @@ def get_product_intel():
         {
             'sku': item.get('sku'),
             'descricao': item.get('descricao'),
-            'estoque_total': item.get('estoque_total') or item.get('estoque_unidades') or 0,
+            'estoque_total': int(item.get('quantidade_total') or item.get('estoque_total') or 0),
             'preco_custo': float(item.get('preco_custo') or 0.0),
-            'preco_venda': float(item.get('preco_site_pix') or item.get('preco_venda') or 0.0)
+            'preco_venda': float(item.get('preco_site_pix') or item.get('preco_revenda') or 0.0)
         }
-        for item in inventory[:15]
+        for item in inventory[:20]
     ]
 
     return jsonify({
@@ -180,22 +192,22 @@ def get_extension_inventory_list():
     q = (request.args.get('q') or '').strip().lower()
     user_id = _get_current_user_id()
     
-    inventory = db_manager.get_inventory(user_id=user_id)
+    inventory = db_manager.get_consolidated_inventory(user_id=user_id)
     
     if q:
         inventory = [
             item for item in inventory
-            if q in str(item.get('sku', '')).lower() or q in str(item.get('descricao', '')).lower() or q in str(item.get('termo_comercial', '')).lower()
+            if q in str(item.get('sku', '')).lower() or q in str(item.get('descricao', '')).lower() or q in str(item.get('termo_busca', '')).lower()
         ]
 
     formatted_list = [
         {
             'sku': item.get('sku'),
             'descricao': item.get('descricao'),
-            'termo_comercial': item.get('termo_comercial') or '',
-            'estoque_total': int(item.get('estoque_total') or item.get('estoque_unidades') or 0),
+            'termo_comercial': item.get('termo_busca') or item.get('termo_comercial') or '',
+            'estoque_total': int(item.get('quantidade_total') or item.get('estoque_total') or 0),
             'preco_custo': float(item.get('preco_custo') or 0.0),
-            'preco_venda': float(item.get('preco_site_pix') or item.get('preco_venda') or 0.0)
+            'preco_venda': float(item.get('preco_site_pix') or item.get('preco_revenda') or 0.0)
         }
         for item in inventory[:40]
     ]
@@ -244,12 +256,14 @@ def link_sku_from_extension():
         )
 
         # Obtém dados do inventário para responder imediatamente com o intel completo
-        inventory = db_manager.get_inventory(user_id=user_id)
-        inv_item = next((item for item in inventory if str(item.get('sku', '')).upper() == sku), {})
+        inventory = db_manager.get_consolidated_inventory(user_id=user_id)
+        normalize_sku = lambda s: re.sub(r'[^A-Za-z0-9]', '', str(s or '')).upper()
+        norm_sku = normalize_sku(sku)
+        inv_item = next((item for item in inventory if normalize_sku(item.get('sku')) == norm_sku), {})
         
         cost_price = float(inv_item.get('preco_custo') or 0.0)
-        resale_price = float(inv_item.get('preco_site_pix') or inv_item.get('preco_venda') or 0.0)
-        stock_qty = int(inv_item.get('estoque_total') or inv_item.get('estoque_unidades') or 0)
+        resale_price = float(inv_item.get('preco_site_pix') or inv_item.get('preco_revenda') or 0.0)
+        stock_qty = int(inv_item.get('quantidade_total') or inv_item.get('estoque_total') or 0)
         
         margin_analysis = _calculate_margin_metrics(cost=cost_price, sell_price=buybox_min_price)
 

@@ -277,11 +277,15 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
             api_res = meli_catalog.search_catalog_products(clean_search, limit=50, user_id=user_id)
             if api_res.get('success') and api_res.get('results'):
                 for p in api_res['results']:
+                    p_price = float(p.get('price') or p.get('buybox_min_price') or p.get('preco') or 0.0)
                     catalogs.append({
                         'catalog_id': p['catalog_id'],
                         'nome': p.get('name') or p.get('title'),
                         'imagem': p.get('image_url', ''),
-                        'preco': p.get('price', 0.0),
+                        'preco': p_price,
+                        'buybox_min_price': p_price,
+                        'competitor_price': p_price,
+                        'sellers_count': int(p.get('sellers_count') or 1),
                         'url': p.get('permalink', ''),
                         'buy_box_winner': p.get('buy_box_winner')
                     })
@@ -303,15 +307,23 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
                     'completed': True,
                 })
                 return
-            catalogs = result.get('catalogs', [])
+            raw_cats = result.get('catalogs', [])
+            for rc in raw_cats:
+                rc_price = float(rc.get('buybox_min_price') or rc.get('preco') or rc.get('price') or 0.0)
+                rc['preco'] = rc_price
+                rc['buybox_min_price'] = rc_price
+                rc['competitor_price'] = rc_price
+                catalogs.append(rc)
 
         catalog_search_status[search_id].update({
             'progress': 70,
             'message': f'Salvando {len(catalogs)} catálogos...'
         })
 
-        # Obtém vínculos existentes do usuário
+        # Obtém vínculos existentes do usuário e inventário para comparação
         existing_links = {item['catalog_id']: item['sku'] for item in db_manager.get_sku_catalogs(user_id=user_id)}
+        inventory = db_manager.get_consolidated_inventory(user_id)
+        sku_dict = {str(item.get('sku') or '').strip().upper(): item for item in inventory}
 
         # Persiste catálogos no Supabase
         for cat in catalogs:
@@ -338,8 +350,38 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
                 except Exception as e_link:
                     print(f"Aviso ao auto-vincular catálogo {cid} ao SKU {origin_sku}: {e_link}")
 
-            cat['linked_sku'] = existing_links.get(cid)
-            cat['is_linked'] = bool(cat['linked_sku'])
+            linked_sku = existing_links.get(cid) or origin_sku
+            cat['linked_sku'] = linked_sku
+            cat['is_linked'] = bool(linked_sku)
+
+            # Anexa métricas do SKU vinculado se houver
+            comp_price = float(cat.get('competitor_price') or cat.get('preco') or cat.get('buybox_min_price') or 0.0)
+            cat['competitor_price'] = comp_price
+            cat['preco'] = comp_price
+            cat['buybox_min_price'] = comp_price
+
+            if linked_sku and linked_sku.upper() in sku_dict:
+                sku_info = sku_dict[linked_sku.upper()]
+                my_revenda = float(sku_info.get('preco_revenda') or 0.0)
+                my_pix = float(sku_info.get('preco_site_pix') or 0.0)
+                my_custo = float(sku_info.get('preco_custo') or 0.0)
+                cat['my_revenda'] = my_revenda
+                cat['my_pix'] = my_pix
+                cat['my_custo'] = my_custo
+
+                if comp_price > 0 and my_revenda > 0:
+                    diff = my_revenda - comp_price
+                    cat['diff_price'] = diff
+                    if diff < -0.01:
+                        cat['status_competitivo'] = 'vencendo'
+                    elif diff > 0.01:
+                        cat['status_competitivo'] = 'perdendo'
+                    else:
+                        cat['status_competitivo'] = 'empatado'
+                else:
+                    cat['status_competitivo'] = 'sem_concorrencia' if comp_price == 0 else 'sem_sku'
+            else:
+                cat['status_competitivo'] = 'sem_sku'
 
         catalog_search_status[search_id].update({
             'status': 'concluida',

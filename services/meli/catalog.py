@@ -97,6 +97,9 @@ class MeliCatalogService:
                 if parsed:
                     parsed_products.append(parsed)
 
+            # Enriquece os produtos encontrados com o menor preço e contagem de vendedores
+            self._enrich_prices(parsed_products, user_id=user_id)
+
             return {
                 "success": True,
                 "results": parsed_products,
@@ -108,6 +111,34 @@ class MeliCatalogService:
         except Exception as e:
             print(f"❌ [MeliCatalogService] Erro ao buscar produtos de catálogo: {e}")
             return {"success": False, "results": [], "total": 0, "error": str(e)}
+
+    def _enrich_prices(self, products: List[Dict[str, Any]], user_id: Optional[str] = None) -> None:
+        """Enriquece lista de produtos de catálogo com preços dos concorrentes via /products/{id}/items em paralelo."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _fetch_single_price(p: Dict[str, Any]):
+            cid = p.get("catalog_id") or p.get("id")
+            if not cid:
+                return
+            try:
+                resp = self.client.get(f"products/{cid}/items", user_id=user_id)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    items = data.get("results", [])
+                    if items:
+                        prices = [float(it.get("price") or 0.0) for it in items if float(it.get("price") or 0.0) > 0]
+                        if prices:
+                            min_price = min(prices)
+                            p["price"] = min_price
+                            p["buybox_min_price"] = min_price
+                            p["preco"] = min_price
+                        p["sellers_count"] = len(items)
+            except Exception:
+                pass
+
+        if products:
+            with ThreadPoolExecutor(max_workers=min(10, len(products))) as executor:
+                list(executor.map(_fetch_single_price, products))
 
     def search_by_identifier(
         self,

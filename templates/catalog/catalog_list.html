@@ -1879,6 +1879,57 @@ function renderCatalogResults(catalogs) {
         const escapedTitle = (cat.nome || '').replace(/'/g, "\\'").replace(/"/g, "&quot;");
         const isLinked = Boolean(cat.linked_sku || cat.is_linked);
         const skuCode = cat.linked_sku || '';
+        const compPrice = parseFloat(cat.competitor_price || cat.preco || cat.buybox_min_price || 0);
+        const myRevenda = parseFloat(cat.my_revenda || 0);
+        const myPix = parseFloat(cat.my_pix || 0);
+        const statusComp = cat.status_competitivo || (isLinked ? (compPrice > 0 ? 'sem_concorrencia' : 'sem_sku') : 'sem_sku');
+        const diffPrice = Math.abs(parseFloat(cat.diff_price || 0));
+
+        let compBadgeHtml = '';
+        if (statusComp === 'vencendo') {
+            compBadgeHtml = `<div class="comp-badge comp-badge-win"><i class="fas fa-check-circle me-1"></i> Loja Vencendo (-R$ ${diffPrice.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})</div>`;
+        } else if (statusComp === 'perdendo') {
+            compBadgeHtml = `<div class="comp-badge comp-badge-lose"><i class="fas fa-exclamation-triangle me-1"></i> Concorrente + Barato (+R$ ${diffPrice.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})</div>`;
+        } else if (statusComp === 'empatado') {
+            compBadgeHtml = `<div class="comp-badge comp-badge-tie"><i class="fas fa-equals me-1"></i> Preços Empatados</div>`;
+        }
+
+        const priceBoxHtml = `
+            <div class="catalog-price-box mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="price-box-label">
+                        <i class="fas fa-shopping-cart text-warning me-1"></i> Concorrência:
+                    </span>
+                    <span class="price-box-val text-dark fw-bold">
+                        ${compPrice > 0 
+                            ? 'R$ ' + compPrice.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})
+                            : '<span class="text-muted small">A consultar</span>'}
+                    </span>
+                </div>
+                ${myRevenda > 0 ? `
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="price-box-label">
+                        <i class="fas fa-store text-primary me-1"></i> Preço Loja:
+                    </span>
+                    <span class="price-box-val text-primary fw-bold">
+                        R$ ${myRevenda.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    </span>
+                </div>
+                ` : ''}
+                ${myPix > 0 ? `
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="price-box-label">
+                        <i class="fas fa-bolt text-success me-1"></i> Preço PIX:
+                    </span>
+                    <span class="price-box-val text-success fw-bold">
+                        R$ ${myPix.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    </span>
+                </div>
+                ` : ''}
+                ${compBadgeHtml ? `<div class="mt-2 pt-1 border-top">${compBadgeHtml}</div>` : ''}
+            </div>
+        `;
+
         return `
         <div class="col">
             <div class="saas-catalog-card" id="card-catalog-${cat.catalog_id}" data-catalog-id="${cat.catalog_id}" data-linked-sku="${skuCode}">
@@ -1932,6 +1983,7 @@ function renderCatalogResults(catalogs) {
                     <div class="small text-muted mb-2">
                         <i class="fas fa-tag me-1 text-primary opacity-75"></i> Busca atual
                     </div>
+                    ${priceBoxHtml}
                 </div>
                 <div class="saas-card-footer d-flex gap-2">
                     <button type="button" class="btn btn-sm btn-primary flex-grow-1"

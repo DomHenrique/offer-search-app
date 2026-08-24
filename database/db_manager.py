@@ -1534,6 +1534,10 @@ class DatabaseManager:
                 print(f"Falha ao salvar link sku_catalogs: {e_ins}")
             return payload
 
+    def get_inventory(self, user_id: str) -> List[Dict]:
+        """Alias para get_consolidated_inventory"""
+        return self.get_consolidated_inventory(user_id)
+
     def get_sku_catalogs(self, user_id: str, sku: Optional[str] = None) -> List[Dict]:
         """
         Retorna os catálogos vinculados a um SKU específico ou a todos os SKUs do usuário.

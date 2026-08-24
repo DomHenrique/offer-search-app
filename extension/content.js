@@ -30,6 +30,15 @@
       catalogId = pMatch[1].toUpperCase();
     }
 
+    // Procura por canonical link caso seja página de variação ou anúncio de catálogo
+    if (!catalogId) {
+      const canonical = document.querySelector('link[rel="canonical"]');
+      if (canonical && canonical.href) {
+        const canMatch = canonical.href.match(/\/p\/(MLB\d+)/i);
+        if (canMatch) catalogId = canMatch[1].toUpperCase();
+      }
+    }
+
     // Detecta item MLB / MLB-123456789
     const itemMatch = href.match(/(MLB-?\d+)/i);
     if (itemMatch && !catalogId) {
@@ -98,7 +107,7 @@
       const res = await fetch(`${apiUrl}/api/extension/product-intel?${query.toString()}`, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
-        credentials: 'omit'
+        credentials: 'include'
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
@@ -113,7 +122,8 @@
     try {
       const res = await fetch(`${apiUrl}/api/extension/inventory-list?q=${encodeURIComponent(queryStr)}`, {
         method: 'GET',
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json' },
+        credentials: 'include'
       });
       if (!res.ok) return [];
       const data = await res.json();
@@ -209,6 +219,15 @@
           </div>
 
           <div class="os-card-body">
+            ${!intel ? `
+              <div style="background:#fee2e2; border:1px solid #fca5a5; color:#991b1b; padding:12px; border-radius:10px; font-size:11px; margin-bottom:12px;">
+                <strong>⚠️ Falha de comunicação com o Offer Search App</strong>
+                <p style="margin-top:4px; opacity:0.9;">Não foi possível consultar os dados do servidor. Verifique se você está conectado à rede ou se o servidor está ativo.</p>
+                <button class="os-btn-primary" id="osBtnRetry" style="margin-top:10px; background:#ef4444;">
+                  <span>🔄 Tentar Novamente</span>
+                </button>
+              </div>
+            ` : `
             <!-- Status de Vínculo -->
             <div class="os-status-banner ${isLinked ? 'linked' : 'unlinked'}">
               <div>
@@ -216,7 +235,7 @@
                 <div style="font-size:10px; opacity:0.85; margin-top:2px;">ID: ${info.catalogId || 'N/A'}</div>
               </div>
               ${isLinked ? `<button class="os-icon-btn" id="osBtnChangeSku" title="Alterar SKU" style="background:#065f46; color:#fff;">✏️</button>` : ''}
-            </div>
+            </div>`}
 
             ${isLinked ? `
               <!-- Métricas Principais de Estoque -->
@@ -323,6 +342,16 @@
       minBtn.addEventListener('click', () => {
         isCardOpen = false;
         renderWidget(info, intel);
+      });
+    }
+
+    const retryBtn = shadowRoot.getElementById('osBtnRetry');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', async () => {
+        retryBtn.disabled = true;
+        retryBtn.innerHTML = '<span class="os-spinner"></span> <span>Consultando...</span>';
+        const newIntel = await fetchProductIntel(info);
+        renderWidget(info, newIntel);
       });
     }
 

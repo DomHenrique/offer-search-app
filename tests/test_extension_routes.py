@@ -40,8 +40,8 @@ class TestExtensionRoutes(unittest.TestCase):
     @patch('routes.extension_routes.db_manager')
     def test_get_product_intel_unlinked(self, mock_db):
         mock_db.get_sku_catalogs.return_value = []
-        mock_db.get_inventory.return_value = [
-            {'sku': 'SKU-001', 'descricao': 'Produto Teste', 'preco_custo': 100.0, 'estoque_total': 5}
+        mock_db.get_consolidated_inventory.return_value = [
+            {'sku': 'SKU-001', 'descricao': 'Produto Teste', 'preco_custo': 100.0, 'quantidade_total': 5}
         ]
 
         res = self.client.get('/api/extension/product-intel?catalog_id=MLB999999')
@@ -61,13 +61,13 @@ class TestExtensionRoutes(unittest.TestCase):
                 'buybox_winner': 'EcoFlow Oficial'
             }
         ]
-        mock_db.get_inventory.return_value = [
+        mock_db.get_consolidated_inventory.return_value = [
             {
                 'sku': 'ECO-GR32EU1010',
                 'descricao': 'Gerador River 3 Max Plus',
                 'preco_custo': 2195.0,
                 'preco_site_pix': 2439.0,
-                'estoque_total': 2
+                'quantidade_total': 2
             }
         ]
 
@@ -82,9 +82,9 @@ class TestExtensionRoutes(unittest.TestCase):
 
     @patch('routes.extension_routes.db_manager')
     def test_inventory_list_search(self, mock_db):
-        mock_db.get_inventory.return_value = [
-            {'sku': 'ECO-01', 'descricao': 'Ecoflow Delta', 'preco_custo': 5000.0, 'estoque_total': 3},
-            {'sku': 'PAN-02', 'descricao': 'Painel Solar 160W', 'preco_custo': 800.0, 'estoque_total': 10}
+        mock_db.get_consolidated_inventory.return_value = [
+            {'sku': 'ECO-01', 'descricao': 'Ecoflow Delta', 'preco_custo': 5000.0, 'quantidade_total': 3},
+            {'sku': 'PAN-02', 'descricao': 'Painel Solar 160W', 'preco_custo': 800.0, 'quantidade_total': 10}
         ]
 
         res = self.client.get('/api/extension/inventory-list?q=delta')
@@ -96,8 +96,8 @@ class TestExtensionRoutes(unittest.TestCase):
     @patch('routes.extension_routes.db_manager')
     def test_link_sku_success(self, mock_db):
         mock_db.link_catalog_to_sku.return_value = {'status': 'ok'}
-        mock_db.get_inventory.return_value = [
-            {'sku': 'ECO-01', 'descricao': 'Ecoflow Delta', 'preco_custo': 5000.0, 'estoque_total': 3}
+        mock_db.get_consolidated_inventory.return_value = [
+            {'sku': 'ECO-01', 'descricao': 'Ecoflow Delta', 'preco_custo': 5000.0, 'quantidade_total': 3}
         ]
 
         payload = {
