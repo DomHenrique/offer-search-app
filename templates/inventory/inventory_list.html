@@ -117,7 +117,9 @@
                                 {% for item in inventory %}
                                 <tr class="stock-row" data-sku="{{ item.sku|lower }}" data-desc="{{ item.descricao|lower }}" data-ncm="{{ item.ncm|lower }}">
                                     <td>
-                                        <span class="sku-chip">{{ item.sku }}</span>
+                                        <a href="javascript:void(0)" class="sku-chip text-decoration-none" onclick="openSkuProductDrawer('{{ item.sku }}')" title="Ver Ficha e Catálogos do SKU">
+                                            {{ item.sku }}
+                                        </a>
                                     </td>
                                     <td>
                                         <div class="fw-semibold text-dark">{{ item.descricao }}</div>
@@ -153,23 +155,13 @@
                                     </td>
                                     <td>
                                         {% if item.catalogs and item.catalogs|length > 0 %}
-                                            <div class="d-flex flex-wrap gap-1">
-                                                {% for cat in item.catalogs %}
-                                                <div class="d-inline-flex align-items-center gap-1 p-1 px-2 rounded-2 bg-light border text-xs" style="max-width: 220px;">
-                                                    <a href="{{ cat.catalog_url or 'https://www.mercadolivre.com.br/p/' + cat.catalog_id }}" target="_blank" class="text-decoration-none text-primary fw-bold text-truncate" title="{{ cat.catalog_title }}">
-                                                        <i class="fas fa-layer-group me-1 text-warning"></i>{{ cat.catalog_id }}
-                                                    </a>
-                                                    <span class="badge bg-secondary text-white" style="font-size:0.65rem;">{{ cat.sellers_count }} op</span>
-                                                    <button type="button" class="btn btn-link p-0 text-danger border-0 ms-1" style="font-size:0.75rem; line-height: 1;" onclick="unlinkCatalogFromSku('{{ item.sku }}', '{{ cat.catalog_id }}')" title="Desvincular Catálogo deste SKU">
-                                                        <i class="fas fa-times"></i>
-                                                    </button>
-                                                </div>
-                                                {% endfor %}
-                                            </div>
+                                            <button type="button" class="badge-connected-catalogs" onclick="openSkuProductDrawer('{{ item.sku }}')" title="Ver {{ item.catalogs|length }} catálogos conectados">
+                                                <i class="fas fa-link"></i> {{ item.catalogs|length }} {{ 'Conectado' if item.catalogs|length == 1 else 'Conectados' }}
+                                            </button>
                                         {% else %}
-                                            <a href="{{ url_for('catalog.catalog_list') }}?q={{ (item.termo_busca or item.descricao)|urlencode }}&sku={{ item.sku|urlencode }}&auto=1" class="badge-saas badge-saas-neutral text-decoration-none">
+                                            <button type="button" class="badge-connect-empty" onclick="openSkuProductDrawer('{{ item.sku }}', true)" title="Conectar catálogos do Mercado Livre a este SKU">
                                                 <i class="fas fa-plus"></i> Vincular
-                                            </a>
+                                            </button>
                                         {% endif %}
                                     </td>
                                     <td>
@@ -182,10 +174,15 @@
                                         </small>
                                     </td>
                                     <td class="text-end">
-                                        <a href="{{ url_for('catalog.catalog_list') }}?q={{ (item.termo_busca or item.descricao)|urlencode }}&sku={{ item.sku|urlencode }}&auto=1" 
-                                           class="btn-action-row" title="Buscar novos catálogos e concorrentes deste produto">
-                                            <i class="fas fa-search text-warning"></i> Buscar
-                                        </a>
+                                        <div class="d-flex align-items-center justify-content-end gap-1">
+                                            <button type="button" class="btn-action-row text-primary" onclick="openSkuProductDrawer('{{ item.sku }}')" title="Ver Detalhes do Produto">
+                                                <i class="fas fa-eye"></i> Detalhes
+                                            </button>
+                                            <a href="{{ url_for('catalog.catalog_list') }}?q={{ (item.termo_busca or item.descricao)|urlencode }}&sku={{ item.sku|urlencode }}&auto=1" 
+                                               class="btn-action-row" title="Buscar novos catálogos no Mercado Livre">
+                                                <i class="fas fa-search text-warning"></i>
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -435,12 +432,86 @@ ECO GR32EU1010	Gerador RIVER 3 (220V-EU) + Painel BR	8501.72.10	2 UN	3179.00"></
             </div>
         </div>
     </div>
+<!-- ─── DRAWER LATERAL DE DETALHES DO PRODUTO / SKU ────────────── -->
+<div class="offcanvas offcanvas-end offcanvas-sku-product" tabindex="-1" id="skuProductDrawer" aria-labelledby="skuProductDrawerLabel">
+    <div class="offcanvas-header p-3 border-bottom bg-white">
+        <div class="d-flex align-items-center gap-3 min-w-0 flex-grow-1">
+            <div class="rounded-3 border p-1 bg-white d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; flex-shrink: 0;">
+                <img id="drawerSkuImg" src="" alt="SKU" style="max-width: 100%; max-height: 100%; object-fit: contain;"
+                     onerror="this.src='https://via.placeholder.com/48x48/f1f5f9/94a3b8?text=SKU'">
+            </div>
+            <div class="min-w-0">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="sku-chip fs-6 font-tabular" id="drawerSkuCode">SKU...</span>
+                    <span class="badge-saas badge-saas-neutral font-tabular" id="drawerSkuNcm">NCM: —</span>
+                </div>
+                <h6 class="fw-bold text-dark text-truncate mb-0" id="drawerSkuTitle" style="font-size: 0.92rem;">Descrição do Produto</h6>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 ms-2">
+            <a id="drawerFullPageLink" href="#" class="btn btn-sm btn-outline-primary" title="Abrir em Página Cheia">
+                <i class="fas fa-external-link-alt me-1"></i> <span class="d-none d-sm-inline">Página Completa</span>
+            </a>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+        </div>
+    </div>
+
+    <div class="offcanvas-body p-3 p-md-4" id="skuDrawerBody">
+        <div id="skuDrawerContent">
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary spinner-border-sm mb-2" role="status"></div>
+                <div class="text-muted small">Carregando dados do produto...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── DRAWER LATERAL DE CONCORRENTES ML INTEGRADO ────────────── -->
+<div class="offcanvas offcanvas-end offcanvas-competitors" tabindex="-1" id="competitorsDrawer" aria-labelledby="competitorsDrawerLabel">
+    <div class="offcanvas-header p-3">
+        <div class="drawer-product-card">
+            <div class="drawer-product-img">
+                <img id="drawerProductImg" src="" alt="Produto"
+                     onerror="this.src='https://via.placeholder.com/64x64/ffffff/94a3b8?text=ML'">
+            </div>
+            <div class="drawer-product-info">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="catalog-chip" id="drawerCatalogIdChip">
+                        <i class="fas fa-barcode text-warning"></i> <span id="drawerCatalogId">MLB...</span>
+                    </span>
+                    <a id="drawerMlLlink" href="#" target="_blank" class="btn btn-xs btn-secondary py-0 px-2" style="font-size: 0.72rem;">
+                        <i class="fas fa-external-link-alt me-1"></i> Ver no ML
+                    </a>
+                </div>
+                <h6 class="drawer-product-title mb-0" id="drawerProductTitle">Nome do Produto</h6>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 ms-2">
+            <button type="button" class="btn btn-sm btn-secondary" id="btnDrawerSync" onclick="refreshDrawerSellers()" title="Recarregar concorrentes agora">
+                <i class="fas fa-sync-alt" id="drawerSyncIcon"></i>
+            </button>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+        </div>
+    </div>
+
+    <div class="offcanvas-body p-4" id="drawerBody">
+        <div id="drawerDynamicContent"></div>
+    </div>
+</div>
+
+<!-- Toast de Notificação -->
+<div class="copy-toast" id="inventoryToast">
+    <i class="fas fa-check-circle me-2"></i> <span id="inventoryToastMsg">Ação concluída!</span>
 </div>
 
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+let currentDrawerSku = null;
+let activeDrawerCatalogId = null;
+let drawerSellersPollingInterval = null;
+
 // ─── Filtro em Tempo Real na Tabela de Estoque ─────────────────────
 function filterStockTable() {
     const query = document.getElementById('stockFilterInput').value.trim().toLowerCase();
@@ -461,6 +532,568 @@ function filterStockTable() {
     });
 
     document.getElementById('visibleStockCount').textContent = visibleCount;
+}
+
+// ─── Abertura do Drawer de Detalhes do Produto / SKU ───────────────
+async function openSkuProductDrawer(sku, openAddCatalog = false) {
+    currentDrawerSku = sku;
+    const drawerEl = document.getElementById('skuProductDrawer');
+    const contentEl = document.getElementById('skuDrawerContent');
+    const titleEl = document.getElementById('drawerSkuTitle');
+    const codeEl = document.getElementById('drawerSkuCode');
+    const ncmEl = document.getElementById('drawerSkuNcm');
+    const imgEl = document.getElementById('drawerSkuImg');
+    const fullLinkEl = document.getElementById('drawerFullPageLink');
+
+    if (codeEl) codeEl.textContent = sku;
+    if (fullLinkEl) fullLinkEl.href = `/inventory/product/${encodeURIComponent(sku)}`;
+
+    if (contentEl) {
+        contentEl.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary spinner-border-sm mb-2" role="status"></div>
+                <div class="text-muted small">Carregando dados do produto ${sku}...</div>
+            </div>`;
+    }
+
+    if (drawerEl && typeof bootstrap !== 'undefined') {
+        const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(drawerEl);
+        offcanvas.show();
+    }
+
+    try {
+        const res = await fetch(`/inventory/api/product/${encodeURIComponent(sku)}`);
+        const data = await res.json();
+
+        if (data.success && data.product) {
+            const p = data.product;
+            if (titleEl) titleEl.textContent = p.descricao || p.sku;
+            if (ncmEl) ncmEl.textContent = `NCM: ${p.ncm || '—'}`;
+            if (imgEl) {
+                const firstImg = (p.catalogs && p.catalogs.length > 0 && p.catalogs[0].catalog_image) ? p.catalogs[0].catalog_image : '';
+                imgEl.src = firstImg || 'https://via.placeholder.com/48x48/f1f5f9/94a3b8?text=SKU';
+            }
+            renderSkuProductDrawer(p, openAddCatalog);
+        } else {
+            if (contentEl) {
+                contentEl.innerHTML = `
+                    <div class="text-center py-5 text-danger">
+                        <i class="fas fa-exclamation-circle fa-2x mb-2"></i>
+                        <p>${data.error || 'Erro ao carregar detalhes do SKU.'}</p>
+                    </div>`;
+            }
+        }
+    } catch (err) {
+        if (contentEl) {
+            contentEl.innerHTML = `
+                <div class="text-center py-5 text-danger">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                    <p>Falha na requisição: ${err.message}</p>
+                </div>`;
+        }
+    }
+}
+
+function renderSkuProductDrawer(p, openAddCatalog = false) {
+    const contentEl = document.getElementById('skuDrawerContent');
+    if (!contentEl) return;
+
+    const catalogs = p.catalogs || [];
+    const pedidos = p.pedidos || [];
+
+    // Métricas Financeiras
+    const stockClass = p.quantidade_total > 0 ? 'text-success' : 'text-danger';
+    const revendaStr = p.preco_revenda ? `R$ ${parseFloat(p.preco_revenda).toFixed(2).replace('.', ',')}` : '—';
+    const pixStr = p.preco_site_pix ? `R$ ${parseFloat(p.preco_site_pix).toFixed(2).replace('.', ',')}` : '—';
+
+    let catalogsHtml = '';
+    if (catalogs.length > 0) {
+        catalogsHtml = `
+            <div class="sku-catalogs-grid">
+                ${catalogs.map(cat => {
+                    const priceFormatted = cat.buybox_min_price > 0 ? `Menor: R$ ${parseFloat(cat.buybox_min_price).toFixed(2).replace('.', ',')}` : 'Preço a consultar';
+                    const imgUrl = cat.catalog_image || 'https://via.placeholder.com/56x56/ffffff/94a3b8?text=ML';
+                    const safeTitle = (cat.catalog_title || ('Catálogo ' + cat.catalog_id)).replace(/'/g, "\\'");
+
+                    return `
+                    <div class="sku-catalog-card" id="drawer-cat-${cat.catalog_id}">
+                        <div class="d-flex align-items-center gap-3 min-w-0 flex-grow-1">
+                            <div class="sku-catalog-img">
+                                <img src="${imgUrl}" alt="${cat.catalog_title || cat.catalog_id}" loading="lazy"
+                                     onerror="this.src='https://via.placeholder.com/56x56/ffffff/94a3b8?text=ML'">
+                            </div>
+                            <div class="sku-catalog-info">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <span class="catalog-chip font-tabular">${cat.catalog_id}</span>
+                                    <span class="badge-saas badge-saas-neutral font-tabular">${cat.sellers_count || 1} Opções</span>
+                                    ${cat.buybox_min_price > 0 ? `<span class="badge-saas badge-saas-success font-tabular">${priceFormatted}</span>` : ''}
+                                </div>
+                                <div class="sku-catalog-title" title="${cat.catalog_title || ''}">
+                                    ${cat.catalog_title || ('Catálogo ' + cat.catalog_id)}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="sku-catalog-actions">
+                            <button type="button" class="btn btn-sm btn-primary py-1 px-2" style="font-size:0.75rem;"
+                                    onclick="openCompetitorsDrawer('${cat.catalog_id}', '${safeTitle}', '${cat.catalog_image || ''}')"
+                                    title="Analisar concorrentes da BuyBox">
+                                <i class="fas fa-users me-1"></i> Concorrentes
+                            </button>
+                            <a href="${cat.catalog_url || ('https://www.mercadolivre.com.br/p/' + cat.catalog_id)}" target="_blank" class="btn btn-sm btn-secondary py-1 px-2" style="font-size:0.75rem;" title="Abrir no Mercado Livre">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2" style="font-size:0.75rem;" onclick="unlinkCatalogFromDrawer('${p.sku}', '${cat.catalog_id}')" title="Desvincular deste SKU">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>`;
+    } else {
+        catalogsHtml = `
+            <div class="text-center py-4 bg-white rounded-3 border">
+                <i class="fas fa-link-slash text-muted opacity-25 fa-2x mb-2"></i>
+                <div class="text-muted small fw-bold mb-2">Nenhum catálogo do Mercado Livre conectado a este SKU</div>
+                <button type="button" class="btn btn-sm btn-primary" onclick="toggleDrawerAddCatalog()">
+                    <i class="fas fa-plus me-1"></i> Conectar Primeiro Catálogo
+                </button>
+            </div>`;
+    }
+
+    let pedidosHtml = '';
+    if (pedidos.length > 0) {
+        pedidosHtml = `
+            <div class="table-responsive bg-white rounded-3 border">
+                <table class="table table-sm table-saas mb-0" style="font-size: 0.8rem;">
+                    <thead>
+                        <tr>
+                            <th>Nº Pedido</th>
+                            <th>Fornecedor</th>
+                            <th class="text-end">Qtd</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${pedidos.map(ped => `
+                            <tr>
+                                <td class="fw-bold">${ped.numero_pedido}</td>
+                                <td class="text-muted">${ped.fornecedor || 'Fornecedor'}</td>
+                                <td class="text-end font-tabular fw-bold">${ped.quantidade} UN</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+    } else {
+        pedidosHtml = `<div class="text-muted small">Nenhum pedido de compra associado.</div>`;
+    }
+
+    contentEl.innerHTML = `
+        <!-- KPIs Rápidos do SKU -->
+        <div class="row g-2 mb-3">
+            <div class="col-4">
+                <div class="p-2 rounded-3 bg-white border text-center">
+                    <div class="metric-label" style="font-size: 0.65rem;">Estoque Total</div>
+                    <div class="fw-bold font-tabular ${stockClass}" style="font-size: 1.1rem;">${p.quantidade_total} UN</div>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="p-2 rounded-3 bg-white border text-center">
+                    <div class="metric-label" style="font-size: 0.65rem;">Preço Revenda</div>
+                    <div class="fw-bold font-tabular text-dark" style="font-size: 1.1rem;">${revendaStr}</div>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="p-2 rounded-3 bg-white border text-center">
+                    <div class="metric-label" style="font-size: 0.65rem;">Preço PIX</div>
+                    <div class="fw-bold font-tabular text-success" style="font-size: 1.1rem;">${pixStr}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção de Catálogos Conectados -->
+        <div class="mb-4">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="fw-bold text-dark" style="font-size: 0.85rem;">
+                    <i class="fas fa-layer-group text-warning me-1"></i> Catálogos Mercado Livre Conectados (${catalogs.length})
+                </span>
+                <button type="button" class="btn btn-xs btn-primary py-1 px-2" style="font-size:0.75rem;" onclick="toggleDrawerAddCatalog()">
+                    <i class="fas fa-plus me-1"></i> Vincular Novo
+                </button>
+            </div>
+
+            <!-- Painel de Vinculação Rápida / Busca Não-Invasiva -->
+            <div id="drawerAddCatalogPanel" class="p-3 bg-white rounded-3 border mb-3" style="display: ${openAddCatalog ? 'block' : 'none'};">
+                <div class="row g-2">
+                    <div class="col-12 col-sm-6">
+                        <label class="form-label small fw-bold text-dark mb-1">ID do Catálogo ML (ex: MLB45562186):</label>
+                        <input type="text" id="inputDrawerCatId" class="form-control form-control-sm" placeholder="Cole o MLB aqui...">
+                    </div>
+                    <div class="col-12 col-sm-6">
+                        <label class="form-label small fw-bold text-dark mb-1">Título (Opcional):</label>
+                        <input type="text" id="inputDrawerCatTitle" class="form-control form-control-sm" placeholder="Ex: Nome do Produto no ML">
+                    </div>
+                    <div class="col-12 d-flex justify-content-end gap-2 mt-2">
+                        <button type="button" class="btn btn-xs btn-secondary" onclick="toggleDrawerAddCatalog()">Cancelar</button>
+                        <button type="button" class="btn btn-xs btn-success fw-bold" onclick="linkCatalogFromDrawer('${p.sku}')">
+                            <i class="fas fa-check me-1"></i> Vincular Catálogo
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            ${catalogsHtml}
+        </div>
+
+        <!-- Seção de Pedidos Fornecedores -->
+        <div class="mb-3">
+            <div class="fw-bold text-dark mb-2" style="font-size: 0.85rem;">
+                <i class="fas fa-truck-ramp-box text-primary me-1"></i> Origem do Estoque (Pedidos de Compra)
+            </div>
+            ${pedidosHtml}
+        </div>`;
+}
+
+function toggleDrawerAddCatalog() {
+    const panel = document.getElementById('drawerAddCatalogPanel');
+    if (panel) {
+        panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none';
+    }
+}
+
+async function linkCatalogFromDrawer(sku) {
+    const inputId = document.getElementById('inputDrawerCatId');
+    const inputTitle = document.getElementById('inputDrawerCatTitle');
+    const catalogId = (inputId.value || '').trim().toUpperCase();
+    const catalogTitle = (inputTitle.value || '').trim();
+
+    if (!catalogId) {
+        alert('Por favor, informe o ID do Catálogo (ex: MLB45562186)');
+        return;
+    }
+
+    try {
+        const res = await fetch('/inventory/link-catalog', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                sku: sku,
+                catalog_id: catalogId,
+                catalog_title: catalogTitle || ('Catálogo ' + catalogId)
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showInventoryToast('Catálogo conectado com sucesso!');
+            openSkuProductDrawer(sku, false);
+            setTimeout(() => window.location.reload(), 1200);
+        } else {
+            alert('Erro ao vincular catálogo: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (err) {
+        alert('Erro na requisição: ' + err.message);
+    }
+}
+
+async function unlinkCatalogFromDrawer(sku, catalogId) {
+    if (!confirm(`Deseja realmente desvincular o catálogo ${catalogId} deste SKU?`)) return;
+
+    try {
+        const res = await fetch('/inventory/unlink-catalog', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({sku: sku, catalog_id: catalogId})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showInventoryToast('Catálogo desvinculado com sucesso!');
+            const cardEl = document.getElementById(`drawer-cat-${catalogId}`);
+            if (cardEl) cardEl.remove();
+            setTimeout(() => window.location.reload(), 1200);
+        } else {
+            alert('Erro ao desvincular: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (err) {
+        alert('Erro: ' + err.message);
+    }
+}
+
+// ─── Drawer de Concorrentes ML Integrado ───────────────────────────
+function openCompetitorsDrawer(catalogId, catalogTitle, catalogImage) {
+    activeDrawerCatalogId = catalogId;
+
+    const titleEl = document.getElementById('drawerProductTitle');
+    const idEl = document.getElementById('drawerCatalogId');
+    const imgEl = document.getElementById('drawerProductImg');
+    const mlLink = document.getElementById('drawerMlLlink');
+
+    if (titleEl) titleEl.textContent = catalogTitle || ('Catálogo ' + catalogId);
+    if (idEl) idEl.textContent = catalogId;
+    if (imgEl) {
+        imgEl.src = catalogImage || 'https://via.placeholder.com/64x64/ffffff/94a3b8?text=ML';
+        imgEl.alt = catalogTitle || catalogId;
+    }
+    if (mlLink) mlLink.href = `https://www.mercadolivre.com.br/p/${catalogId}/s?`;
+
+    const drawerEl = document.getElementById('competitorsDrawer');
+    if (drawerEl && typeof bootstrap !== 'undefined') {
+        const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(drawerEl);
+        offcanvas.show();
+    }
+
+    checkAndLoadSellers(catalogId, false);
+}
+
+function refreshDrawerSellers() {
+    if (!activeDrawerCatalogId) return;
+    checkAndLoadSellers(activeDrawerCatalogId, true);
+}
+
+async function checkAndLoadSellers(catalogId, forceScrape = false) {
+    if (drawerSellersPollingInterval) {
+        clearInterval(drawerSellersPollingInterval);
+        drawerSellersPollingInterval = null;
+    }
+
+    const content = document.getElementById('drawerDynamicContent');
+    const syncIcon = document.getElementById('drawerSyncIcon');
+    if (syncIcon) syncIcon.classList.add('fa-spin');
+
+    if (!forceScrape) {
+        content.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary spinner-border-sm mb-2" role="status"></div>
+                <div class="text-muted small">Carregando dados do catálogo...</div>
+            </div>`;
+
+        try {
+            const res = await fetch(`/catalog/api/${catalogId}/sellers`);
+            const data = await res.json();
+
+            if (data.success && data.sellers && data.sellers.length > 0) {
+                if (syncIcon) syncIcon.classList.remove('fa-spin');
+                renderDrawerSellers(data);
+                return;
+            }
+            startDrawerSellersScrape(catalogId);
+        } catch (err) {
+            startDrawerSellersScrape(catalogId);
+        }
+    } else {
+        startDrawerSellersScrape(catalogId);
+    }
+}
+
+async function startDrawerSellersScrape(catalogId) {
+    const content = document.getElementById('drawerDynamicContent');
+    const syncIcon = document.getElementById('drawerSyncIcon');
+    if (syncIcon) syncIcon.classList.add('fa-spin');
+
+    content.innerHTML = `
+        <div class="drawer-loader-box">
+            <div class="drawer-spinner-ring"></div>
+            <h6 class="fw-bold text-dark mb-1">Buscando Concorrentes no Mercado Livre...</h6>
+            <p class="text-muted small mb-3" id="drawerScrapeStatusMsg">Iniciando robô de busca nas opções de compra deste produto...</p>
+            <div class="progress mb-3" style="height: 8px; border-radius: 4px;">
+                <div class="progress-bar bg-primary progress-bar-striped progress-bar-animated"
+                     id="drawerScrapeProgress"
+                     style="width: 25%; transition: width 0.4s ease;"></div>
+            </div>
+            <div class="d-flex align-items-center justify-content-center gap-2 text-muted" style="font-size: 0.78rem;">
+                <i class="fas fa-shield-alt text-success"></i>
+                <span>Navegação autenticada com cookies ML</span>
+            </div>
+        </div>`;
+
+    try {
+        const res = await fetch(`/catalog/${catalogId}/scrape-sellers`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.scrape_id) throw new Error(data.error || 'Erro ao iniciar');
+
+        drawerSellersPollingInterval = setInterval(() => {
+            pollDrawerSellersStatus(data.scrape_id, catalogId);
+        }, 1800);
+    } catch (err) {
+        if (syncIcon) syncIcon.classList.remove('fa-spin');
+        content.innerHTML = `
+            <div class="table-saas-card text-center py-5 px-3">
+                <i class="fas fa-exclamation-triangle text-danger fa-2x mb-3"></i>
+                <h6 class="fw-bold text-dark mb-1">Erro ao Iniciar Busca</h6>
+                <p class="text-muted small mb-3">${err.message}</p>
+                <button class="btn btn-sm btn-secondary" onclick="checkAndLoadSellers('${catalogId}', true)">
+                    <i class="fas fa-redo me-1"></i> Tentar Novamente
+                </button>
+            </div>`;
+    }
+}
+
+async function pollDrawerSellersStatus(scrapeId, catalogId) {
+    try {
+        const res = await fetch(`/catalog/sellers-status/${scrapeId}`);
+        const status = await res.json();
+
+        const progressEl = document.getElementById('drawerScrapeProgress');
+        const msgEl = document.getElementById('drawerScrapeStatusMsg');
+
+        if (progressEl && status.progress) progressEl.style.width = Math.max(status.progress, 30) + '%';
+        if (msgEl && status.message) msgEl.textContent = status.message;
+
+        if (status.completed) {
+            clearInterval(drawerSellersPollingInterval);
+            drawerSellersPollingInterval = null;
+
+            const syncIcon = document.getElementById('drawerSyncIcon');
+            if (syncIcon) syncIcon.classList.remove('fa-spin');
+
+            if (status.status === 'concluida') {
+                const finalRes = await fetch(`/catalog/api/${catalogId}/sellers`);
+                const finalData = await finalRes.json();
+                renderDrawerSellers(finalData);
+                showInventoryToast(`Varredura concluída! ${status.sellers ? status.sellers.length : 0} vendedores encontrados.`);
+            } else {
+                const content = document.getElementById('drawerDynamicContent');
+                content.innerHTML = `
+                    <div class="table-saas-card text-center py-5 px-3">
+                        <i class="fas fa-store-slash text-warning fa-2x mb-3"></i>
+                        <h6 class="fw-bold text-dark mb-1">Nenhum Vendedor Encontrado</h6>
+                        <p class="text-muted small mb-3">${status.error || 'Nenhum concorrente identificado.'}</p>
+                    </div>`;
+            }
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function renderDrawerSellers(data) {
+    const content = document.getElementById('drawerDynamicContent');
+    const sellers = data.sellers || [];
+    const catalogId = data.catalog_id || activeDrawerCatalogId;
+
+    if (!sellers.length) {
+        content.innerHTML = `
+            <div class="table-saas-card text-center py-5 px-3">
+                <i class="fas fa-users-slash text-muted fa-2x mb-3 opacity-50"></i>
+                <h6 class="fw-bold text-dark mb-1">Nenhum concorrente cadastrado</h6>
+                <button class="btn btn-sm btn-primary mt-2" onclick="checkAndLoadSellers('${catalogId}', true)">
+                    <i class="fas fa-sync-alt me-1"></i> Buscar Concorrentes Agora
+                </button>
+            </div>`;
+        return;
+    }
+
+    const validPrices = sellers.map(s => parseFloat(s.preco) || 0).filter(p => p > 0);
+    const minPrice = validPrices.length ? Math.min(...validPrices) : 0;
+    const maxPrice = validPrices.length ? Math.max(...validPrices) : 0;
+    const fullCount = sellers.filter(s => s.frete_full).length;
+
+    let kpisHtml = `
+        <div class="drawer-kpis-grid">
+            <div class="drawer-kpi-card">
+                <div class="kpi-label text-success"><i class="fas fa-crown me-1"></i>Menor Preço</div>
+                <div class="kpi-val text-success">R$ ${minPrice > 0 ? minPrice.toFixed(2).replace('.', ',') : '--'}</div>
+            </div>
+            <div class="drawer-kpi-card">
+                <div class="kpi-label"><i class="fas fa-arrow-up me-1"></i>Maior Preço</div>
+                <div class="kpi-val text-danger">R$ ${maxPrice > 0 ? maxPrice.toFixed(2).replace('.', ',') : '--'}</div>
+            </div>
+            <div class="drawer-kpi-card">
+                <div class="kpi-label"><i class="fas fa-users me-1"></i>Vendedores</div>
+                <div class="kpi-val text-primary">${sellers.length}</div>
+            </div>
+            <div class="drawer-kpi-card">
+                <div class="kpi-label text-warning"><i class="fas fa-bolt me-1"></i>Envio FULL</div>
+                <div class="kpi-val text-warning">${fullCount}</div>
+            </div>
+        </div>`;
+
+    let rowsHtml = sellers.map((s, index) => {
+        const isBest = (index === 0 && s.preco > 0);
+        const priceFormatted = (s.preco && s.preco > 0) ? `R$ ${parseFloat(s.preco).toFixed(2).replace('.', ',')}` : (s.preco_str || 'A consultar');
+        const sellerInitials = s.seller_name ? s.seller_name.substring(0, 2).toUpperCase() : 'ML';
+        const sellerProfileUrl = `https://www.mercadolivre.com.br/perfil/${encodeURIComponent(s.seller_name || '')}`;
+        const buyUrl = s.buy_url || `https://www.mercadolivre.com.br/p/${catalogId}/s?`;
+
+        let shippingHtml = '';
+        if (s.entrega_texto) {
+            shippingHtml += `<div class="shipping-bullet"><i class="fas fa-truck text-success mt-1" style="font-size:0.75rem;"></i><span>${s.entrega_texto}</span></div>`;
+        } else if (s.frete_gratis) {
+            shippingHtml += `<div class="shipping-bullet"><i class="fas fa-truck text-success mt-1" style="font-size:0.75rem;"></i><span class="shipping-green-highlight">Chegará grátis</span></div>`;
+        } else {
+            shippingHtml += `<div class="shipping-bullet text-muted"><i class="fas fa-truck text-muted mt-1" style="font-size:0.75rem;"></i><span>Frete a calcular</span></div>`;
+        }
+
+        if (s.frete_full) {
+            shippingHtml += `<div class="mt-1"><span class="shipping-badge-full"><i class="fas fa-bolt"></i> FULL</span></div>`;
+        }
+
+        let installmentHtml = '';
+        if (s.parcelamento) {
+            const isSemJuros = s.parcelamento.toLowerCase().includes('sem juros');
+            installmentHtml = `<div class="${isSemJuros ? 'price-installment-green' : 'price-installment-gray'}"><i class="far fa-credit-card me-1"></i>${s.parcelamento}</div>`;
+        }
+
+        return `
+            <tr class="${isBest ? 'best-offer-row' : ''}">
+                <td style="width: 28%;">
+                    <div class="d-flex align-items-baseline gap-1">
+                        <div class="price-display-main" style="font-size: 1.15rem;">${priceFormatted}</div>
+                        ${isBest ? '<span class="badge bg-success text-white" style="font-size: 0.6rem; padding: 2px 5px;"><i class="fas fa-crown"></i> LÍDER</span>' : ''}
+                    </div>
+                    ${installmentHtml}
+                </td>
+                <td style="width: 32%;">${shippingHtml}</td>
+                <td style="width: 25%;">
+                    <div class="d-flex align-items-center gap-2">
+                        <div style="width: 32px; height: 32px; border-radius: var(--radius-sm); background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #475569; font-size: 0.8rem; border: 1px solid #e2e8f0; flex-shrink: 0;">
+                            ${sellerInitials}
+                        </div>
+                        <div class="text-truncate">
+                            <a href="${sellerProfileUrl}" target="_blank" class="seller-name-link" style="font-size: 0.85rem;" title="${s.seller_name || ''}">
+                                ${s.seller_name || 'Vendedor ML'}
+                                <i class="fas fa-check-circle seller-verified-icon"></i>
+                            </a>
+                            <div class="seller-reputation-text" style="font-size: 0.72rem;">
+                                ${s.reputacao || 'Vendedor Ativo'}
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td style="width: 15%; text-align: center;">
+                    <a href="${buyUrl}" target="_blank" class="btn-ml-buy py-1 px-2" style="font-size: 0.75rem;">
+                        Comprar
+                    </a>
+                </td>
+            </tr>`;
+    }).join('');
+
+    content.innerHTML = `
+        ${kpisHtml}
+        <div class="table-saas-card">
+            <div class="p-2 px-3 border-bottom d-flex align-items-center justify-content-between bg-surface">
+                <span class="fw-bold text-dark" style="font-size: 0.82rem;">
+                    <i class="fas fa-list-ol text-primary me-1"></i> Ofertas Ordenadas por Menor Preço
+                </span>
+                <span class="badge-saas badge-saas-neutral font-tabular" style="font-size: 0.72rem;">${sellers.length} Vendedores</span>
+            </div>
+            <div class="table-responsive">
+                <table class="ml-sellers-table">
+                    <thead>
+                        <tr>
+                            <th>Preço</th>
+                            <th>Entrega</th>
+                            <th>Vendedor</th>
+                            <th style="text-align: center;">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+            </div>
+        </div>`;
 }
 
 // ─── Importação via Copiar e Colar (Paste Grid) ────────────────────
@@ -498,27 +1131,30 @@ async function submitPastedImport() {
 }
 
 // ─── Importação via Upload de Arquivo ──────────────────────────────
-document.getElementById('fileUploadForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const formData = new FormData(this);
+const fileForm = document.getElementById('fileUploadForm');
+if (fileForm) {
+    fileForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
 
-    try {
-        const res = await fetch('/inventory/import-bulk', {
-            method: 'POST',
-            body: formData
-        });
+        try {
+            const res = await fetch('/inventory/import-bulk', {
+                method: 'POST',
+                body: formData
+            });
 
-        const data = await res.json();
-        if (data.success) {
-            alert(data.message);
-            window.location.reload();
-        } else {
-            alert('Erro no upload: ' + (data.error || 'Erro desconhecido'));
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert('Erro no upload: ' + (data.error || 'Erro desconhecido'));
+            }
+        } catch (err) {
+            alert('Erro no envio do arquivo: ' + err.message);
         }
-    } catch (err) {
-        alert('Erro no envio do arquivo: ' + err.message);
-    }
-});
+    });
+}
 
 // ─── Excluir Pedido com Confirmação ───────────────────────────────
 async function confirmDeleteOrder(orderId, orderNum) {
@@ -538,7 +1174,11 @@ async function confirmDeleteOrder(orderId, orderNum) {
             alert('Erro: ' + (data.error || 'Não foi possível excluir.'));
         }
     } catch (err) {
-// ─── Desvincular Catálogo do SKU ──────────────────────────────────
+        alert('Erro: ' + err.message);
+    }
+}
+
+// ─── Desvincular Catálogo do SKU (Tabela) ─────────────────────────
 async function unlinkCatalogFromSku(sku, catalogId) {
     if (!confirm(`Deseja desvincular o catálogo ${catalogId} do SKU ${sku}?`)) {
         return;
@@ -552,12 +1192,23 @@ async function unlinkCatalogFromSku(sku, catalogId) {
         });
         const data = await res.json();
         if (data.success) {
-            window.location.reload();
+            showInventoryToast('Catálogo desvinculado!');
+            setTimeout(() => window.location.reload(), 800);
         } else {
             alert('Erro: ' + (data.error || 'Não foi possível desvincular o catálogo.'));
         }
     } catch (e) {
         alert('Erro ao comunicar com o servidor: ' + e.message);
+    }
+}
+
+function showInventoryToast(msg) {
+    const toast = document.getElementById('inventoryToast');
+    const msgEl = document.getElementById('inventoryToastMsg');
+    if (toast && msgEl) {
+        msgEl.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2500);
     }
 }
 </script>

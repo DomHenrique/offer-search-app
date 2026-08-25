@@ -467,3 +467,33 @@ def unlink_catalog_api():
         return jsonify({'success': False, 'error': 'Falha ao desvincular catálogo.'}), 400
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ─── Detalhes do Produto / SKU (Página Dedicada e API JSON para Drawer) ──────────
+
+@inventory_bp.route('/product/<sku>')
+@login_required
+def product_detail(sku):
+    """Página dedicada de detalhes completos do SKU e catálogos conectados"""
+    user_id = session['user_id']
+    product = db.get_sku_details(user_id=user_id, sku=sku)
+    if not product:
+        flash(f'Produto com SKU "{sku}" não encontrado no inventário.', 'error')
+        return redirect(url_for('inventory.inventory_list'))
+
+    return render_template('inventory/product_detail.html', product=product, sku=sku)
+
+
+@inventory_bp.route('/api/product/<sku>')
+@login_required
+def product_detail_api(sku):
+    """Retorna dados completos do SKU e seus catálogos conectados para o Drawer lateral"""
+    user_id = session['user_id']
+    product = db.get_sku_details(user_id=user_id, sku=sku)
+    if not product:
+        return jsonify({'success': False, 'error': f'Produto {sku} não encontrado.'}), 404
+
+    return jsonify({
+        'success': True,
+        'product': product
+    })

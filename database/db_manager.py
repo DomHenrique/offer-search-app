@@ -1483,6 +1483,20 @@ class DatabaseManager:
             print(f"Erro ao consolidar estoque: {e}")
             return []
 
+    def get_sku_details(self, user_id: str, sku: str) -> Optional[Dict]:
+        """
+        Retorna os detalhes consolidados de um único SKU (pedidos e catálogos conectados).
+        """
+        sku_clean = str(sku or "").strip().upper()
+        if not sku_clean:
+            return None
+        
+        all_inventory = self.get_consolidated_inventory(user_id)
+        for item in all_inventory:
+            if item.get("sku") == sku_clean:
+                return item
+        return None
+
     # === MÉTODOS DE VINCULAÇÃO DE CATÁLOGOS POR SKU (1-para-N) ===
 
     def _get_user_uuid(self, user_id: Any) -> str:

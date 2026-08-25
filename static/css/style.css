@@ -1035,6 +1035,129 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* ===== DRAWER LATERAL DE DETALHES DO PRODUTO / SKU ===== */
+.offcanvas-sku-product {
+  width: 740px !important;
+  max-width: 95vw !important;
+  border-left: 1px solid var(--border-subtle) !important;
+  box-shadow: -10px 0 30px rgba(15, 23, 42, 0.12) !important;
+  background-color: #f8fafc;
+}
+
+.badge-connected-catalogs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  background-color: #eef2ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+
+.badge-connected-catalogs:hover {
+  background-color: #e0e7ff;
+  color: #312e81;
+  border-color: #a5b4fc;
+  transform: translateY(-1px);
+}
+
+.badge-connect-empty {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  background-color: #f8fafc;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+
+.badge-connect-empty:hover {
+  background-color: #f1f5f9;
+  color: var(--brand-primary);
+  border-color: var(--brand-primary);
+  border-style: solid;
+}
+
+/* Cards de Catálogos Conectados ao SKU */
+.sku-catalogs-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sku-catalog-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s ease;
+}
+
+.sku-catalog-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: var(--shadow-md);
+}
+
+.sku-catalog-img {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-xs);
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.sku-catalog-img img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.sku-catalog-info {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.sku-catalog-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.25;
+}
+
+.sku-catalog-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
 /* ===== UTILITÁRIOS ===== */
 .text-gradient {
   background: var(--brand-gradient);
