@@ -181,7 +181,8 @@
 
                         <div class="sku-catalog-actions">
                             <button type="button" class="btn btn-sm btn-primary"
-                                    onclick="openCompetitorsDrawer('{{ cat.catalog_id }}', '{{ (cat.catalog_title or '')|replace('\'', '\\\'') }}', '{{ cat.catalog_image or '' }}')">
+                                    data-bs-toggle="offcanvas" data-bs-target="#competitorsDrawer"
+                                    onclick="openCompetitorsDrawer('{{ cat.catalog_id }}', '{{ (cat.catalog_title or ('Catálogo ' ~ cat.catalog_id))|replace('\'', '\\\'')|replace('\"', '&quot;') }}', '{{ cat.catalog_image or '' }}')">
                                 <i class="fas fa-users me-1"></i> Ver Concorrentes
                             </button>
                             <a href="{{ cat.catalog_url or 'https://www.mercadolivre.com.br/p/' ~ cat.catalog_id }}" target="_blank" class="btn btn-sm btn-secondary px-2" title="Abrir no Mercado Livre">
@@ -367,6 +368,21 @@ async function unlinkCatalogDirect(sku, catalogId) {
 }
 
 // ─── Integração com Drawer de Concorrentes ML ─────────────────────
+function getBootstrapOffcanvas(el) {
+    if (!el) return null;
+    try {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Offcanvas) {
+            return bootstrap.Offcanvas.getOrCreateInstance(el);
+        }
+        if (typeof window.bootstrap !== 'undefined' && window.bootstrap.Offcanvas) {
+            return window.bootstrap.Offcanvas.getOrCreateInstance(el);
+        }
+    } catch (e) {
+        console.warn('Erro offcanvas:', e);
+    }
+    return null;
+}
+
 function openCompetitorsDrawer(catalogId, catalogTitle, catalogImage) {
     activeDrawerCatalogId = catalogId;
 
@@ -384,9 +400,9 @@ function openCompetitorsDrawer(catalogId, catalogTitle, catalogImage) {
     if (mlLink) mlLink.href = `https://www.mercadolivre.com.br/p/${catalogId}/s?`;
 
     const drawerEl = document.getElementById('competitorsDrawer');
-    if (drawerEl && typeof bootstrap !== 'undefined') {
-        const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(drawerEl);
-        offcanvas.show();
+    const offcanvasInstance = getBootstrapOffcanvas(drawerEl);
+    if (offcanvasInstance) {
+        offcanvasInstance.show();
     }
 
     checkAndLoadSellers(catalogId, false);

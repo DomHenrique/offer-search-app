@@ -471,7 +471,7 @@ def unlink_catalog_api():
 
 # ─── Detalhes do Produto / SKU (Página Dedicada e API JSON para Drawer) ──────────
 
-@inventory_bp.route('/product/<sku>')
+@inventory_bp.route('/product/<path:sku>')
 @login_required
 def product_detail(sku):
     """Página dedicada de detalhes completos do SKU e catálogos conectados"""
@@ -484,7 +484,7 @@ def product_detail(sku):
     return render_template('inventory/product_detail.html', product=product, sku=sku)
 
 
-@inventory_bp.route('/api/product/<sku>')
+@inventory_bp.route('/api/product/<path:sku>')
 @login_required
 def product_detail_api(sku):
     """Retorna dados completos do SKU e seus catálogos conectados para o Drawer lateral"""
