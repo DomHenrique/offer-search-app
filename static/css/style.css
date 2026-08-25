@@ -917,8 +917,14 @@ body {
   width: 760px !important;
   max-width: 95vw !important;
   border-left: 1px solid var(--border-subtle) !important;
-  box-shadow: -10px 0 30px rgba(15, 23, 42, 0.12) !important;
-  background-color: #f8fafc;
+  box-shadow: -10px 0 30px rgba(15, 23, 42, 0.18) !important;
+  background-color: #f8fafc !important;
+  z-index: 1070 !important;
+}
+
+.offcanvas-competitors.show {
+  visibility: visible !important;
+  transform: none !important;
 }
 
 .offcanvas-competitors .offcanvas-header {
@@ -927,6 +933,21 @@ body {
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+/* ===== DRAWER LATERAL DE DETALHES DO PRODUTO / SKU ===== */
+.offcanvas-sku-product {
+  width: 740px !important;
+  max-width: 95vw !important;
+  border-left: 1px solid var(--border-subtle) !important;
+  box-shadow: -10px 0 30px rgba(15, 23, 42, 0.18) !important;
+  background-color: #f8fafc !important;
+  z-index: 1060 !important;
+}
+
+.offcanvas-sku-product.show {
+  visibility: visible !important;
+  transform: none !important;
 }
 
 .drawer-product-card {
@@ -1035,14 +1056,6 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* ===== DRAWER LATERAL DE DETALHES DO PRODUTO / SKU ===== */
-.offcanvas-sku-product {
-  width: 740px !important;
-  max-width: 95vw !important;
-  border-left: 1px solid var(--border-subtle) !important;
-  box-shadow: -10px 0 30px rgba(15, 23, 42, 0.12) !important;
-  background-color: #f8fafc;
-}
 
 .badge-connected-catalogs {
   display: inline-flex;

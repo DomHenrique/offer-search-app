@@ -574,6 +574,14 @@ async function openSkuProductDrawer(sku, openAddCatalog = false) {
     console.log('[Inventory] Abrindo drawer para SKU:', sku);
 
     const drawerEl = document.getElementById('skuProductDrawer');
+    if (drawerEl && drawerEl.parentElement !== document.body) {
+        document.body.appendChild(drawerEl);
+    }
+    const compDrawer = document.getElementById('competitorsDrawer');
+    if (compDrawer && compDrawer.parentElement !== document.body) {
+        document.body.appendChild(compDrawer);
+    }
+
     const contentEl = document.getElementById('skuDrawerContent');
     const titleEl = document.getElementById('drawerSkuTitle');
     const codeEl = document.getElementById('drawerSkuCode');
@@ -596,6 +604,9 @@ async function openSkuProductDrawer(sku, openAddCatalog = false) {
     const offcanvasInstance = getBootstrapOffcanvas(drawerEl);
     if (offcanvasInstance) {
         offcanvasInstance.show();
+    } else if (drawerEl) {
+        drawerEl.classList.add('show');
+        drawerEl.style.visibility = 'visible';
     }
 
     try {

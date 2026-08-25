@@ -386,6 +386,11 @@ function getBootstrapOffcanvas(el) {
 function openCompetitorsDrawer(catalogId, catalogTitle, catalogImage) {
     activeDrawerCatalogId = catalogId;
 
+    const drawerEl = document.getElementById('competitorsDrawer');
+    if (drawerEl && drawerEl.parentElement !== document.body) {
+        document.body.appendChild(drawerEl);
+    }
+
     const titleEl = document.getElementById('drawerProductTitle');
     const idEl = document.getElementById('drawerCatalogId');
     const imgEl = document.getElementById('drawerProductImg');
@@ -399,10 +404,12 @@ function openCompetitorsDrawer(catalogId, catalogTitle, catalogImage) {
     }
     if (mlLink) mlLink.href = `https://www.mercadolivre.com.br/p/${catalogId}/s?`;
 
-    const drawerEl = document.getElementById('competitorsDrawer');
     const offcanvasInstance = getBootstrapOffcanvas(drawerEl);
     if (offcanvasInstance) {
         offcanvasInstance.show();
+    } else if (drawerEl) {
+        drawerEl.classList.add('show');
+        drawerEl.style.visibility = 'visible';
     }
 
     checkAndLoadSellers(catalogId, false);
