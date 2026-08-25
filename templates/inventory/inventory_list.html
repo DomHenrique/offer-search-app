@@ -117,7 +117,9 @@
                                 {% for item in inventory %}
                                 <tr class="stock-row" data-sku="{{ item.sku|lower }}" data-desc="{{ item.descricao|lower }}" data-ncm="{{ item.ncm|lower }}">
                                     <td>
-                                        <a href="javascript:void(0)" class="sku-chip text-decoration-none" onclick="openSkuProductDrawer('{{ item.sku }}')" title="Ver Ficha e Catálogos do SKU">
+                                        <a href="javascript:void(0)" class="sku-chip text-decoration-none" 
+                                           data-bs-toggle="offcanvas" data-bs-target="#skuProductDrawer"
+                                           onclick="openSkuProductDrawer('{{ item.sku }}')" title="Ver Ficha e Catálogos do SKU">
                                             {{ item.sku }}
                                         </a>
                                     </td>
@@ -155,11 +157,15 @@
                                     </td>
                                     <td>
                                         {% if item.catalogs and item.catalogs|length > 0 %}
-                                            <button type="button" class="badge-connected-catalogs" onclick="openSkuProductDrawer('{{ item.sku }}')" title="Ver {{ item.catalogs|length }} catálogos conectados">
+                                            <button type="button" class="badge-connected-catalogs" 
+                                                    data-bs-toggle="offcanvas" data-bs-target="#skuProductDrawer"
+                                                    onclick="openSkuProductDrawer('{{ item.sku }}')" title="Ver {{ item.catalogs|length }} catálogos conectados">
                                                 <i class="fas fa-link"></i> {{ item.catalogs|length }} {{ 'Conectado' if item.catalogs|length == 1 else 'Conectados' }}
                                             </button>
                                         {% else %}
-                                            <button type="button" class="badge-connect-empty" onclick="openSkuProductDrawer('{{ item.sku }}', true)" title="Conectar catálogos do Mercado Livre a este SKU">
+                                            <button type="button" class="badge-connect-empty" 
+                                                    data-bs-toggle="offcanvas" data-bs-target="#skuProductDrawer"
+                                                    onclick="openSkuProductDrawer('{{ item.sku }}', true)" title="Conectar catálogos do Mercado Livre a este SKU">
                                                 <i class="fas fa-plus"></i> Vincular
                                             </button>
                                         {% endif %}
@@ -175,7 +181,9 @@
                                     </td>
                                     <td class="text-end">
                                         <div class="d-flex align-items-center justify-content-end gap-1">
-                                            <button type="button" class="btn-action-row text-primary" onclick="openSkuProductDrawer('{{ item.sku }}')" title="Ver Detalhes do Produto">
+                                            <button type="button" class="btn-action-row text-primary" 
+                                                    data-bs-toggle="offcanvas" data-bs-target="#skuProductDrawer"
+                                                    onclick="openSkuProductDrawer('{{ item.sku }}')" title="Ver Detalhes do Produto">
                                                 <i class="fas fa-eye"></i> Detalhes
                                             </button>
                                             <a href="{{ url_for('catalog.catalog_list') }}?q={{ (item.termo_busca or item.descricao)|urlencode }}&sku={{ item.sku|urlencode }}&auto=1" 
@@ -513,6 +521,31 @@ let currentDrawerSku = null;
 let activeDrawerCatalogId = null;
 let drawerSellersPollingInterval = null;
 
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function getBootstrapOffcanvas(el) {
+    if (!el) return null;
+    try {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Offcanvas) {
+            return bootstrap.Offcanvas.getOrCreateInstance(el);
+        }
+        if (typeof window.bootstrap !== 'undefined' && window.bootstrap.Offcanvas) {
+            return window.bootstrap.Offcanvas.getOrCreateInstance(el);
+        }
+    } catch (e) {
+        console.warn('Erro ao obter instância de Offcanvas:', e);
+    }
+    return null;
+}
+
 // ─── Filtro em Tempo Real na Tabela de Estoque ─────────────────────
 function filterStockTable() {
     const query = document.getElementById('stockFilterInput').value.trim().toLowerCase();
@@ -538,6 +571,8 @@ function filterStockTable() {
 // ─── Abertura do Drawer de Detalhes do Produto / SKU ───────────────
 async function openSkuProductDrawer(sku, openAddCatalog = false) {
     currentDrawerSku = sku;
+    console.log('[Inventory] Abrindo drawer para SKU:', sku);
+
     const drawerEl = document.getElementById('skuProductDrawer');
     const contentEl = document.getElementById('skuDrawerContent');
     const titleEl = document.getElementById('drawerSkuTitle');
@@ -547,19 +582,20 @@ async function openSkuProductDrawer(sku, openAddCatalog = false) {
     const fullLinkEl = document.getElementById('drawerFullPageLink');
 
     if (codeEl) codeEl.textContent = sku;
+    if (titleEl) titleEl.textContent = 'Carregando ' + sku + '...';
     if (fullLinkEl) fullLinkEl.href = `/inventory/product/${encodeURIComponent(sku)}`;
 
     if (contentEl) {
         contentEl.innerHTML = `
             <div class="text-center py-5">
                 <div class="spinner-border text-primary spinner-border-sm mb-2" role="status"></div>
-                <div class="text-muted small">Carregando dados do produto ${sku}...</div>
+                <div class="text-muted small">Carregando dados do produto ${escapeHtml(sku)}...</div>
             </div>`;
     }
 
-    if (drawerEl && typeof bootstrap !== 'undefined') {
-        const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(drawerEl);
-        offcanvas.show();
+    const offcanvasInstance = getBootstrapOffcanvas(drawerEl);
+    if (offcanvasInstance) {
+        offcanvasInstance.show();
     }
 
     try {
@@ -580,16 +616,17 @@ async function openSkuProductDrawer(sku, openAddCatalog = false) {
                 contentEl.innerHTML = `
                     <div class="text-center py-5 text-danger">
                         <i class="fas fa-exclamation-circle fa-2x mb-2"></i>
-                        <p>${data.error || 'Erro ao carregar detalhes do SKU.'}</p>
+                        <p>${escapeHtml(data.error || 'Erro ao carregar detalhes do SKU.')}</p>
                     </div>`;
             }
         }
     } catch (err) {
+        console.error('[Inventory] Erro ao carregar SKU:', err);
         if (contentEl) {
             contentEl.innerHTML = `
                 <div class="text-center py-5 text-danger">
                     <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
-                    <p>Falha na requisição: ${err.message}</p>
+                    <p>Falha na requisição: ${escapeHtml(err.message)}</p>
                 </div>`;
         }
     }
@@ -612,39 +649,45 @@ function renderSkuProductDrawer(p, openAddCatalog = false) {
         catalogsHtml = `
             <div class="sku-catalogs-grid">
                 ${catalogs.map(cat => {
-                    const priceFormatted = cat.buybox_min_price > 0 ? `Menor: R$ ${parseFloat(cat.buybox_min_price).toFixed(2).replace('.', ',')}` : 'Preço a consultar';
+                    const priceFormatted = (cat.buybox_min_price && parseFloat(cat.buybox_min_price) > 0) 
+                        ? `Menor: R$ ${parseFloat(cat.buybox_min_price).toFixed(2).replace('.', ',')}` 
+                        : 'Preço a consultar';
                     const imgUrl = cat.catalog_image || SVG_PLACEHOLDER;
-                    const safeTitle = (cat.catalog_title || ('Catálogo ' + cat.catalog_id)).replace(/'/g, "\\'");
+                    const catTitle = cat.catalog_title || ('Catálogo ' + cat.catalog_id);
+                    const safeCatTitle = escapeHtml(catTitle);
+                    const catalogIdSafe = escapeHtml(cat.catalog_id);
 
                     return `
-                    <div class="sku-catalog-card" id="drawer-cat-${cat.catalog_id}">
+                    <div class="sku-catalog-card" id="drawer-cat-${catalogIdSafe}">
                         <div class="d-flex align-items-center gap-3 min-w-0 flex-grow-1">
                             <div class="sku-catalog-img">
-                                <img src="${imgUrl}" alt="${cat.catalog_title || cat.catalog_id}" loading="lazy"
+                                <img src="${escapeHtml(imgUrl)}" alt="${safeCatTitle}" loading="lazy"
                                      onerror="this.onerror=null; this.src='${SVG_PLACEHOLDER}';">
                             </div>
                             <div class="sku-catalog-info">
                                 <div class="d-flex align-items-center gap-2 mb-1">
-                                    <span class="catalog-chip font-tabular">${cat.catalog_id}</span>
+                                    <span class="catalog-chip font-tabular">${catalogIdSafe}</span>
                                     <span class="badge-saas badge-saas-neutral font-tabular">${cat.sellers_count || 1} Opções</span>
-                                    ${cat.buybox_min_price > 0 ? `<span class="badge-saas badge-saas-success font-tabular">${priceFormatted}</span>` : ''}
+                                    ${(cat.buybox_min_price && parseFloat(cat.buybox_min_price) > 0) ? `<span class="badge-saas badge-saas-success font-tabular">${priceFormatted}</span>` : ''}
                                 </div>
-                                <div class="sku-catalog-title" title="${cat.catalog_title || ''}">
-                                    ${cat.catalog_title || ('Catálogo ' + cat.catalog_id)}
+                                <div class="sku-catalog-title" title="${safeCatTitle}">
+                                    ${safeCatTitle}
                                 </div>
                             </div>
                         </div>
 
                         <div class="sku-catalog-actions">
-                            <button type="button" class="btn btn-sm btn-primary py-1 px-2" style="font-size:0.75rem;"
-                                    onclick="openCompetitorsDrawer('${cat.catalog_id}', '${safeTitle}', '${cat.catalog_image || ''}')"
+                            <button type="button" class="btn btn-sm btn-primary py-1 px-2 btn-open-cat-competitors" style="font-size:0.75rem;"
+                                    data-cat-id="${catalogIdSafe}"
+                                    data-cat-title="${safeCatTitle}"
+                                    data-cat-image="${escapeHtml(cat.catalog_image || '')}"
                                     title="Analisar concorrentes da BuyBox">
                                 <i class="fas fa-users me-1"></i> Concorrentes
                             </button>
-                            <a href="${cat.catalog_url || ('https://www.mercadolivre.com.br/p/' + cat.catalog_id)}" target="_blank" class="btn btn-sm btn-secondary py-1 px-2" style="font-size:0.75rem;" title="Abrir no Mercado Livre">
+                            <a href="${escapeHtml(cat.catalog_url || ('https://www.mercadolivre.com.br/p/' + cat.catalog_id))}" target="_blank" class="btn btn-sm btn-secondary py-1 px-2" style="font-size:0.75rem;" title="Abrir no Mercado Livre">
                                 <i class="fas fa-external-link-alt"></i>
                             </a>
-                            <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2" style="font-size:0.75rem;" onclick="unlinkCatalogFromDrawer('${p.sku}', '${cat.catalog_id}')" title="Desvincular deste SKU">
+                            <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2" style="font-size:0.75rem;" onclick="unlinkCatalogFromDrawer('${escapeHtml(p.sku)}', '${catalogIdSafe}')" title="Desvincular deste SKU">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
                         </div>
@@ -677,9 +720,9 @@ function renderSkuProductDrawer(p, openAddCatalog = false) {
                     <tbody>
                         ${pedidos.map(ped => `
                             <tr>
-                                <td class="fw-bold">${ped.numero_pedido}</td>
-                                <td class="text-muted">${ped.fornecedor || 'Fornecedor'}</td>
-                                <td class="text-end font-tabular fw-bold">${ped.quantidade} UN</td>
+                                <td class="fw-bold">${escapeHtml(ped.numero_pedido)}</td>
+                                <td class="text-muted">${escapeHtml(ped.fornecedor || 'Fornecedor')}</td>
+                                <td class="text-end font-tabular fw-bold">${escapeHtml(ped.quantidade)} UN</td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -695,7 +738,7 @@ function renderSkuProductDrawer(p, openAddCatalog = false) {
             <div class="col-4">
                 <div class="p-2 rounded-3 bg-white border text-center">
                     <div class="metric-label" style="font-size: 0.65rem;">Estoque Total</div>
-                    <div class="fw-bold font-tabular ${stockClass}" style="font-size: 1.1rem;">${p.quantidade_total} UN</div>
+                    <div class="fw-bold font-tabular ${stockClass}" style="font-size: 1.1rem;">${escapeHtml(p.quantidade_total)} UN</div>
                 </div>
             </div>
             <div class="col-4">
@@ -736,7 +779,7 @@ function renderSkuProductDrawer(p, openAddCatalog = false) {
                     </div>
                     <div class="col-12 d-flex justify-content-end gap-2 mt-2">
                         <button type="button" class="btn btn-xs btn-secondary" onclick="toggleDrawerAddCatalog()">Cancelar</button>
-                        <button type="button" class="btn btn-xs btn-success fw-bold" onclick="linkCatalogFromDrawer('${p.sku}')">
+                        <button type="button" class="btn btn-xs btn-success fw-bold" onclick="linkCatalogFromDrawer('${escapeHtml(p.sku)}')">
                             <i class="fas fa-check me-1"></i> Vincular Catálogo
                         </button>
                     </div>
@@ -753,6 +796,16 @@ function renderSkuProductDrawer(p, openAddCatalog = false) {
             </div>
             ${pedidosHtml}
         </div>`;
+
+    // Event listener para botões de Concorrentes dentro do Drawer
+    contentEl.querySelectorAll('.btn-open-cat-competitors').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const cId = this.getAttribute('data-cat-id');
+            const cTitle = this.getAttribute('data-cat-title');
+            const cImg = this.getAttribute('data-cat-image');
+            openCompetitorsDrawer(cId, cTitle, cImg);
+        });
+    });
 }
 
 function toggleDrawerAddCatalog() {
