@@ -437,8 +437,8 @@ ECO GR32EU1010	Gerador RIVER 3 (220V-EU) + Painel BR	8501.72.10	2 UN	3179.00"></
     <div class="offcanvas-header p-3 border-bottom bg-white">
         <div class="d-flex align-items-center gap-3 min-w-0 flex-grow-1">
             <div class="rounded-3 border p-1 bg-white d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; flex-shrink: 0;">
-                <img id="drawerSkuImg" src="" alt="SKU" style="max-width: 100%; max-height: 100%; object-fit: contain;"
-                     onerror="this.src='https://via.placeholder.com/48x48/f1f5f9/94a3b8?text=SKU'">
+                <img id="drawerSkuImg" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='1.5'%3E%3Crect width='20' height='20' x='2' y='2' rx='3'/%3E%3C/svg%3E" alt="SKU" style="max-width: 100%; max-height: 100%; object-fit: contain;"
+                     onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'48\' height=\'48\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%2394a3b8\' stroke-width=\'1.5\'%3E%3Crect width=\'20\' height=\'20\' x=\'2\' y=\'2\' rx=\'3\'/%3E%3C/svg%3E'">
             </div>
             <div class="min-w-0">
                 <div class="d-flex align-items-center gap-2 mb-1">
@@ -471,8 +471,8 @@ ECO GR32EU1010	Gerador RIVER 3 (220V-EU) + Painel BR	8501.72.10	2 UN	3179.00"></
     <div class="offcanvas-header p-3">
         <div class="drawer-product-card">
             <div class="drawer-product-img">
-                <img id="drawerProductImg" src="" alt="Produto"
-                     onerror="this.src='https://via.placeholder.com/64x64/ffffff/94a3b8?text=ML'">
+                <img id="drawerProductImg" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='1.5'%3E%3Crect width='20' height='20' x='2' y='2' rx='3'/%3E%3C/svg%3E" alt="Produto"
+                     onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'64\' height=\'64\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%2394a3b8\' stroke-width=\'1.5\'%3E%3Crect width=\'20\' height=\'20\' x=\'2\' y=\'2\' rx=\'3\'/%3E%3C/svg%3E'">
             </div>
             <div class="drawer-product-info">
                 <div class="d-flex align-items-center gap-2 mb-1">
@@ -508,6 +508,7 @@ ECO GR32EU1010	Gerador RIVER 3 (220V-EU) + Painel BR	8501.72.10	2 UN	3179.00"></
 
 {% block extra_scripts %}
 <script>
+const SVG_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='1.5'%3E%3Crect width='20' height='20' x='2' y='2' rx='3'/%3E%3C/svg%3E";
 let currentDrawerSku = null;
 let activeDrawerCatalogId = null;
 let drawerSellersPollingInterval = null;
@@ -571,7 +572,7 @@ async function openSkuProductDrawer(sku, openAddCatalog = false) {
             if (ncmEl) ncmEl.textContent = `NCM: ${p.ncm || '—'}`;
             if (imgEl) {
                 const firstImg = (p.catalogs && p.catalogs.length > 0 && p.catalogs[0].catalog_image) ? p.catalogs[0].catalog_image : '';
-                imgEl.src = firstImg || 'https://via.placeholder.com/48x48/f1f5f9/94a3b8?text=SKU';
+                imgEl.src = firstImg || SVG_PLACEHOLDER;
             }
             renderSkuProductDrawer(p, openAddCatalog);
         } else {
@@ -612,7 +613,7 @@ function renderSkuProductDrawer(p, openAddCatalog = false) {
             <div class="sku-catalogs-grid">
                 ${catalogs.map(cat => {
                     const priceFormatted = cat.buybox_min_price > 0 ? `Menor: R$ ${parseFloat(cat.buybox_min_price).toFixed(2).replace('.', ',')}` : 'Preço a consultar';
-                    const imgUrl = cat.catalog_image || 'https://via.placeholder.com/56x56/ffffff/94a3b8?text=ML';
+                    const imgUrl = cat.catalog_image || SVG_PLACEHOLDER;
                     const safeTitle = (cat.catalog_title || ('Catálogo ' + cat.catalog_id)).replace(/'/g, "\\'");
 
                     return `
@@ -620,7 +621,7 @@ function renderSkuProductDrawer(p, openAddCatalog = false) {
                         <div class="d-flex align-items-center gap-3 min-w-0 flex-grow-1">
                             <div class="sku-catalog-img">
                                 <img src="${imgUrl}" alt="${cat.catalog_title || cat.catalog_id}" loading="lazy"
-                                     onerror="this.src='https://via.placeholder.com/56x56/ffffff/94a3b8?text=ML'">
+                                     onerror="this.onerror=null; this.src='${SVG_PLACEHOLDER}';">
                             </div>
                             <div class="sku-catalog-info">
                                 <div class="d-flex align-items-center gap-2 mb-1">
@@ -830,7 +831,7 @@ function openCompetitorsDrawer(catalogId, catalogTitle, catalogImage) {
     if (titleEl) titleEl.textContent = catalogTitle || ('Catálogo ' + catalogId);
     if (idEl) idEl.textContent = catalogId;
     if (imgEl) {
-        imgEl.src = catalogImage || 'https://via.placeholder.com/64x64/ffffff/94a3b8?text=ML';
+        imgEl.src = catalogImage || SVG_PLACEHOLDER;
         imgEl.alt = catalogTitle || catalogId;
     }
     if (mlLink) mlLink.href = `https://www.mercadolivre.com.br/p/${catalogId}/s?`;
