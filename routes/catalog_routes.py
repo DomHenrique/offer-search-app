@@ -42,11 +42,14 @@ def catalog_list():
     # 3. Mapeamento de SKUs vinculados
     sku_links = db_manager.get_sku_catalogs(user_id)
     catalog_to_sku = {}
+    audit_by_catalog = {}
     for link in sku_links:
         c_id = str(link.get('catalog_id') or '').strip().upper()
         s_code = str(link.get('sku') or '').strip().upper()
         if c_id and s_code:
             catalog_to_sku[c_id] = s_code
+        if c_id and link.get('match_score') is not None:
+            audit_by_catalog[c_id] = link
 
     # 4. Busca os menores preços coletados para todos os catálogos
     catalog_ids = [str(cat.get('catalog_id') or '').strip().upper() for cat in saved_catalogs if cat.get('catalog_id')]
@@ -67,6 +70,19 @@ def catalog_list():
         cat['competitor_price'] = competitor_price
         cat['buybox_winner'] = buybox_winner
         cat['frete_full'] = price_data.get('frete_full', False)
+
+        # Anexa auditoria da IA salva para o catálogo se houver
+        if c_id in audit_by_catalog:
+            link_item = audit_by_catalog[c_id]
+            m_score = int(link_item.get('match_score') or 0)
+            cat['ai_audit'] = {
+                'score': m_score,
+                'verdict': link_item.get('match_verdict') or 'EXACT_MATCH',
+                'badge_label': f"Match {m_score}%",
+                'badge_color': 'success' if m_score >= 90 else ('warning' if m_score >= 65 else 'danger'),
+                'explanation': link_item.get('ai_explanation') or '',
+                'specs_breakdown': link_item.get('audit_details') or {}
+            }
         
         # Identifica se este catálogo está vinculado a um SKU diretamente ou pelo termo
         linked_sku = catalog_to_sku.get(c_id)
@@ -322,8 +338,20 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
         # Filtro estrito final de garantia
         catalogs = [c for c in catalogs if float(c.get('preco') or 0.0) > 0]
 
+        # Executa auditoria do LangGraph para o SKU de origem se informado
+        if origin_sku and catalogs:
+            catalog_search_status[search_id].update({
+                'progress': 75,
+                'message': f'Auditando {len(catalogs)} catálogos com IA...'
+            })
+            try:
+                from services.ai_matcher.offer_auditor import audit_offers_batch
+                catalogs = audit_offers_batch(user_id, origin_sku, catalogs, db_manager)
+            except Exception as e_audit:
+                print(f"Aviso ao rodar auditoria da IA nos catálogos: {e_audit}")
+
         catalog_search_status[search_id].update({
-            'progress': 70,
+            'progress': 85,
             'message': f'Salvando {len(catalogs)} catálogos...'
         })
 
@@ -343,8 +371,9 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
                 'user_id': user_id,
             })
 
-            # Se houver SKU de origem, realiza o vínculo automático em sku_catalogs
+            # Se houver SKU de origem, realiza o vínculo em sku_catalogs com dados de auditoria
             if origin_sku:
+                audit = cat.get('ai_audit') or {}
                 try:
                     db_manager.link_catalog_to_sku(
                         user_id=user_id,
@@ -354,6 +383,8 @@ def _search_catalogs_thread(search_id: str, user_id: str, search_term: str, n_pa
                         catalog_image=cat.get('imagem', '')
                     )
                     existing_links[cid] = origin_sku
+                    if audit:
+                        db_manager.update_sku_catalog_audit(user_id, origin_sku, cid, audit)
                 except Exception as e_link:
                     print(f"Aviso ao auto-vincular catálogo {cid} ao SKU {origin_sku}: {e_link}")
 
@@ -714,5 +745,41 @@ def api_catalog_sellers(catalog_id):
         'total_sellers': len(sellers or []),
         'min_price': min_price,
         'winner_name': winner_name
+    })
+
+
+@catalog_bp.route('/api/audit-candidate', methods=['POST'])
+def audit_candidate_api():
+    """Executa a auditoria sob demanda para um catálogo/oferta em relação a um SKU"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Não autenticado'}), 401
+    
+    data = request.get_json(force=True, silent=True) or {}
+    sku = str(data.get('sku') or '').strip().upper()
+    catalog_item = data.get('catalog') or {}
+    catalog_id = str(data.get('catalog_id') or catalog_item.get('catalog_id') or '').strip().upper()
+
+    if not sku:
+        return jsonify({'success': False, 'error': 'SKU não informado'}), 400
+
+    from services.ai_matcher.offer_auditor import audit_single_candidate
+    from services.ai_matcher.dossier_builder import build_and_save_sku_dossier
+    from services.ai_provider import get_active_user_ai_model
+
+    dossier = db_manager.get_sku_knowledge(session['user_id'], sku)
+    if not dossier:
+        dossier = build_and_save_sku_dossier(session['user_id'], sku, db_manager)
+
+    chat_model, _, _ = get_active_user_ai_model(session['user_id'], db_manager)
+    audit = audit_single_candidate(session['user_id'], sku, catalog_item, dossier, chat_model=chat_model)
+
+    if catalog_id:
+        db_manager.update_sku_catalog_audit(session['user_id'], sku, catalog_id, audit)
+
+    return jsonify({
+        'success': True,
+        'sku': sku,
+        'catalog_id': catalog_id,
+        'audit': audit
     })
 

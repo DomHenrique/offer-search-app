@@ -580,6 +580,40 @@ class DatabaseManager:
             print(f"Erro ao atualizar configuração: {e}")
             return False
 
+    def set_user_config(self, user_id: str, chave: str, valor: Any, descricao: str = "", tipo: str = "text") -> bool:
+        """Salva ou atualiza uma configuração usando upsert resiliente"""
+        try:
+            payload = {
+                "user_id": user_id,
+                "chave": chave,
+                "valor": str(valor) if not isinstance(valor, (dict, list)) else json.dumps(valor),
+                "descricao": descricao,
+                "tipo": tipo
+            }
+            res = self.supabase.table("configuracoes").upsert(payload, on_conflict="user_id,chave").execute()
+            if res.data:
+                return True
+        except Exception:
+            pass
+
+        try:
+            exists = self.supabase.table("configuracoes").select("id").eq("user_id", user_id).eq("chave", chave).execute()
+            val_str = str(valor) if not isinstance(valor, (dict, list)) else json.dumps(valor)
+            if exists.data:
+                self.supabase.table("configuracoes").update({"valor": val_str}).eq("user_id", user_id).eq("chave", chave).execute()
+            else:
+                self.supabase.table("configuracoes").insert({
+                    "user_id": user_id,
+                    "chave": chave,
+                    "valor": val_str,
+                    "descricao": descricao,
+                    "tipo": tipo
+                }).execute()
+            return True
+        except Exception as e:
+            print(f"Erro ao persistir configuracao {chave}: {e}")
+            return False
+
     def get_notification_settings(self, user_id: str) -> Optional[Dict]:
         """Busca as configurações de notificação do usuário"""
         try:
@@ -1494,6 +1528,8 @@ class DatabaseManager:
         all_inventory = self.get_consolidated_inventory(user_id)
         for item in all_inventory:
             if item.get("sku") == sku_clean:
+                item["knowledge"] = self.get_sku_knowledge(user_id, sku_clean)
+                item["reference_listings"] = self.get_sku_reference_listings(user_id, sku_clean)
                 return item
         return None
 
@@ -1709,6 +1745,143 @@ class DatabaseManager:
                 'total_buscas': 0, 'sucesso_count': 0, 'empty_count': 0,
                 'error_count': 0, 'recovered_count': 0, 'taxa_sucesso': 100.0, 'tempo_medio': 0.0
             }
+
+    # ─── Base de Conhecimento do Produto (Dossiê Canônico) e Anúncios de Referência ──
+
+    def get_sku_knowledge(self, user_id: str, sku: str) -> Optional[Dict]:
+        """
+        Retorna o Dossiê Canônico de Verdade de um SKU.
+        """
+        try:
+            user_uuid = self._get_user_uuid(user_id)
+            sku_clean = str(sku or "").strip().upper()
+            res = (self.supabase.table("sku_knowledge_base")
+                   .select("*")
+                   .eq("user_id", user_uuid)
+                   .eq("sku", sku_clean)
+                   .limit(1)
+                   .execute())
+            if res.data:
+                return res.data[0]
+            return None
+        except Exception as e:
+            print(f"Erro ao consultar sku_knowledge_base: {e}")
+            return None
+
+    def save_sku_knowledge(self, user_id: str, sku: str, data: Dict) -> Dict:
+        """
+        Salva ou atualiza o Dossiê Canônico de Verdade de um SKU.
+        """
+        try:
+            user_uuid = self._get_user_uuid(user_id)
+            sku_clean = str(sku or "").strip().upper()
+            payload = {
+                "user_id": user_uuid,
+                "sku": sku_clean,
+                "brand": str(data.get("brand") or "").strip(),
+                "model": str(data.get("model") or "").strip(),
+                "gtin_ean": str(data.get("gtin_ean") or "").strip(),
+                "canonical_title": str(data.get("canonical_title") or "").strip(),
+                "specs": data.get("specs") or {},
+                "negative_terms": data.get("negative_terms") or [],
+                "price_sanity_min": float(data.get("price_sanity_min") or 0.0),
+                "price_sanity_max": float(data.get("price_sanity_max") or 0.0),
+                "ai_summary": str(data.get("ai_summary") or "").strip(),
+                "updated_at": "now()"
+            }
+            res = self.supabase.table("sku_knowledge_base").upsert(payload, on_conflict="user_id,sku").execute()
+            if res.data:
+                return res.data[0]
+            return payload
+        except Exception as e:
+            print(f"Erro ao salvar sku_knowledge_base: {e}")
+            return {}
+
+    def get_sku_reference_listings(self, user_id: str, sku: str) -> List[Dict]:
+        """
+        Retorna a lista de anúncios ativos de referência (loja própria e externos) vinculados ao SKU.
+        """
+        try:
+            user_uuid = self._get_user_uuid(user_id)
+            sku_clean = str(sku or "").strip().upper()
+            res = (self.supabase.table("sku_reference_listings")
+                   .select("*")
+                   .eq("user_id", user_uuid)
+                   .eq("sku", sku_clean)
+                   .order("created_at", desc=True)
+                   .execute())
+            return res.data or []
+        except Exception as e:
+            print(f"Erro ao consultar sku_reference_listings: {e}")
+            return []
+
+    def add_sku_reference_listing(self, user_id: str, sku: str, listing_data: Dict) -> Dict:
+        """
+        Cadastra um novo anúncio de referência ativo para o SKU.
+        """
+        try:
+            user_uuid = self._get_user_uuid(user_id)
+            sku_clean = str(sku or "").strip().upper()
+            payload = {
+                "user_id": user_uuid,
+                "sku": sku_clean,
+                "marketplace": listing_data.get("marketplace") or "MercadoLivre",
+                "listing_id": str(listing_data.get("listing_id") or "").strip(),
+                "listing_url": str(listing_data.get("listing_url") or "").strip(),
+                "title": str(listing_data.get("title") or "").strip(),
+                "price": float(listing_data.get("price") or 0.0),
+                "image_url": str(listing_data.get("image_url") or "").strip(),
+                "gtin": str(listing_data.get("gtin") or "").strip(),
+                "raw_attributes": listing_data.get("raw_attributes") or {},
+                "is_own_store": bool(listing_data.get("is_own_store", True)),
+                "status": listing_data.get("status") or "active"
+            }
+            res = self.supabase.table("sku_reference_listings").insert(payload).execute()
+            if res.data:
+                return res.data[0]
+            return payload
+        except Exception as e:
+            print(f"Erro ao inserir sku_reference_listings: {e}")
+            return {}
+
+    def delete_sku_reference_listing(self, user_id: str, sku: str, listing_id: str) -> bool:
+        """
+        Remove um anúncio de referência do SKU.
+        """
+        try:
+            user_uuid = self._get_user_uuid(user_id)
+            sku_clean = str(sku or "").strip().upper()
+            query = self.supabase.table("sku_reference_listings").delete().eq("user_id", user_uuid).eq("sku", sku_clean)
+            if str(listing_id).isdigit():
+                query = query.eq("id", int(listing_id))
+            else:
+                query = query.eq("listing_id", str(listing_id).strip())
+            query.execute()
+            return True
+        except Exception as e:
+            print(f"Erro ao deletar sku_reference_listing: {e}")
+            return False
+
+    def update_sku_catalog_audit(self, user_id: str, sku: str, catalog_id: str, audit_data: Dict) -> bool:
+        """
+        Salva o resultado da auditoria de IA para um catálogo vinculado ou candidato ao SKU.
+        """
+        try:
+            user_uuid = self._get_user_uuid(user_id)
+            sku_clean = str(sku or "").strip().upper()
+            cid_clean = str(catalog_id or "").strip().upper()
+            payload = {
+                "match_score": int(audit_data.get("score") or 0),
+                "match_verdict": audit_data.get("verdict") or "UNKNOWN",
+                "ai_explanation": audit_data.get("explanation") or "",
+                "audit_details": audit_data.get("specs_breakdown") or {},
+                "audited_at": "now()"
+            }
+            self.supabase.table("sku_catalogs").update(payload).eq("user_id", user_uuid).eq("sku", sku_clean).eq("catalog_id", cid_clean).execute()
+            return True
+        except Exception as e:
+            print(f"Aviso ao atualizar auditoria em sku_catalogs: {e}")
+            return False
 
 
 

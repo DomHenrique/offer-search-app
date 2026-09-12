@@ -47,6 +47,12 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="ai-tab" data-bs-toggle="tab" 
+                            data-bs-target="#ai" type="button" role="tab" aria-selected="false" aria-controls="ai">
+                        <i class="fas fa-brain text-info"></i> Inteligência Artificial & Agentes
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="environment-tab" data-bs-toggle="tab" 
                             data-bs-target="#environment" type="button" role="tab" aria-selected="false" aria-controls="environment">
                         <i class="fas fa-server"></i> Variáveis de Ambiente
@@ -385,6 +391,171 @@
                                         A busca na Amazon opera via API REST estruturada da SerpAPI com suporte a sincronização via extensão.
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aba Inteligência Artificial & Agentes LangGraph -->
+                <div class="tab-pane fade" id="ai" role="tabpanel">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+                        <div>
+                            <h5 class="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
+                                <i class="fas fa-brain text-info"></i> Inteligência Artificial & Agentes LangGraph
+                                {% if ai_settings.has_key %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle font-tabular" style="font-size: 0.75rem;">
+                                        <i class="fas fa-check-circle me-1"></i>IA Ativa ({{ ai_settings.provider|title }})
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle font-tabular" style="font-size: 0.75rem;">
+                                        <i class="fas fa-shield-alt me-1"></i>Modo Heurístico Ativo
+                                    </span>
+                                {% endif %}
+                            </h5>
+                            <p class="text-muted small mb-0">
+                                Configure o provedor de IA para auditar ofertas com precisão cirúrgica e consolidar o Dossiê Canônico de Verdade de cada produto.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <!-- Coluna Formulário de Configuração -->
+                        <div class="col-lg-7">
+                            <div class="card border-0 shadow-sm rounded-3">
+                                <div class="card-header bg-white py-3 border-bottom">
+                                    <h6 class="fw-bold text-dark mb-0">
+                                        <i class="fas fa-sliders-h text-primary me-2"></i> Provedor & Modelo de Execução
+                                    </h6>
+                                </div>
+                                <div class="card-body p-4">
+                                    <!-- Seleção de Provedor -->
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-bold text-dark mb-1">Provedor de Inteligência Artificial:</label>
+                                        <select class="form-select" id="aiProviderSelect" onchange="onAiProviderChange()">
+                                            {% for prov in ai_settings.supported_providers %}
+                                                <option value="{{ prov.id }}" {% if ai_settings.provider == prov.id %}selected{% endif %}>
+                                                    {{ prov.name }} — {{ prov.description }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
+                                    <!-- Chave da API -->
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-bold text-dark mb-1">
+                                            Chave da API (<span id="apiKeyEnvLabel">{{ ai_settings.provider|upper }}_API_KEY</span>):
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="aiApiKeyInput" 
+                                                   placeholder="Cole sua API Key aqui..." 
+                                                   value="{{ ai_settings.api_key }}">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="toggleAiKeyVisibility()" title="Mostrar/Ocultar Chave">
+                                                <i class="fas fa-eye" id="aiKeyEyeIcon"></i>
+                                            </button>
+                                            <button class="btn btn-primary" type="button" id="btnFetchAiModels" onclick="fetchAiModels()">
+                                                <i class="fas fa-sync-alt me-1" id="fetchModelsIcon"></i> Conectar & Puxar Modelos
+                                            </button>
+                                        </div>
+                                        <small class="text-muted d-block mt-1" id="aiProviderHint">
+                                            A chave é salva de forma segura e usada exclusivamente para as tarefas dos agentes.
+                                        </small>
+                                    </div>
+
+                                    <!-- Alerta Dinâmico de Teste de Modelos -->
+                                    <div id="aiModelAlertBox" style="display: none;" class="alert alert-info py-2 px-3 small mb-3">
+                                        <span id="aiModelAlertText">Buscando modelos disponíveis...</span>
+                                    </div>
+
+                                    <!-- Seleção de Modelo -->
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-bold text-dark mb-1">
+                                            Modelo Ativo para os Agentes:
+                                        </label>
+                                        <select class="form-select" id="aiModelSelect">
+                                            <option value="{{ ai_settings.model }}" selected>
+                                                {{ ai_settings.model }} (Atual)
+                                            </option>
+                                        </select>
+                                        <small class="text-muted d-block mt-1">
+                                            Clique em "Conectar & Puxar Modelos" para listar todos os modelos suportados da sua conta.
+                                        </small>
+                                    </div>
+
+                                    <!-- Temperatura -->
+                                    <div class="mb-4">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <label class="form-label small fw-bold text-dark mb-0">Temperatura de Raciocínio:</label>
+                                            <span class="badge bg-light text-dark font-tabular border" id="aiTempBadge">{{ ai_settings.temperature }}</span>
+                                        </div>
+                                        <input type="range" class="form-range" min="0.0" max="1.0" step="0.05" id="aiTempInput" 
+                                               value="{{ ai_settings.temperature }}" 
+                                               oninput="document.getElementById('aiTempBadge').textContent = this.value">
+                                        <div class="d-flex justify-content-between text-muted" style="font-size: 0.72rem;">
+                                            <span>0.0 (Máxima Precisão Rígida)</span>
+                                            <span>0.5 (Equilibrado)</span>
+                                            <span>1.0 (Mais Criativo)</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex justify-content-end">
+                                        <button type="button" class="btn btn-success px-4" id="btnSaveAiSettings" onclick="saveAiSettings()">
+                                            <i class="fas fa-check me-1"></i> Salvar Configurações de IA
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Coluna Explicativa de Arquitetura LangGraph -->
+                        <div class="col-lg-5">
+                            <div class="card border-0 shadow-sm rounded-3 bg-light mb-3">
+                                <div class="card-body p-4">
+                                    <h6 class="fw-bold text-dark mb-3 d-flex align-items-center">
+                                        <i class="fas fa-project-diagram text-info me-2"></i>
+                                        Como os Agentes Atuam no Fluxo
+                                    </h6>
+
+                                    <div class="d-flex align-items-start gap-3 mb-3">
+                                        <div class="rounded-circle bg-white border p-2 text-center" style="width: 36px; height: 36px; flex-shrink: 0;">
+                                            <i class="fas fa-shield-alt text-primary" style="font-size: 0.9rem;"></i>
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold text-dark small">1. Guardião Heurístico (Custo Zero)</div>
+                                            <div class="text-muted" style="font-size: 0.78rem;">
+                                                Elimina 80% de acessórios e ofertas absurdas antes de acionar tokens de IA.
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex align-items-start gap-3 mb-3">
+                                        <div class="rounded-circle bg-white border p-2 text-center" style="width: 36px; height: 36px; flex-shrink: 0;">
+                                            <i class="fas fa-microchip text-success" style="font-size: 0.9rem;"></i>
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold text-dark small">2. Agente Auditor de Correspondência</div>
+                                            <div class="text-muted" style="font-size: 0.78rem;">
+                                                Confronta o candidato contra o Dossiê do SKU, atribuindo score (0-100%) e justificativa transparente.
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex align-items-start gap-3">
+                                        <div class="rounded-circle bg-white border p-2 text-center" style="width: 36px; height: 36px; flex-shrink: 0;">
+                                            <i class="fas fa-book text-warning" style="font-size: 0.9rem;"></i>
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold text-dark small">3. Agente Curador de Dossiê</div>
+                                            <div class="text-muted" style="font-size: 0.78rem;">
+                                                Lê os anúncios ativos salvos e sintetiza a ficha canônica à prova de falhas para o seu estoque.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-info py-3 px-3 small border">
+                                <i class="fas fa-lightbulb text-warning me-1"></i>
+                                <strong>Dica Pro:</strong> Recomendamos <strong>Google Gemini (2.0 Flash)</strong> ou <strong>Groq (Llama 3.3)</strong> para resposta com latência inferior a 500ms e custo desprezível.
                             </div>
                         </div>
                     </div>
@@ -1241,5 +1412,132 @@ document.addEventListener('DOMContentLoaded', function() {
         showAlert('danger', '❌ Falha ao autorizar no Mercado Livre: ' + urlParams.get('meli_error'));
     }
 });
+
+// ─── Lógica da Aba de Inteligência Artificial & Agentes ────────────────────────
+
+function onAiProviderChange() {
+    const prov = document.getElementById('aiProviderSelect').value;
+    const label = document.getElementById('apiKeyEnvLabel');
+    if (label) label.textContent = (prov || 'AI').toUpperCase() + '_API_KEY';
+}
+
+function toggleAiKeyVisibility() {
+    const input = document.getElementById('aiApiKeyInput');
+    const icon = document.getElementById('aiKeyEyeIcon');
+    if (!input) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        if (icon) { icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash'); }
+    } else {
+        input.type = 'password';
+        if (icon) { icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); }
+    }
+}
+
+async function fetchAiModels() {
+    const provider = document.getElementById('aiProviderSelect').value;
+    const apiKey = (document.getElementById('aiApiKeyInput').value || '').trim();
+    const btn = document.getElementById('btnFetchAiModels');
+    const icon = document.getElementById('fetchModelsIcon');
+    const alertBox = document.getElementById('aiModelAlertBox');
+    const alertText = document.getElementById('aiModelAlertText');
+    const modelSelect = document.getElementById('aiModelSelect');
+
+    if (!apiKey) {
+        alert('Por favor, informe a Chave da API antes de buscar os modelos.');
+        return;
+    }
+
+    if (icon) icon.classList.add('fa-spin');
+    if (btn) btn.disabled = true;
+    if (alertBox) {
+        alertBox.style.display = 'block';
+        alertBox.className = 'alert alert-info py-2 px-3 small mb-3';
+        alertText.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Conectando à API de ' + provider.toUpperCase() + ' e buscando modelos...';
+    }
+
+    try {
+        const res = await fetch('/api/settings/ai/test-and-fetch-models', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({provider: provider, api_key: apiKey})
+        });
+        const data = await res.json();
+
+        if (data.success && data.models && data.models.length > 0) {
+            alertBox.className = 'alert alert-success py-2 px-3 small mb-3';
+            alertText.innerHTML = `<i class="fas fa-check-circle me-1"></i> Conexão bem-sucedida! <strong>${data.models.length} modelos</strong> encontrados e disponíveis para seleção.`;
+            
+            const currentSelected = modelSelect.value;
+            modelSelect.innerHTML = '';
+            data.models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.textContent = m.name || m.id;
+                if (m.id === currentSelected) opt.selected = true;
+                modelSelect.appendChild(opt);
+            });
+            if (!modelSelect.value && modelSelect.options.length > 0) {
+                modelSelect.selectedIndex = 0;
+            }
+        } else {
+            alertBox.className = 'alert alert-danger py-2 px-3 small mb-3';
+            alertText.innerHTML = `<i class="fas fa-exclamation-triangle me-1"></i> Falha ao buscar modelos: ${data.error || 'Erro desconhecido'}`;
+        }
+    } catch (err) {
+        if (alertBox) {
+            alertBox.className = 'alert alert-danger py-2 px-3 small mb-3';
+            alertText.innerHTML = `<i class="fas fa-exclamation-circle me-1"></i> Erro de rede: ${err.message}`;
+        }
+    } finally {
+        if (icon) icon.classList.remove('fa-spin');
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function saveAiSettings() {
+    const provider = document.getElementById('aiProviderSelect').value;
+    const apiKey = (document.getElementById('aiApiKeyInput').value || '').trim();
+    const model = document.getElementById('aiModelSelect').value;
+    const temperature = parseFloat(document.getElementById('aiTempInput').value || '0.1');
+    const btn = document.getElementById('btnSaveAiSettings');
+
+    if (!model) {
+        alert('Selecione um modelo de IA antes de salvar.');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Salvando...';
+    }
+
+    try {
+        const res = await fetch('/api/settings/ai/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                provider: provider,
+                api_key: apiKey,
+                model: model,
+                temperature: temperature
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showAlert('success', '🎉 ' + (data.message || 'Configurações de IA salvas com sucesso!'));
+            setTimeout(() => window.location.reload(), 1200);
+        } else {
+            showAlert('danger', 'Erro ao salvar: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (err) {
+        showAlert('danger', 'Erro na requisição: ' + err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check me-1"></i> Salvar Configurações de IA';
+        }
+    }
+}
 </script>
 {% endblock %}

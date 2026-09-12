@@ -111,6 +111,187 @@
         </div>
     </div>
 
+    <!-- Seção de Conhecimento do Produto: Dossiê Canônico de Verdade & Anúncios de Referência -->
+    <div class="table-saas-card mb-4 border border-primary-subtle shadow-sm">
+        <div class="p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3 bg-white rounded-top">
+            <div>
+                <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
+                    <i class="fas fa-brain text-primary me-2"></i>
+                    Dossiê Canônico de Verdade & Anúncios de Referência
+                    {% if product.knowledge %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle ms-2 font-tabular" style="font-size: 0.72rem;">
+                            <i class="fas fa-check-double me-1"></i>Dossiê Ativo
+                        </span>
+                    {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary border ms-2 font-tabular" style="font-size: 0.72rem;">
+                            Dossiê Inicial
+                        </span>
+                    {% endif %}
+                </h6>
+                <small class="text-muted">Conhecimento canônico à prova de falhas para guiar os agentes de IA na auditoria de ofertas e catálogos.</small>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="resynthesizeSkuDossier('{{ product.sku }}')" id="btnResynthesizeDossier" title="Recalcular Dossiê Canônico com IA">
+                    <i class="fas fa-robot me-1" id="iconResynthesize"></i> Reanalisar com IA
+                </button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="openAddReferenceModal()">
+                    <i class="fas fa-plus me-1"></i> Adicionar Anúncio de Referência
+                </button>
+            </div>
+        </div>
+
+        <div class="p-4 bg-white">
+            <div class="row g-4">
+                <!-- Coluna 1: Ficha Técnica Canônica Sintetizada -->
+                <div class="col-lg-6">
+                    <div class="p-3 rounded-3 bg-light border h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="text-uppercase fw-bold text-secondary fs-7">
+                                <i class="fas fa-fingerprint text-primary me-1"></i> Atributos Rígidos de Identidade
+                            </span>
+                            <span class="badge bg-white text-dark border font-tabular small">
+                                SKU: {{ product.sku }}
+                            </span>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <small class="text-muted d-block">Marca:</small>
+                                <span class="fw-bold text-dark fs-6">{{ product.knowledge.brand if product.knowledge and product.knowledge.brand else 'Detectando...' }}</span>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">EAN / GTIN Oficial:</small>
+                                <span class="font-tabular fw-bold text-dark">{{ product.knowledge.gtin_ean if product.knowledge and product.knowledge.gtin_ean else '—' }}</span>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Voltagem:</small>
+                                <span class="badge bg-indigo-subtle text-primary border border-primary-subtle fw-bold">
+                                    {{ product.knowledge.specs.voltage if product.knowledge and product.knowledge.specs and product.knowledge.specs.voltage else (product.knowledge.voltage or 'Bivolt / Não especificada') }}
+                                </span>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Capacidade / Potência:</small>
+                                <span class="fw-bold text-dark">
+                                    {{ product.knowledge.capacity_or_power if product.knowledge and product.knowledge.capacity_or_power else '—' }}
+                                </span>
+                            </div>
+                            <div class="col-12">
+                                <small class="text-muted d-block">Faixa de Sanidade de Preço (Anti-Outlier):</small>
+                                <span class="fw-bold text-success font-tabular">
+                                    {% if product.knowledge and product.knowledge.price_sanity_min %}
+                                        R$ {{ "%.2f"|format(product.knowledge.price_sanity_min)|replace('.', ',') }} até R$ {{ "%.2f"|format(product.knowledge.price_sanity_max)|replace('.', ',') }}
+                                    {% else %}
+                                        Calculada automaticamente pela IA
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Termos Proibidos (Anti-Acessórios) -->
+                        <div class="mb-3">
+                            <small class="text-muted d-block mb-1">
+                                <i class="fas fa-ban text-danger me-1"></i> Lista Negra de Termos Proibidos (Anti-Acessórios):
+                            </small>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% if product.knowledge and product.knowledge.negative_terms %}
+                                    {% for term in product.knowledge.negative_terms %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 0.72rem;">{{ term }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">capa</span>
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">bolsa</span>
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">cabo</span>
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">suporte</span>
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">mochila</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if product.knowledge and product.knowledge.ai_summary %}
+                        <div class="p-2 bg-white rounded border small text-muted">
+                            <i class="fas fa-quote-left text-primary opacity-50 me-1"></i>
+                            {{ product.knowledge.ai_summary }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Coluna 2: Anúncios Ativos Salvos (Nossa Loja & Referência) -->
+                <div class="col-lg-6">
+                    <div class="p-3 rounded-3 bg-light border h-100 d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="text-uppercase fw-bold text-secondary fs-7">
+                                <i class="fas fa-store text-success me-1"></i> Anúncios Ativos Conectados
+                            </span>
+                            <span class="badge bg-secondary font-tabular" id="referenceListingsCount">
+                                {{ product.reference_listings|length if product.reference_listings else 0 }} Referência(s)
+                            </span>
+                        </div>
+
+                        <div class="flex-grow-1 overflow-auto" style="max-height: 280px;" id="referenceListingsContainer">
+                            {% if product.reference_listings and product.reference_listings|length > 0 %}
+                                <div class="d-flex flex-column gap-2">
+                                    {% for ref in product.reference_listings %}
+                                    <div class="p-2 bg-white rounded border d-flex align-items-center justify-content-between gap-2" id="ref-card-{{ ref.id or ref.listing_id }}">
+                                        <div class="d-flex align-items-center gap-2 min-w-0">
+                                            <div class="rounded border bg-light d-flex align-items-center justify-content-center" style="width: 44px; height: 44px; flex-shrink: 0; overflow: hidden;">
+                                                {% if ref.image_url %}
+                                                    <img src="{{ ref.image_url }}" alt="Ref" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                                                {% else %}
+                                                    <i class="fas fa-link text-muted"></i>
+                                                {% endif %}
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="d-flex align-items-center gap-1 mb-1">
+                                                    {% if ref.marketplace == 'MercadoLivre' %}
+                                                        <span class="badge bg-warning-subtle text-dark border border-warning-subtle" style="font-size: 0.65rem;">Mercado Livre</span>
+                                                    {% elif ref.marketplace == 'Amazon' %}
+                                                        <span class="badge bg-orange-subtle text-dark border" style="font-size: 0.65rem;">Amazon</span>
+                                                    {% else %}
+                                                        <span class="badge bg-light text-dark border" style="font-size: 0.65rem;">{{ ref.marketplace }}</span>
+                                                    {% endif %}
+
+                                                    {% if ref.is_own_store %}
+                                                        <span class="badge bg-success text-white" style="font-size: 0.6rem;">Nossa Loja</span>
+                                                    {% endif %}
+                                                    
+                                                    {% if ref.price and ref.price > 0 %}
+                                                        <span class="fw-bold font-tabular text-success small ms-1">R$ {{ "%.2f"|format(ref.price)|replace('.', ',') }}</span>
+                                                    {% endif %}
+                                                </div>
+                                                <div class="text-truncate small fw-semibold text-dark" title="{{ ref.title }}">
+                                                    {{ ref.title or ref.listing_url }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                                            <a href="{{ ref.listing_url }}" target="_blank" class="btn btn-xs btn-outline-secondary px-2" title="Abrir anúncio">
+                                                <i class="fas fa-external-link-alt"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-xs btn-outline-danger px-2" onclick="deleteReferenceListing('{{ product.sku }}', '{{ ref.id or ref.listing_id }}')" title="Remover referência">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4 text-muted my-auto">
+                                    <i class="fas fa-link-slash fa-2x mb-2 opacity-50"></i>
+                                    <div class="small fw-bold">Nenhum anúncio ativo cadastrado</div>
+                                    <div style="font-size: 0.75rem;">Adicione os links dos anúncios da sua própria loja para treinar o Dossiê Canônico.</div>
+                                    <button type="button" class="btn btn-xs btn-primary mt-2" onclick="openAddReferenceModal()">
+                                        <i class="fas fa-plus me-1"></i> Cadastrar Anúncio da Loja
+                                    </button>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Seção de Catálogos do Mercado Livre Conectados -->
     <div class="table-saas-card mb-4">
         <div class="p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3 bg-white">
@@ -290,6 +471,58 @@
 
     <div class="offcanvas-body p-4" id="drawerBody">
         <div id="drawerDynamicContent"></div>
+    </div>
+</div>
+
+<!-- Modal: Adicionar Anúncio de Referência -->
+<div class="modal fade" id="addReferenceListingModal" tabindex="-1" aria-labelledby="addReferenceListingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light border-bottom">
+                <h6 class="modal-title fw-bold text-dark d-flex align-items-center" id="addReferenceListingModalLabel">
+                    <i class="fas fa-link text-primary me-2"></i>
+                    Conectar Anúncio de Referência ao SKU
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-primary border-0 bg-primary-subtle text-primary p-2 mb-3 rounded-2 small d-flex align-items-start gap-2">
+                    <i class="fas fa-info-circle mt-1"></i>
+                    <div>
+                        O anúncio conectado será lido pelo extrator para enriquecer o <strong>Dossiê Canônico</strong> do produto (EAN, voltagem, marca, atributos e termos negativos contra acessórios).
+                    </div>
+                </div>
+
+                <form id="formAddReferenceListing" onsubmit="event.preventDefault(); saveReferenceListing('{{ product.sku }}');">
+                    <div class="mb-3">
+                        <label for="refListingUrlOrId" class="form-label small fw-bold text-dark">
+                            Link do Anúncio ou ID (Mercado Livre ou Amazon) <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="refListingUrlOrId" placeholder="Ex: https://produto.mercadolivre.com.br/MLB-123456 ou MLB12345678" required>
+                        <div class="form-text small">Cole a URL completa ou o código MLB / ASIN do anúncio.</div>
+                    </div>
+
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="refListingIsOwnStore" checked>
+                        <label class="form-check-label small fw-semibold text-dark" for="refListingIsOwnStore">
+                            Este anúncio é da nossa própria loja ativa
+                        </label>
+                    </div>
+                    <small class="text-muted d-block ps-4 mb-3" style="font-size: 0.75rem;">
+                        Anúncios da própria loja têm peso máximo no Dossiê de Verdade.
+                    </small>
+
+                    <div id="addRefAlertError" class="alert alert-danger py-2 small d-none"></div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-sm btn-primary" id="btnSaveRefListing">
+                            <i class="fas fa-check me-1"></i> Salvar e Enriquecer Dossiê
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -674,6 +907,129 @@ function showToast(msg) {
         msgEl.textContent = msg;
         toast.classList.add('show');
         setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+}
+
+// ─── Funções de Gestão de Conhecimento e Dossiê Canônico ───
+
+function openAddReferenceModal() {
+    const modalEl = document.getElementById('addReferenceListingModal');
+    if (!modalEl) return;
+    const inputUrl = document.getElementById('refListingUrlOrId');
+    if (inputUrl) inputUrl.value = '';
+    const alertErr = document.getElementById('addRefAlertError');
+    if (alertErr) {
+        alertErr.classList.add('d-none');
+        alertErr.textContent = '';
+    }
+    const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    bsModal.show();
+}
+
+async function saveReferenceListing(sku) {
+    const inputUrl = document.getElementById('refListingUrlOrId');
+    const chkOwn = document.getElementById('refListingIsOwnStore');
+    const btn = document.getElementById('btnSaveRefListing');
+    const alertErr = document.getElementById('addRefAlertError');
+
+    const urlOrId = inputUrl ? inputUrl.value.trim() : '';
+    const isOwn = chkOwn ? chkOwn.checked : true;
+
+    if (!urlOrId) {
+        if (alertErr) {
+            alertErr.textContent = 'Por favor, informe a URL ou ID do anúncio.';
+            alertErr.classList.remove('d-none');
+        }
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Extraindo & Sintetizando...';
+    }
+    if (alertErr) alertErr.classList.add('d-none');
+
+    try {
+        const response = await fetch(`/inventory/api/sku/${encodeURIComponent(sku)}/reference-listing`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url_or_id: urlOrId, is_own_store: isOwn })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            const modalEl = document.getElementById('addReferenceListingModal');
+            if (modalEl) {
+                const bsModal = bootstrap.Modal.getInstance(modalEl);
+                if (bsModal) bsModal.hide();
+            }
+            showToast('Anúncio conectado e Dossiê Canônico atualizado pela IA!');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            if (alertErr) {
+                alertErr.textContent = data.error || 'Erro ao conectar anúncio.';
+                alertErr.classList.remove('d-none');
+            }
+        }
+    } catch (err) {
+        if (alertErr) {
+            alertErr.textContent = 'Erro de comunicação ao salvar anúncio de referência.';
+            alertErr.classList.remove('d-none');
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check me-1"></i> Salvar e Enriquecer Dossiê';
+        }
+    }
+}
+
+async function deleteReferenceListing(sku, listingId) {
+    if (!confirm('Deseja realmente remover este anúncio de referência da base de conhecimento do SKU?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/inventory/api/sku/${encodeURIComponent(sku)}/reference-listing/${encodeURIComponent(listingId)}`, {
+            method: 'DELETE'
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast('Anúncio de referência removido!');
+            const card = document.getElementById(`ref-card-${listingId}`);
+            if (card) card.remove();
+            setTimeout(() => location.reload(), 800);
+        } else {
+            alert(data.error || 'Erro ao remover anúncio de referência.');
+        }
+    } catch (err) {
+        alert('Erro de conexão ao remover anúncio de referência.');
+    }
+}
+
+async function resynthesizeSkuDossier(sku) {
+    const btn = document.getElementById('btnResynthesizeDossier');
+    const icon = document.getElementById('iconResynthesize');
+
+    if (btn) btn.disabled = true;
+    if (icon) icon.classList.add('fa-spin');
+
+    try {
+        const response = await fetch(`/inventory/api/sku/${encodeURIComponent(sku)}/resynthesize-dossier`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast('Dossiê Canônico reanalisado com sucesso pelo agente de IA!');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            alert(data.error || 'Erro ao reanalisar Dossiê.');
+        }
+    } catch (err) {
+        alert('Erro de comunicação ao acionar agente de IA para o Dossiê.');
+    } finally {
+        if (btn) btn.disabled = false;
+        if (icon) icon.classList.remove('fa-spin');
     }
 }
 </script>

@@ -168,6 +168,40 @@
     cursor: pointer;
     margin: 0;
 }
+
+/* Estilos de Auditoria e Certeza da IA */
+.ai-audit-pill {
+    transition: all 0.2s ease;
+    font-size: 0.72rem;
+}
+.ai-audit-pill:hover {
+    filter: brightness(0.96);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.ai-score-ring {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 1.25rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.ai-checklist-row {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.8rem;
+}
+.ai-checklist-row:last-child {
+    border-bottom: none;
+}
 </style>
 {% endblock %}
 
@@ -492,6 +526,40 @@
                                         {% endif %}
                                     </div>
 
+                                    <!-- Selo Visual de Certeza da IA & Orientação do Agente -->
+                                    <div class="px-3 pb-1" id="ai-audit-wrapper-{{ cat.catalog_id }}">
+                                        {% if cat.ai_audit %}
+                                            <div class="ai-audit-pill p-1 px-2 rounded-2 border d-flex align-items-center justify-content-between gap-1 {% if cat.ai_audit.score >= 90 %}bg-success-subtle border-success-subtle text-success{% elif cat.ai_audit.score >= 65 %}bg-warning-subtle border-warning-subtle text-warning-emphasis{% else %}bg-danger-subtle border-danger-subtle text-danger{% endif %}">
+                                                <div class="d-flex align-items-center gap-1 min-w-0" style="font-size: 0.72rem;">
+                                                    <i class="fas fa-robot"></i>
+                                                    <span class="fw-bold font-tabular">{{ cat.ai_audit.score }}%</span>
+                                                    <span class="text-truncate" style="max-width: 110px;" title="{{ cat.ai_audit.explanation }}">
+                                                        {% if cat.ai_audit.verdict == 'EXACT_MATCH' %}Idêntico
+                                                        {% elif cat.ai_audit.verdict == 'COMPATIBLE_MATCH' %}Compatível
+                                                        {% elif cat.ai_audit.verdict == 'VARIATION_MISMATCH' %}Variação
+                                                        {% elif cat.ai_audit.verdict == 'ACCESSORY_WARNING' %}Acessório!
+                                                        {% elif cat.ai_audit.verdict == 'SUSPICIOUS_PRICE' %}Preço Baixo
+                                                        {% else %}Divergente{% endif %}
+                                                    </span>
+                                                </div>
+                                                <button type="button" class="btn btn-xs btn-link p-0 text-decoration-none fw-bold text-reset" 
+                                                        style="font-size: 0.68rem;"
+                                                        onclick="openAiAuditModal('{{ cat.catalog_id }}', '{{ (cat.nome or cat.titulo or '')|replace('\'', '\\\'')|replace('\"', '&quot;') }}', {{ cat.ai_audit|tojson|safe }})"
+                                                        title="Abrir Raio-X do Agente de IA">
+                                                    Raio-X <i class="fas fa-chevron-right" style="font-size: 0.6rem;"></i>
+                                                </button>
+                                            </div>
+                                        {% elif group_data.sku_code %}
+                                            <div class="d-flex justify-content-end">
+                                                <button type="button" class="btn btn-xs btn-outline-primary w-100 py-0" style="font-size: 0.68rem; height: 22px;"
+                                                        onclick="auditSingleCatalog('{{ cat.catalog_id }}', '{{ group_data.sku_code }}', '{{ (cat.nome or cat.titulo or '')|replace('\'', '\\\'')|replace('\"', '&quot;') }}', {{ cat.competitor_price|default(0.0) }})"
+                                                        id="btn-audit-{{ cat.catalog_id }}">
+                                                    <i class="fas fa-robot me-1"></i> Auditar Certeza com IA
+                                                </button>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
                                     <!-- Imagem com Respiro e Moldura -->
                                     <div class="saas-img-frame">
                                         {% if cat.imagem or cat.imagem_url %}
@@ -507,6 +575,11 @@
                                         <h6 class="saas-card-title" title="{{ cat.nome or cat.titulo }}">
                                             {{ cat.nome or cat.titulo }}
                                         </h6>
+                                        {% if cat.ai_audit and cat.ai_audit.explanation %}
+                                            <div class="p-1 px-2 mb-2 bg-light rounded border small text-muted font-italic text-truncate" style="font-size: 0.7rem;" title="{{ cat.ai_audit.explanation }}">
+                                                <i class="fas fa-comment-dots text-primary me-1"></i> {{ cat.ai_audit.explanation }}
+                                            </div>
+                                        {% endif %}
                                         <div class="small text-muted text-truncate mb-2" title="ID: {{ cat.catalog_id }}">
                                             <i class="fas fa-barcode me-1 text-secondary opacity-75"></i> {{ cat.catalog_id }}
                                         </div>
@@ -771,6 +844,86 @@
     <div class="offcanvas-body p-4" id="drawerBody">
         <!-- O conteúdo será injetado dinamicamente aqui -->
         <div id="drawerDynamicContent"></div>
+    </div>
+</div>
+
+<!-- Modal: Raio-X de Auditoria da IA (Assistência Inteligente de Matching) -->
+<div class="modal fade" id="aiAuditModal" tabindex="-1" aria-labelledby="aiAuditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-light border-bottom p-3">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded p-2 bg-primary-subtle text-primary">
+                        <i class="fas fa-robot fa-lg"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold text-dark mb-0" id="aiAuditModalLabel">
+                            Raio-X de Auditoria da IA
+                        </h6>
+                        <small class="text-muted">Análise semântica e probabilidade de certeza do produto</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+
+            <div class="modal-body p-4">
+                <!-- Informações do Catálogo Analisado -->
+                <div class="p-3 bg-light rounded-3 border mb-4">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                            <span class="badge bg-secondary font-tabular mb-1" id="aiModalCatalogId">MLB...</span>
+                            <h6 class="fw-bold text-dark mb-1" id="aiModalCatalogTitle">Título do Anúncio / Catálogo</h6>
+                            <small class="text-muted" id="aiModalSkuOrigin"></small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card de Certeza do Agente & Orientação -->
+                <div class="p-4 rounded-3 border mb-4" id="aiModalScoreCard">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="ai-score-ring" id="aiModalScoreRing">
+                                <span id="aiModalScoreNumber">95%</span>
+                            </div>
+                            <div>
+                                <span class="badge px-3 py-1 rounded-pill fw-bold" id="aiModalVerdictBadge">EXACT_MATCH</span>
+                                <div class="text-muted small mt-1">Nível de Certeza do Agente de IA</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Explicação / Orientação do Agente -->
+                    <div class="p-3 rounded-2 bg-white border small" id="aiModalExplanationBox">
+                        <div class="fw-bold text-dark mb-1 d-flex align-items-center gap-1">
+                            <i class="fas fa-lightbulb text-warning"></i> Orientação do Agente de IA:
+                        </div>
+                        <p class="text-muted mb-0 fst-italic" id="aiModalExplanationText">
+                            Analisando correspondência técnica...
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Matriz de Decisão Ponto a Ponto -->
+                <h6 class="fw-bold text-dark mb-2 d-flex align-items-center gap-1">
+                    <i class="fas fa-tasks text-primary me-1"></i> Matriz de Decisão Canônica (Critérios Rígidos)
+                </h6>
+                <div class="border rounded-3 overflow-hidden bg-white mb-2" id="aiModalChecklist">
+                    <!-- Linhas injetadas dinamicamente via JS -->
+                </div>
+            </div>
+
+            <div class="modal-footer bg-light border-top p-3 d-flex justify-content-between">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="aiModalBtnReaudit" onclick="reAuditFromModal()">
+                        <i class="fas fa-sync-alt me-1"></i> Reanalisar com IA
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary" id="aiModalBtnLink" onclick="proceedLinkFromAudit()">
+                        <i class="fas fa-link me-1"></i> Ajustar / Confirmar Vínculo
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1930,6 +2083,36 @@ function renderCatalogResults(catalogs) {
             </div>
         `;
 
+        let aiAuditHtml = '';
+        if (cat.ai_audit) {
+            const a = cat.ai_audit;
+            const badgeCls = a.score >= 90 ? 'bg-success-subtle border-success-subtle text-success' : (a.score >= 65 ? 'bg-warning-subtle border-warning-subtle text-warning-emphasis' : 'bg-danger-subtle border-danger-subtle text-danger');
+            const verdictLabel = a.verdict === 'EXACT_MATCH' ? 'Idêntico' : (a.verdict === 'COMPATIBLE_MATCH' ? 'Compatível' : (a.verdict === 'VARIATION_MISMATCH' ? 'Variação' : (a.verdict === 'ACCESSORY_WARNING' ? 'Acessório!' : 'Divergente')));
+            const auditJsonStr = JSON.stringify(a).replace(/'/g, "&#39;");
+            aiAuditHtml = `
+            <div class="px-3 pb-1" id="ai-audit-wrapper-${cat.catalog_id}">
+                <div class="ai-audit-pill p-1 px-2 rounded-2 border d-flex align-items-center justify-content-between gap-1 ${badgeCls}">
+                    <div class="d-flex align-items-center gap-1 min-w-0" style="font-size: 0.72rem;">
+                        <i class="fas fa-robot"></i>
+                        <span class="fw-bold font-tabular">${a.score}%</span>
+                        <span class="text-truncate" style="max-width: 110px;" title="${escHtml(a.explanation || '')}">${verdictLabel}</span>
+                    </div>
+                    <button type="button" class="btn btn-xs btn-link p-0 text-decoration-none fw-bold text-reset" style="font-size: 0.68rem;" onclick='openAiAuditModal("${cat.catalog_id}", "${escapedTitle}", ${auditJsonStr})'>
+                        Raio-X <i class="fas fa-chevron-right" style="font-size: 0.6rem;"></i>
+                    </button>
+                </div>
+            </div>`;
+        } else if (skuCode) {
+            aiAuditHtml = `
+            <div class="px-3 pb-1" id="ai-audit-wrapper-${cat.catalog_id}">
+                <div class="d-flex justify-content-end">
+                    <button type="button" class="btn btn-xs btn-outline-primary w-100 py-0" style="font-size: 0.68rem; height: 22px;" onclick="auditSingleCatalog('${cat.catalog_id}', '${skuCode}', '${escapedTitle}', ${compPrice})" id="btn-audit-${cat.catalog_id}">
+                        <i class="fas fa-robot me-1"></i> Auditar Certeza com IA
+                    </button>
+                </div>
+            </div>`;
+        }
+
         return `
         <div class="col">
             <div class="saas-catalog-card" id="card-catalog-${cat.catalog_id}" data-catalog-id="${cat.catalog_id}" data-linked-sku="${skuCode}">
@@ -1969,6 +2152,9 @@ function renderCatalogResults(catalogs) {
                     `}
                 </div>
 
+                <!-- Selo de Certeza da IA -->
+                ${aiAuditHtml}
+
                 <div class="saas-img-frame">
                     ${cat.imagem
                         ? `<img src="${cat.imagem}" alt="${escHtml(cat.nome)}" loading="lazy"
@@ -1980,6 +2166,11 @@ function renderCatalogResults(catalogs) {
                     <h6 class="saas-card-title" title="${escHtml(cat.nome)}">
                         ${escHtml(cat.nome)}
                     </h6>
+                    ${cat.ai_audit && cat.ai_audit.explanation ? `
+                        <div class="p-1 px-2 mb-2 bg-light rounded border small text-muted font-italic text-truncate" style="font-size: 0.7rem;" title="${escHtml(cat.ai_audit.explanation)}">
+                            <i class="fas fa-comment-dots text-primary me-1"></i> ${escHtml(cat.ai_audit.explanation)}
+                        </div>
+                    ` : ''}
                     <div class="small text-muted mb-2">
                         <i class="fas fa-tag me-1 text-primary opacity-75"></i> Busca atual
                     </div>
@@ -2039,6 +2230,242 @@ function escHtml(str) {
     const d = document.createElement('div');
     d.appendChild(document.createTextNode(str));
     return d.innerHTML;
+}
+
+// ─── Funções de Auditoria de IA e Raio-X ──────────────────────────
+let currentAuditCatalogId = null;
+let currentAuditSku = null;
+let currentAuditTitle = null;
+let currentAuditPrice = 0;
+let currentAuditData = null;
+
+function openAiAuditModal(catalogId, title, auditData, sku = '') {
+    currentAuditCatalogId = catalogId;
+    currentAuditTitle = title;
+    currentAuditData = auditData;
+    
+    // Tenta obter SKU se não passado
+    if (!sku) {
+        const card = document.getElementById(`card-catalog-${catalogId}`);
+        if (card) sku = card.getAttribute('data-linked-sku') || '';
+    }
+    currentAuditSku = sku;
+
+    const modalEl = document.getElementById('aiAuditModal');
+    if (!modalEl) return;
+
+    // Preenche cabeçalho
+    const idEl = document.getElementById('aiModalCatalogId');
+    const titleEl = document.getElementById('aiModalCatalogTitle');
+    const skuEl = document.getElementById('aiModalSkuOrigin');
+    if (idEl) idEl.textContent = catalogId;
+    if (titleEl) titleEl.textContent = title || catalogId;
+    if (skuEl) {
+        skuEl.innerHTML = sku 
+            ? `<i class="fas fa-box text-primary me-1"></i> Comparando com SKU: <strong>${sku}</strong>` 
+            : `<i class="fas fa-info-circle text-muted me-1"></i> Auditoria de sanidade geral do catálogo`;
+    }
+
+    // Preenche Score Ring e Veredito
+    const score = parseInt(auditData.score || 0, 10);
+    const scoreNumEl = document.getElementById('aiModalScoreNumber');
+    const scoreRingEl = document.getElementById('aiModalScoreRing');
+    const verdictBadgeEl = document.getElementById('aiModalVerdictBadge');
+    const scoreCardEl = document.getElementById('aiModalScoreCard');
+
+    if (scoreNumEl) scoreNumEl.textContent = `${score}%`;
+
+    let colorCls = 'danger';
+    let ringBg = '#fef2f2';
+    let ringBorder = '#ef4444';
+    let ringColor = '#b91c1c';
+    let verdictLabel = auditData.verdict || 'ANÁLISE PENDENTE';
+
+    if (score >= 90) {
+        colorCls = 'success';
+        ringBg = '#ecfdf5';
+        ringBorder = '#10b981';
+        ringColor = '#047857';
+        verdictLabel = 'Produto Idêntico (Match de Alta Certeza)';
+    } else if (score >= 65) {
+        colorCls = 'warning';
+        ringBg = '#fefce8';
+        ringBorder = '#f59e0b';
+        ringColor = '#a16207';
+        verdictLabel = 'Produto Compatível com Possíveis Variações';
+    } else {
+        if (auditData.verdict === 'ACCESSORY_WARNING') {
+            verdictLabel = 'Alerta Crítico: Possível Acessório (Não é o Produto)';
+        } else if (auditData.verdict === 'SUSPICIOUS_PRICE') {
+            verdictLabel = 'Alerta: Preço Muito Abaixo do Mínimo de Sanidade';
+        } else {
+            verdictLabel = 'Divergência Crítica / Produto Diferente';
+        }
+    }
+
+    if (scoreRingEl) {
+        scoreRingEl.style.background = ringBg;
+        scoreRingEl.style.borderColor = ringBorder;
+        scoreRingEl.style.color = ringColor;
+    }
+    if (verdictBadgeEl) {
+        verdictBadgeEl.className = `badge px-3 py-1 rounded-pill fw-bold bg-${colorCls}-subtle text-${colorCls} border border-${colorCls}-subtle`;
+        verdictBadgeEl.textContent = verdictLabel;
+    }
+    if (scoreCardEl) {
+        scoreCardEl.className = `p-4 rounded-3 border mb-4 bg-${colorCls}-subtle bg-opacity-25`;
+    }
+
+    // Preenche Orientação do Agente
+    const explEl = document.getElementById('aiModalExplanationText');
+    if (explEl) {
+        explEl.textContent = auditData.explanation || 'O agente de IA não retornou orientações adicionais para esta oferta.';
+    }
+
+    // Renderiza Matriz de Decisão Ponto a Ponto
+    const checklistEl = document.getElementById('aiModalChecklist');
+    if (checklistEl) {
+        const bd = auditData.specs_breakdown || {};
+        const rows = [
+            {
+                label: 'Marca & Fabricante',
+                desc: 'Validação se a marca é estritamente a mesma do SKU cadastrado',
+                status: bd.brand_match !== false,
+                tag: bd.brand_match !== false ? 'Confirmado' : 'Divergente'
+            },
+            {
+                label: 'Modelo & Linha Oficial',
+                desc: 'Correspondência do modelo exato do produto',
+                status: bd.model_match !== false,
+                tag: bd.model_match !== false ? 'Compatível' : 'Possível Divergência'
+            },
+            {
+                label: 'Código EAN / GTIN',
+                desc: 'Checagem do código de barras oficial do produto',
+                status: bd.ean_match !== false,
+                tag: bd.ean_match ? 'EAN Idêntico' : (bd.ean_match === false ? 'EAN Conflitante' : 'Não informado')
+            },
+            {
+                label: 'Voltagem & Potência Técnica',
+                desc: 'Consistência de 110V/127V/220V ou Bivolt',
+                status: bd.voltage_match !== false,
+                tag: bd.voltage_match !== false ? 'Compatível' : 'Voltagem Diferente'
+            },
+            {
+                label: 'Sanidade de Preço (Anti-Outlier)',
+                desc: 'Verifica se o valor não é desproporcionalmente baixo para um produto unitário',
+                status: !bd.price_sanity_flag,
+                tag: !bd.price_sanity_flag ? 'Preço Válido' : 'Preço Anômalo'
+            },
+            {
+                label: 'Filtro Anti-Acessório',
+                desc: 'Detecção de termos proibidos como capa, bolsa, suporte ou cabo',
+                status: !bd.accessory_flag,
+                tag: !bd.accessory_flag ? 'Produto Principal' : 'Alerta de Acessório'
+            }
+        ];
+
+        checklistEl.innerHTML = rows.map(r => `
+            <div class="ai-checklist-row">
+                <div>
+                    <div class="fw-bold text-dark d-flex align-items-center gap-1">
+                        <i class="fas fa-${r.status ? 'check-circle text-success' : 'times-circle text-danger'} me-1"></i>
+                        ${r.label}
+                    </div>
+                    <div class="text-muted" style="font-size: 0.72rem;">${r.desc}</div>
+                </div>
+                <span class="badge ${r.status ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle'} font-tabular">
+                    ${r.tag}
+                </span>
+            </div>
+        `).join('');
+    }
+
+    const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    bsModal.show();
+}
+
+async function auditSingleCatalog(catalogId, sku, title, price) {
+    const btn = document.getElementById(`btn-audit-${catalogId}`);
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Auditando...';
+    }
+
+    try {
+        const response = await fetch('/catalog/api/audit-candidate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                catalog_id: catalogId,
+                sku: sku,
+                title: title,
+                price: price
+            })
+        });
+
+        const data = await response.json();
+        if (data.success && data.audit) {
+            const audit = data.audit;
+            showToast(`Auditoria da IA concluída: ${audit.score}% de certeza!`);
+
+            // Atualiza o wrapper visual do card
+            const wrapper = document.getElementById(`ai-audit-wrapper-${catalogId}`);
+            if (wrapper) {
+                const badgeCls = audit.score >= 90 ? 'bg-success-subtle border-success-subtle text-success' : (audit.score >= 65 ? 'bg-warning-subtle border-warning-subtle text-warning-emphasis' : 'bg-danger-subtle border-danger-subtle text-danger');
+                const verdictLabel = audit.verdict === 'EXACT_MATCH' ? 'Idêntico' : (audit.verdict === 'COMPATIBLE_MATCH' ? 'Compatível' : (audit.verdict === 'VARIATION_MISMATCH' ? 'Variação' : (audit.verdict === 'ACCESSORY_WARNING' ? 'Acessório!' : 'Divergente')));
+                const auditJsonStr = JSON.stringify(audit).replace(/'/g, "&#39;");
+                wrapper.innerHTML = `
+                    <div class="ai-audit-pill p-1 px-2 rounded-2 border d-flex align-items-center justify-content-between gap-1 ${badgeCls}">
+                        <div class="d-flex align-items-center gap-1 min-w-0" style="font-size: 0.72rem;">
+                            <i class="fas fa-robot"></i>
+                            <span class="fw-bold font-tabular">${audit.score}%</span>
+                            <span class="text-truncate" style="max-width: 110px;" title="${escHtml(audit.explanation || '')}">${verdictLabel}</span>
+                        </div>
+                        <button type="button" class="btn btn-xs btn-link p-0 text-decoration-none fw-bold text-reset" style="font-size: 0.68rem;" onclick='openAiAuditModal("${catalogId}", "${escHtml(title)}", ${auditJsonStr}, "${sku}")'>
+                            Raio-X <i class="fas fa-chevron-right" style="font-size: 0.6rem;"></i>
+                        </button>
+                    </div>
+                `;
+            }
+
+            // Abre o modal Raio-X imediatamente
+            openAiAuditModal(catalogId, title, audit, sku);
+        } else {
+            alert(data.error || 'Não foi possível auditar o catálogo com a IA.');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-robot me-1"></i> Auditar Certeza com IA';
+            }
+        }
+    } catch (err) {
+        alert('Erro ao se comunicar com o serviço de IA para auditoria.');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-robot me-1"></i> Auditar Certeza com IA';
+        }
+    }
+}
+
+function reAuditFromModal() {
+    if (!currentAuditCatalogId) return;
+    const modalEl = document.getElementById('aiAuditModal');
+    if (modalEl) {
+        const bsModal = bootstrap.Modal.getInstance(modalEl);
+        if (bsModal) bsModal.hide();
+    }
+    auditSingleCatalog(currentAuditCatalogId, currentAuditSku, currentAuditTitle, currentAuditPrice);
+}
+
+function proceedLinkFromAudit() {
+    if (!currentAuditCatalogId) return;
+    const modalEl = document.getElementById('aiAuditModal');
+    if (modalEl) {
+        const bsModal = bootstrap.Modal.getInstance(modalEl);
+        if (bsModal) bsModal.hide();
+    }
+    // Abre o modal de vínculo assistido já preenchido
+    openQuickLinkModal('', currentAuditCatalogId, currentAuditSku || '');
 }
 </script>
 {% endblock %}

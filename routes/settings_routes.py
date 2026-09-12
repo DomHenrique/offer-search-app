@@ -5,6 +5,7 @@ import os
 import json
 from dateutil.parser import isoparse
 from services.meli.auth import MeliAuthManager
+from services.ai_provider import list_supported_providers, fetch_available_models
 
 settings_bp = Blueprint('settings', __name__)
 db = DatabaseManager()
@@ -27,6 +28,20 @@ def settings_page():
 
     # Status da conexão oficial do Mercado Livre
     meli_status = meli_auth.get_status(user_id)
+
+    # Configurações de IA
+    cfg_dict = {c['chave']: c['valor'] for c in user_configs}
+    active_prov = cfg_dict.get('AI_PROVIDER') or os.environ.get('AI_PROVIDER', 'google')
+    raw_key = cfg_dict.get('AI_API_KEY') or os.environ.get('AI_API_KEY') or os.environ.get(f"{active_prov.upper()}_API_KEY", "")
+    ai_settings = {
+        'provider': active_prov,
+        'api_key': raw_key,
+        'has_key': bool(raw_key),
+        'key_masked': (raw_key[:6] + '...' + raw_key[-4:]) if len(raw_key) > 12 else ('***' if raw_key else ''),
+        'model': cfg_dict.get('AI_MODEL') or os.environ.get('AI_MODEL', 'gemini-2.0-flash'),
+        'temperature': float(cfg_dict.get('AI_TEMPERATURE') or os.environ.get('AI_TEMPERATURE', 0.1)),
+        'supported_providers': list_supported_providers()
+    }
 
     # Variáveis de ambiente disponíveis (mascaradas)
     env_vars = {
@@ -51,7 +66,8 @@ def settings_page():
                          min_price_filter=min_price_filter,
                          is_admin=is_admin,
                          team_members=team_members,
-                         meli_status=meli_status)
+                         meli_status=meli_status,
+                         ai_settings=ai_settings)
 
 
 def _get_meli_redirect_uri():
@@ -537,3 +553,68 @@ def delete_team_member(user_id):
         return jsonify({'success': True, 'message': 'Membro da equipe excluído com sucesso.'})
     else:
         return jsonify({'success': False, 'error': 'Erro ao excluir membro ou auto-exclusão bloqueada.'}), 500
+
+
+# ─── Configurações de Inteligência Artificial e Provedores ───────────────────
+
+@settings_bp.route('/api/ai/providers', methods=['GET'])
+def get_ai_providers():
+    """Retorna os provedores de IA suportados (Google, OpenAI, Claude, Groq)"""
+    return jsonify({
+        'success': True,
+        'providers': list_supported_providers()
+    })
+
+
+@settings_bp.route('/api/ai/test-and-fetch-models', methods=['POST'])
+def test_and_fetch_ai_models():
+    """Testa a chave e busca dinamicamente os modelos suportados na API do provedor"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Não autenticado'}), 401
+
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        provider = data.get('provider')
+        api_key = (data.get('api_key') or '').strip()
+
+        # Se não enviou a chave no corpo, usa a salva no banco para o usuário
+        if not api_key:
+            user_configs = {c['chave']: c['valor'] for c in db.get_user_configs(session['user_id'])}
+            api_key = user_configs.get('AI_API_KEY') or os.environ.get(f"{str(provider).upper()}_API_KEY", "")
+
+        if not api_key:
+            return jsonify({'success': False, 'error': 'Informe a Chave da API (API Key) para buscar os modelos.'}), 400
+
+        result = fetch_available_models(provider=provider, api_key=api_key)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erro ao consultar modelos: {str(e)}'}), 500
+
+
+@settings_bp.route('/api/ai/save', methods=['POST'])
+def save_ai_settings():
+    """Salva a configuração ativa de provedor, chave e modelo padrão de IA"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Não autenticado'}), 401
+
+    try:
+        user_id = session['user_id']
+        data = request.get_json(force=True, silent=True) or {}
+        provider = str(data.get('provider') or 'google').strip().lower()
+        api_key = str(data.get('api_key') or '').strip()
+        model = str(data.get('model') or '').strip()
+        temperature = float(data.get('temperature') or 0.1)
+
+        db.set_user_config(user_id, 'AI_PROVIDER', provider, 'Provedor de IA padrão (Google, OpenAI, Claude, Groq)', 'text')
+        if api_key and not api_key.startswith('***'):
+            db.set_user_config(user_id, 'AI_API_KEY', api_key, 'Chave de API do provedor de IA', 'password')
+        if model:
+            db.set_user_config(user_id, 'AI_MODEL', model, 'Modelo padrão para agentes LangGraph', 'text')
+        db.set_user_config(user_id, 'AI_TEMPERATURE', temperature, 'Temperatura dos agentes de IA', 'number')
+
+        return jsonify({
+            'success': True,
+            'message': f'Configurações de IA salvas com sucesso! Provedor: {provider.title()}, Modelo: {model}.'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erro ao salvar configurações de IA: {str(e)}'}), 500

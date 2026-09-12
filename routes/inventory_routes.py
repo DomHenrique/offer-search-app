@@ -6,6 +6,8 @@ from flask import Blueprint, render_template, request, jsonify, session, redirec
 import pandas as pd
 from database.db_manager import DatabaseManager
 from utils.decorators import login_required
+from services.reference_listings_extractor import extract_reference_listing
+from services.ai_matcher.dossier_builder import build_and_save_sku_dossier
 
 inventory_bp = Blueprint('inventory', __name__, url_prefix='/inventory')
 db = DatabaseManager()
@@ -497,3 +499,82 @@ def product_detail_api(sku):
         'success': True,
         'product': product
     })
+
+
+# ─── Gestão de Conhecimento do SKU e Anúncios de Referência ───────────────────
+
+@inventory_bp.route('/api/sku/<path:sku>/knowledge', methods=['GET'])
+@login_required
+def get_sku_knowledge_api(sku):
+    """Retorna o Dossiê Canônico e a lista de anúncios de referência de um SKU"""
+    user_id = session['user_id']
+    knowledge = db.get_sku_knowledge(user_id, sku)
+    references = db.get_sku_reference_listings(user_id, sku)
+    return jsonify({
+        'success': True,
+        'sku': sku,
+        'knowledge': knowledge,
+        'reference_listings': references
+    })
+
+
+@inventory_bp.route('/api/sku/<path:sku>/reference-listing', methods=['POST'])
+@login_required
+def add_sku_reference_listing_api(sku):
+    """Adiciona um anúncio ativo de referência ao SKU e atualiza o Dossiê Canônico"""
+    user_id = session['user_id']
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        url_or_id = (data.get('url_or_id') or '').strip()
+        is_own_store = bool(data.get('is_own_store', True))
+
+        if not url_or_id:
+            return jsonify({'success': False, 'error': 'Informe a URL ou ID do anúncio.'}), 400
+
+        # Extrai metadados do marketplace (ML, Amazon, Loja Própria)
+        listing_data = extract_reference_listing(url_or_id, user_id=user_id)
+        listing_data['is_own_store'] = is_own_store
+
+        saved_ref = db.add_sku_reference_listing(user_id, sku, listing_data)
+
+        # Dispara o grafo de síntese do Dossiê Canônico com o novo anúncio integrado
+        updated_dossier = build_and_save_sku_dossier(user_id, sku, db)
+
+        return jsonify({
+            'success': True,
+            'message': 'Anúncio de referência adicionado e Dossiê Canônico atualizado!',
+            'reference': saved_ref,
+            'dossier': updated_dossier
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erro ao adicionar anúncio: {str(e)}'}), 500
+
+
+@inventory_bp.route('/api/sku/<path:sku>/reference-listing/<listing_id>', methods=['DELETE', 'POST'])
+@login_required
+def delete_sku_reference_listing_api(sku, listing_id):
+    """Remove um anúncio de referência do SKU"""
+    user_id = session['user_id']
+    try:
+        success = db.delete_sku_reference_listing(user_id, sku, listing_id)
+        if success:
+            return jsonify({'success': True, 'message': 'Anúncio de referência removido com sucesso.'})
+        return jsonify({'success': False, 'error': 'Não foi possível remover o anúncio.'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@inventory_bp.route('/api/sku/<path:sku>/resynthesize-dossier', methods=['POST'])
+@login_required
+def resynthesize_sku_dossier_api(sku):
+    """Reexecuta o grafo de síntese do Dossiê Canônico para o SKU"""
+    user_id = session['user_id']
+    try:
+        dossier = build_and_save_sku_dossier(user_id, sku, db)
+        return jsonify({
+            'success': True,
+            'message': 'Dossiê Canônico reanalisado com sucesso pelo agente de IA!',
+            'dossier': dossier
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erro ao reanalisar dossiê: {str(e)}'}), 500
