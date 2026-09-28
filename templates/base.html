@@ -74,6 +74,17 @@
                 </ul>
                 
                 <ul class="navbar-nav align-items-center gap-2">
+                    <!-- Botão de Acesso Rápido ao Scanner Inteligente de Produtos -->
+                    <li class="nav-item">
+                        <button class="btn btn-sm btn-outline-primary fw-bold d-flex align-items-center gap-1 shadow-sm px-2 py-1"
+                                style="border-radius: 20px; font-size: 0.82rem; background: rgba(59, 130, 246, 0.08); border-color: #3b82f6;"
+                                data-bs-toggle="modal" data-bs-target="#globalProductScannerModal"
+                                title="Escanear anúncio de produto por link (ML, Amazon, Fornecedor)">
+                            <i class="fas fa-barcode text-primary"></i>
+                            <span>Scan Produto</span>
+                        </button>
+                    </li>
+
                     <!-- Badges de Sessão dos Marketplaces -->
                     <li class="nav-item">
                         <div class="d-flex align-items-center gap-2">
@@ -289,8 +300,12 @@
     document.addEventListener('DOMContentLoaded', checkAllNavbarSessions);
     </script>
     
+    <!-- Modal Global: Scanner Inteligente de Produtos -->
+    {% include "inventory/scanner_modal.html" %}
+
     <script src="{{ url_for('static', filename='js/app.js') }}?v=2"></script>
     <script src="{{ url_for('static', filename='js/image-loader.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/scanner.js') }}?v=1"></script>
     
     {% block extra_scripts %}{% endblock %}
 </body>

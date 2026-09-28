@@ -8,6 +8,8 @@ from database.db_manager import DatabaseManager
 from utils.decorators import login_required
 from services.reference_listings_extractor import extract_reference_listing
 from services.ai_matcher.dossier_builder import build_and_save_sku_dossier
+from services.inventory_matcher import InventoryMatcher
+from services.listing_auditor import ListingAuditor
 
 inventory_bp = Blueprint('inventory', __name__, url_prefix='/inventory')
 db = DatabaseManager()
@@ -578,3 +580,231 @@ def resynthesize_sku_dossier_api(sku):
         })
     except Exception as e:
         return jsonify({'success': False, 'error': f'Erro ao reanalisar dossiê: {str(e)}'}), 500
+
+
+# ==============================================================================
+# ENDPOINTS DO SCANNER INTELIGENTE DE PRODUTOS E MATCHING COM INVENTÁRIO
+# ==============================================================================
+
+@inventory_bp.route('/api/scanner/extract-and-match', methods=['POST'])
+@login_required
+def scanner_extract_and_match_api():
+    """Extrai metadados do link (ML, Amazon, Fornecedor), audita ou cruza com o estoque"""
+    user_id = session['user_id']
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        url_or_id = (data.get('url_or_id') or '').strip()
+        role = (data.get('role') or 'supplier').strip().lower()
+        sku_hint = (data.get('sku_hint') or '').strip().upper()
+
+        if not url_or_id:
+            return jsonify({'success': False, 'error': 'Por favor, informe a URL ou ID do anúncio.'}), 400
+
+        # 1. Extração estruturada de atributos
+        extracted = extract_reference_listing(url_or_id, user_id=user_id, role=role)
+
+        # 2. Busca e ranking de candidatos no inventário
+        matcher = InventoryMatcher(db)
+        candidates = matcher.find_matches_for_listing(user_id, extracted, limit=5)
+
+        # Identifica candidato principal (ou usa o sku_hint se informado)
+        top_candidate = None
+        if sku_hint:
+            for c in candidates:
+                if c.get('sku') == sku_hint:
+                    top_candidate = c
+                    break
+            if not top_candidate:
+                inv_details = db.get_sku_details(user_id, sku_hint)
+                if inv_details:
+                    top_candidate = {
+                        "sku": sku_hint,
+                        "descricao": inv_details.get("descricao") or sku_hint,
+                        "quantidade_total": inv_details.get("quantidade_total", 0),
+                        "preco_custo": float(inv_details.get("preco_custo") or 0.0),
+                        "preco_revenda": float(inv_details.get("preco_revenda") or 0.0),
+                        "match_score": 100,
+                        "match_tier": "USER_SPECIFIED",
+                        "match_badge": "🎯 SKU Selecionado Diretamente",
+                        "reasons": ["Selecionado diretamente pelo usuário"]
+                    }
+        elif candidates:
+            top_candidate = candidates[0]
+
+        # 3. Se for Loja Própria: roda auditoria de saúde do anúncio
+        audit_data = None
+        if role == 'own_store':
+            auditor = ListingAuditor(db)
+            audit_data = auditor.audit_own_store_listing(user_id, extracted, top_candidate)
+
+        # 4. Se for Concorrente: calcula análise de margem contra o topo do inventário
+        competitor_analysis = None
+        if role == 'competitor' and top_candidate:
+            cost = float(top_candidate.get('preco_custo') or 0.0)
+            comp_price = float(extracted.get('price') or 0.0)
+            fee = round(comp_price * 0.16, 2)
+            net_profit = round(comp_price - fee - cost, 2)
+            margin_pct = round((net_profit / comp_price) * 100, 1) if comp_price > 0 else 0.0
+
+            competitor_analysis = {
+                "competitor_price": comp_price,
+                "inventory_cost": cost,
+                "marketplace_fee": fee,
+                "net_profit": net_profit,
+                "margin_pct": margin_pct,
+                "is_dangerous": (net_profit < 0 or margin_pct < 8.0)
+            }
+
+        return jsonify({
+            'success': True,
+            'extracted_data': extracted,
+            'candidates': candidates,
+            'top_candidate': top_candidate,
+            'audit': audit_data,
+            'competitor_analysis': competitor_analysis,
+            'role': role
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erro ao escanear produto: {str(e)}'}), 500
+
+
+@inventory_bp.route('/api/scanner/confirm-link', methods=['POST'])
+@login_required
+def scanner_confirm_link_api():
+    """Confirma e salva o vínculo do anúncio escaneado com o SKU do inventário"""
+    user_id = session['user_id']
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        sku = str(data.get('sku') or '').strip().upper()
+        extracted_data = data.get('extracted_data') or {}
+        role = str(data.get('role') or extracted_data.get('listing_role') or 'supplier').strip().lower()
+        override_title = (data.get('override_title') or '').strip()
+        override_price = data.get('override_price')
+
+        if not sku:
+            return jsonify({'success': False, 'error': 'SKU de destino não informado.'}), 400
+        if not extracted_data:
+            return jsonify({'success': False, 'error': 'Dados extraídos do produto não fornecidos.'}), 400
+
+        if override_title:
+            extracted_data['title'] = override_title
+        if override_price is not None and str(override_price).strip() != '':
+            try:
+                extracted_data['price'] = float(override_price)
+            except:
+                pass
+
+        extracted_data['listing_role'] = role
+        extracted_data['is_own_store'] = (role == 'own_store')
+
+        # Persiste na tabela de referências ativas do SKU
+        saved_ref = db.add_sku_reference_listing(user_id, sku, extracted_data)
+
+        # Se for anúncio do Mercado Livre ou catálogo MLB, também sincroniza em sku_catalogs
+        listing_id = str(extracted_data.get('listing_id') or '').strip().upper()
+        if listing_id.startswith('MLB'):
+            try:
+                db.link_catalog_to_sku(
+                    user_id=user_id,
+                    sku=sku,
+                    catalog_id=listing_id,
+                    catalog_title=extracted_data.get('title', ''),
+                    catalog_url=extracted_data.get('listing_url', ''),
+                    catalog_image=extracted_data.get('image_url', ''),
+                    buybox_winner=extracted_data.get('seller', 'Vendedor'),
+                    buybox_min_price=float(extracted_data.get('price') or 0.0),
+                    sellers_count=1
+                )
+            except Exception as e_link:
+                print(f"Aviso ao linkar sku_catalogs via scanner: {e_link}")
+
+        # Atualiza Dossiê Canônico com o novo conhecimento anexado
+        updated_dossier = build_and_save_sku_dossier(user_id, sku, db)
+
+        return jsonify({
+            'success': True,
+            'message': f'Produto vinculado com sucesso ao SKU {sku}!',
+            'sku': sku,
+            'reference': saved_ref,
+            'dossier': updated_dossier
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erro ao confirmar vínculo: {str(e)}'}), 500
+
+
+@inventory_bp.route('/api/scanner/quick-fill-attributes', methods=['POST'])
+@login_required
+def scanner_quick_fill_attributes_api():
+    """Aplica atributos do fornecedor para enriquecer a base de conhecimento do SKU"""
+    user_id = session['user_id']
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        sku = str(data.get('sku') or '').strip().upper()
+        fill_attrs = data.get('attributes') or {}
+
+        if not sku or not fill_attrs:
+            return jsonify({'success': False, 'error': 'SKU e atributos são obrigatórios.'}), 400
+
+        # Atualiza o Dossiê Canônico com a nova fusão de atributos
+        updated_dossier = build_and_save_sku_dossier(user_id, sku, db)
+
+        return jsonify({
+            'success': True,
+            'message': 'Atributos sincronizados com sucesso a partir da base do fornecedor!',
+            'dossier': updated_dossier
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erro ao preencher atributos: {str(e)}'}), 500
+
+
+@inventory_bp.route('/api/scanner/create-sku-from-listing', methods=['POST'])
+@login_required
+def scanner_create_sku_from_listing_api():
+    """Cadastra um novo SKU no inventário a partir dos dados do produto escaneado"""
+    user_id = session['user_id']
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        sku = str(data.get('sku') or '').strip().upper()
+        descricao = str(data.get('descricao') or '').strip()
+        preco_custo = float(data.get('preco_custo') or 0.0)
+        preco_revenda = float(data.get('preco_revenda') or 0.0)
+        link_produto = str(data.get('link_produto') or '').strip()
+        ncm = str(data.get('ncm') or '').strip()
+        extracted_data = data.get('extracted_data') or {}
+        role = str(data.get('role') or 'supplier').strip().lower()
+
+        if not sku:
+            return jsonify({'success': False, 'error': 'O código do novo SKU é obrigatório.'}), 400
+        if not descricao:
+            descricao = extracted_data.get('title') or sku
+
+        # 1. Cria o item no inventário
+        success = db.create_inventory_item(
+            user_id=user_id,
+            sku=sku,
+            descricao=descricao,
+            preco_custo=preco_custo,
+            preco_revenda=preco_revenda,
+            link_produto=link_produto or extracted_data.get('listing_url', ''),
+            ncm=ncm
+        )
+        if not success:
+            return jsonify({'success': False, 'error': 'Não foi possível cadastrar o item no estoque.'}), 400
+
+        # 2. Salva a referência se dados extraídos foram fornecidos
+        if extracted_data:
+            extracted_data['listing_role'] = role
+            extracted_data['is_own_store'] = (role == 'own_store')
+            db.add_sku_reference_listing(user_id, sku, extracted_data)
+
+        # 3. Gera dossiê canônico inicial para o novo SKU
+        dossier = build_and_save_sku_dossier(user_id, sku, db)
+
+        return jsonify({
+            'success': True,
+            'message': f'Novo SKU {sku} cadastrado no estoque com sucesso!',
+            'sku': sku,
+            'dossier': dossier
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erro ao criar SKU a partir do anúncio: {str(e)}'}), 500

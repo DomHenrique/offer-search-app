@@ -1,0 +1,355 @@
+<!-- Modal / Drawer Global: Scanner Inteligente de Produtos (ML, Amazon, Fornecedor) -->
+<div class="modal fade" id="globalProductScannerModal" tabindex="-1" aria-labelledby="globalProductScannerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content shadow-2xl border-0" style="border-radius: 20px; overflow: hidden;">
+            
+            <!-- Modal Header com gradiente sutil -->
+            <div class="modal-header border-bottom py-3 px-4" style="background: linear-gradient(135deg, #0f172a, #1e293b); color: #fff;">
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width: 42px; height: 42px; border-radius: 12px; background: rgba(59, 130, 246, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.3);">
+                        <i class="fas fa-barcode"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fs-5 fw-bold mb-0 text-white" id="globalProductScannerModalLabel">
+                            Scanner Inteligente de Produtos
+                        </h5>
+                        <small class="text-slate-400" style="font-size: 0.82rem; color: #94a3b8;">
+                            Cole qualquer link do Mercado Livre, Amazon ou site de fornecedor para extração e matching com o estoque
+                        </small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body p-4" style="background: #f8fafc;">
+                
+                <!-- ETAPA 1: INPUT DO LINK E SELEÇÃO DE PAPEL -->
+                <div id="scannerInputSection" class="p-3 bg-white rounded-3 shadow-sm border mb-3">
+                    
+                    <label class="form-label fw-bold text-dark mb-2" style="font-size: 0.92rem;">
+                        <i class="fas fa-link text-primary me-1"></i> URL do Produto ou Identificador (MLB / ASIN):
+                    </label>
+                    
+                    <div class="input-group mb-3">
+                        <span class="input-group-text bg-light border-end-0 text-muted">
+                            <i class="fas fa-globe"></i>
+                        </span>
+                        <input type="text" id="scannerInputUrl" class="form-control border-start-0 ps-0" 
+                               placeholder="Ex: https://produto.mercadolivre.com.br/MLB-12345678... ou https://fornecedor.com.br/produto" 
+                               style="font-size: 0.95rem;">
+                        <button class="btn btn-outline-secondary" type="button" id="btnScannerPaste" title="Colar da Área de Transferência">
+                            <i class="fas fa-paste me-1"></i> Colar
+                        </button>
+                    </div>
+
+                    <!-- Seleção dos 3 Papéis de Link -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark mb-2" style="font-size: 0.88rem;">
+                            Qual a origem deste link?
+                        </label>
+                        <div class="row g-2">
+                            <!-- Loja Própria -->
+                            <div class="col-md-4">
+                                <label class="scanner-role-card p-3 rounded-3 border d-block cursor-pointer position-relative h-100" id="cardRoleOwnStore">
+                                    <input type="radio" name="scannerRoleRadio" value="own_store" class="form-check-input position-absolute top-2 end-2 d-none">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span class="badge bg-indigo-subtle text-indigo px-2 py-1" style="background: #ede9fe; color: #6d28d9; border-radius: 6px;">
+                                            <i class="fas fa-store me-1"></i> Loja Própria
+                                        </span>
+                                    </div>
+                                    <div class="fw-bold text-dark" style="font-size: 0.88rem;">Nosso Anúncio Ativo</div>
+                                    <small class="text-muted d-block" style="font-size: 0.78rem; line-height: 1.3;">
+                                        Considerado 100% canônico. Audita lacunas (EAN faltante, specs e preço).
+                                    </small>
+                                </label>
+                            </div>
+
+                            <!-- Fornecedor -->
+                            <div class="col-md-4">
+                                <label class="scanner-role-card p-3 rounded-3 border d-block cursor-pointer position-relative h-100 active-role" id="cardRoleSupplier">
+                                    <input type="radio" name="scannerRoleRadio" value="supplier" class="form-check-input position-absolute top-2 end-2 d-none" checked>
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span class="badge bg-emerald-subtle text-emerald px-2 py-1" style="background: #d1fae5; color: #047857; border-radius: 6px;">
+                                            <i class="fas fa-industry me-1"></i> Fornecedor
+                                        </span>
+                                    </div>
+                                    <div class="fw-bold text-dark" style="font-size: 0.88rem;">Site do Distribuidor / B2B</div>
+                                    <small class="text-muted d-block" style="font-size: 0.78rem; line-height: 1.3;">
+                                        Extrai dados oficiais de fábrica, EAN e preço de custo de reposição.
+                                    </small>
+                                </label>
+                            </div>
+
+                            <!-- Concorrente -->
+                            <div class="col-md-4">
+                                <label class="scanner-role-card p-3 rounded-3 border d-block cursor-pointer position-relative h-100" id="cardRoleCompetitor">
+                                    <input type="radio" name="scannerRoleRadio" value="competitor" class="form-check-input position-absolute top-2 end-2 d-none">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span class="badge bg-amber-subtle text-amber px-2 py-1" style="background: #fef3c7; color: #b45309; border-radius: 6px;">
+                                            <i class="fas fa-bullseye me-1"></i> Concorrente
+                                        </span>
+                                    </div>
+                                    <div class="fw-bold text-dark" style="font-size: 0.88rem;">Monitoramento de Preço</div>
+                                    <small class="text-muted d-block" style="font-size: 0.78rem; line-height: 1.3;">
+                                        Compara preço de venda frente ao custo de estoque e calcula margem real.
+                                    </small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center pt-2">
+                        <div id="scannerAlertError" class="alert alert-danger py-1 px-3 mb-0 d-none" style="font-size: 0.85rem;"></div>
+                        <button type="button" class="btn btn-primary fw-bold px-4 py-2 ms-auto" id="btnScannerExtract">
+                            <i class="fas fa-bolt me-1"></i> Extrair & Comparar com Estoque
+                        </button>
+                    </div>
+                </div>
+
+                <!-- LOADING SPINNER -->
+                <div id="scannerLoadingState" class="text-center py-5 d-none">
+                    <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
+                    <h6 class="fw-bold text-dark" id="scannerLoadingTitle">Conectando e extraindo metadados do anúncio...</h6>
+                    <p class="text-muted mb-0" style="font-size: 0.85rem;">Consultando APIs de marketplace, analisando atributos e executando algoritmo de matching com inventário.</p>
+                </div>
+
+                <!-- ETAPA 2: RESULTADOS SPLIT-VIEW (ESQUERDA: DADOS EXTRAÍDOS | DIREITA: ESTOQUE / AUDITORIA) -->
+                <div id="scannerResultSection" class="d-none">
+                    <div class="row g-3">
+                        
+                        <!-- COLUNA ESQUERDA: PRODUTO EXTRAÍDO (EDITÁVEL) -->
+                        <div class="col-lg-6">
+                            <div class="card h-100 border shadow-sm" style="border-radius: 14px;">
+                                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                                    <div class="fw-bold text-dark" style="font-size: 0.95rem;">
+                                        <i class="fas fa-file-alt text-primary me-1"></i> Dados Extraídos do Link
+                                    </div>
+                                    <span id="scannerExtractedMarketplaceBadge" class="badge bg-primary">MercadoLivre</span>
+                                </div>
+                                <div class="card-body p-3">
+                                    <!-- Imagem e Cabeçalho do Produto -->
+                                    <div class="d-flex gap-3 mb-3">
+                                        <div style="width: 90px; height: 90px; border-radius: 10px; border: 1px solid #e2e8f0; overflow: hidden; background: #fff; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+                                            <img id="scannerExtractedImg" src="" alt="Produto" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <div class="mb-2">
+                                                <label class="form-label text-muted mb-0 fw-semibold" style="font-size: 0.75rem;">Título do Anúncio (Editável):</label>
+                                                <input type="text" id="scannerEditTitle" class="form-control form-control-sm fw-bold text-dark">
+                                            </div>
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <label class="form-label text-muted mb-0 fw-semibold" style="font-size: 0.75rem;">Preço (R$):</label>
+                                                    <input type="number" step="0.01" id="scannerEditPrice" class="form-control form-control-sm text-primary fw-bold">
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label text-muted mb-0 fw-semibold" style="font-size: 0.75rem;">Código EAN / GTIN:</label>
+                                                    <input type="text" id="scannerEditGtin" class="form-control form-control-sm text-secondary" placeholder="Sem EAN">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Metadados de identificação -->
+                                    <div class="p-2 mb-3 rounded-2 bg-light border d-flex justify-content-between align-items-center" style="font-size: 0.82rem;">
+                                        <div>
+                                            <span class="text-muted">ID do Anúncio:</span>
+                                            <strong id="scannerExtractedListingId" class="text-dark ms-1">-</strong>
+                                        </div>
+                                        <div>
+                                            <span class="text-muted">Vendedor:</span>
+                                            <strong id="scannerExtractedSeller" class="text-dark ms-1">-</strong>
+                                        </div>
+                                        <div>
+                                            <a id="scannerExtractedUrlLink" href="#" target="_blank" class="text-primary text-decoration-none">
+                                                <i class="fas fa-external-link-alt me-1"></i> Abrir Link
+                                            </a>
+                                        </div>
+                                    </div>
+
+                                    <!-- Ficha Técnica Extraída (Chips) -->
+                                    <div class="mb-1">
+                                        <div class="fw-bold text-dark mb-2" style="font-size: 0.85rem;">
+                                            <i class="fas fa-tags text-secondary me-1"></i> Atributos Identificados:
+                                        </div>
+                                        <div id="scannerExtractedAttributesContainer" class="d-flex flex-wrap gap-1" style="max-height: 180px; overflow-y: auto;">
+                                            <!-- Chips dinâmicos inseridos via JS -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- COLUNA DIREITA: ESTOQUE & DIAGNÓSTICO -->
+                        <div class="col-lg-6">
+                            <div class="card h-100 border shadow-sm" style="border-radius: 14px;">
+                                
+                                <!-- Header da Coluna Direita -->
+                                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                                    <div class="fw-bold text-dark" style="font-size: 0.95rem;" id="scannerRightColumnTitle">
+                                        <i class="fas fa-boxes text-primary me-1"></i> Correspondência com Inventário
+                                    </div>
+                                    <span id="scannerRightColumnBadge" class="badge bg-secondary">Multi-Critério</span>
+                                </div>
+
+                                <div class="card-body p-3">
+                                    
+                                    <!-- PAINEL EXCLUSIVO: AUDITORIA DA LOJA PRÓPRIA -->
+                                    <div id="scannerAuditOwnStorePanel" class="d-none mb-3">
+                                        <div class="p-3 rounded-3 border mb-3" id="scannerAuditScoreBox" style="background: #fdf2f8;">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <span class="fw-bold text-dark" style="font-size: 0.88rem;">
+                                                    <i class="fas fa-heartbeat text-danger me-1"></i> Diagnóstico do Nosso Anúncio
+                                                </span>
+                                                <span id="scannerAuditScoreBadge" class="badge px-2 py-1 fs-6">Score: 0%</span>
+                                            </div>
+                                            <div class="progress mb-2" style="height: 8px;">
+                                                <div id="scannerAuditProgressBar" class="progress-bar bg-warning" role="progressbar" style="width: 50%;"></div>
+                                            </div>
+                                            <small id="scannerAuditSummaryText" class="text-muted d-block" style="font-size: 0.8rem;"></small>
+                                        </div>
+
+                                        <!-- Lista de Lacunas / Inconsistências -->
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold text-dark mb-1" style="font-size: 0.82rem;">
+                                                <i class="fas fa-exclamation-triangle text-amber-500 me-1"></i> O que está FALTANDO ou DIVERGENTE no anúncio:
+                                            </label>
+                                            <div id="scannerAuditIssuesList" class="d-flex flex-column gap-2" style="max-height: 160px; overflow-y: auto;">
+                                                <!-- Cards de issues inseridos via JS -->
+                                            </div>
+                                        </div>
+
+                                        <!-- Botão de Preenchimento Rápido com dados de fornecedor -->
+                                        <div id="scannerQuickFillBox" class="p-2 rounded-2 bg-emerald-subtle border border-emerald-200 d-none">
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <small class="text-emerald-900 fw-semibold" style="font-size: 0.82rem;">
+                                                    <i class="fas fa-magic text-emerald-600 me-1"></i> Ficha técnica do fornecedor disponível para copiar!
+                                                </small>
+                                                <button type="button" class="btn btn-sm btn-success fw-bold py-1 px-2" id="btnScannerQuickFill" style="font-size: 0.78rem;">
+                                                    Copiar Ficha do Fornecedor
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- PAINEL EXCLUSIVO: ANÁLISE DE CONCORRENTE -->
+                                    <div id="scannerCompetitorPanel" class="d-none mb-3">
+                                        <div class="p-3 rounded-3 border bg-light">
+                                            <div class="fw-bold text-dark mb-2" style="font-size: 0.88rem;">
+                                                <i class="fas fa-chart-line text-amber-600 me-1"></i> Análise de Margem Frente ao Concorrente
+                                            </div>
+                                            <div class="row g-2 text-center" style="font-size: 0.8rem;">
+                                                <div class="col-3 p-2 bg-white rounded border">
+                                                    <span class="text-muted d-block">Preço Dele</span>
+                                                    <strong id="compPriceVal" class="text-dark">R$ 0,00</strong>
+                                                </div>
+                                                <div class="col-3 p-2 bg-white rounded border">
+                                                    <span class="text-muted d-block">Nosso Custo</span>
+                                                    <strong id="compCostVal" class="text-muted">R$ 0,00</strong>
+                                                </div>
+                                                <div class="col-3 p-2 bg-white rounded border">
+                                                    <span class="text-muted d-block">Taxa ML (16%)</span>
+                                                    <strong id="compFeeVal" class="text-danger">R$ 0,00</strong>
+                                                </div>
+                                                <div class="col-3 p-2 bg-white rounded border" id="compMarginBox">
+                                                    <span class="text-muted d-block">Margem Líquida</span>
+                                                    <strong id="compMarginVal" class="text-success">0.0%</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- LISTAGEM DE CANDIDATOS DO INVENTÁRIO -->
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <label class="form-label fw-bold text-dark mb-0" style="font-size: 0.85rem;">
+                                                Selecione o SKU do estoque correspondente:
+                                            </label>
+                                            <small class="text-muted" style="font-size: 0.78rem;">Ordenado por precisão</small>
+                                        </div>
+                                        
+                                        <div id="scannerCandidatesList" class="d-flex flex-column gap-2" style="max-height: 220px; overflow-y: auto;">
+                                            <!-- Cards de SKUs inseridos via JS -->
+                                        </div>
+                                    </div>
+
+                                    <!-- OPÇÃO SECUNDÁRIA: CADASTRAR NOVO SKU SE NÃO EXISTIR -->
+                                    <div class="border-top pt-2">
+                                        <button class="btn btn-sm btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-1" 
+                                                type="button" data-bs-toggle="collapse" data-bs-target="#scannerCreateSkuCollapse">
+                                            <i class="fas fa-plus-circle text-primary"></i>
+                                            <span>Não achou? Cadastrar como Novo SKU no Inventário</span>
+                                        </button>
+                                        
+                                        <div class="collapse mt-2" id="scannerCreateSkuCollapse">
+                                            <div class="p-3 bg-light rounded-3 border">
+                                                <div class="row g-2 mb-2">
+                                                    <div class="col-6">
+                                                        <label class="form-label mb-0 fw-semibold text-muted" style="font-size: 0.75rem;">Código do Novo SKU:</label>
+                                                        <input type="text" id="newSkuCodeInput" class="form-control form-control-sm text-uppercase fw-bold" placeholder="Ex: ECO-NOVO-SKU">
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <label class="form-label mb-0 fw-semibold text-muted" style="font-size: 0.75rem;">Preço de Custo (R$):</label>
+                                                        <input type="number" step="0.01" id="newSkuCostInput" class="form-control form-control-sm" placeholder="0.00">
+                                                    </div>
+                                                </div>
+                                                <button type="button" class="btn btn-sm btn-primary w-100 fw-bold" id="btnCreateNewSkuAndLink">
+                                                    <i class="fas fa-save me-1"></i> Criar SKU e Vincular Imediatamente
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Modal Footer com Ações -->
+            <div class="modal-footer bg-light py-2 px-4 border-top d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" id="btnScannerBack" style="display: none;">
+                    <i class="fas fa-arrow-left me-1"></i> Outro Link
+                </button>
+                <div class="d-flex gap-2 ms-auto">
+                    <button type="button" class="btn btn-light border text-muted" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-success fw-bold px-4 shadow-sm" id="btnScannerConfirmLink" style="display: none;">
+                        <i class="fas fa-check-circle me-1"></i> Confirmar Vínculo com SKU
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<style>
+.scanner-role-card {
+    transition: all 0.2s ease-in-out;
+    background: #ffffff;
+}
+.scanner-role-card:hover {
+    border-color: #3b82f6 !important;
+    background: #f8fafc;
+}
+.scanner-role-card.active-role {
+    border-color: #2563eb !important;
+    background: #eff6ff !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+.candidate-sku-item {
+    transition: all 0.15s ease;
+    border: 1px solid #e2e8f0;
+}
+.candidate-sku-item:hover {
+    background: #f1f5f9;
+}
+.candidate-sku-item.selected-sku {
+    border-color: #10b981 !important;
+    background: #f0fdf4 !important;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+</style>

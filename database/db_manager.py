@@ -1367,6 +1367,61 @@ class DatabaseManager:
             print(f"Erro ao criar pedido de compra: {e}")
             return None
 
+    def create_inventory_item(self, user_id: str, sku: str, descricao: str,
+                              preco_custo: float = 0.0, preco_revenda: float = 0.0,
+                              preco_site_pix: float = 0.0, quantidade: int = 1,
+                              link_produto: str = "", ncm: str = "") -> bool:
+        """
+        Cadastra um novo SKU no inventário associando a um pedido de 'Cadastro Direto / Fornecedor'.
+        """
+        try:
+            sku_clean = str(sku or "").strip().upper()
+            if not sku_clean:
+                raise ValueError("SKU não pode ser vazio.")
+
+            # Busca se já existe um pedido de catálogo manual ou cria um
+            orders_res = (self.supabase.table("pedidos_compra")
+                          .select("id")
+                          .eq("user_id", str(user_id))
+                          .eq("numero_pedido", "CADASTRO-DIRETO")
+                          .limit(1)
+                          .execute())
+            order_id = None
+            if orders_res.data:
+                order_id = orders_res.data[0]["id"]
+            else:
+                new_order = (self.supabase.table("pedidos_compra").insert({
+                    "user_id": str(user_id),
+                    "numero_pedido": "CADASTRO-DIRETO",
+                    "fornecedor": "Cadastro Manual / Fornecedor",
+                    "observacoes": "Itens cadastrados diretamente via Scanner ou Formulário"
+                }).execute())
+                if new_order.data:
+                    order_id = new_order.data[0]["id"]
+
+            if not order_id:
+                # Tenta pegar qualquer pedido do usuário como fallback
+                any_order = self.supabase.table("pedidos_compra").select("id").eq("user_id", str(user_id)).limit(1).execute()
+                if any_order.data:
+                    order_id = any_order.data[0]["id"]
+
+            payload = {
+                "pedido_id": order_id,
+                "sku": sku_clean,
+                "descricao": str(descricao or sku_clean).strip(),
+                "ncm": str(ncm or "").strip(),
+                "quantidade": max(0, int(quantidade or 1)),
+                "preco_custo": float(preco_custo or 0.0),
+                "preco_revenda": float(preco_revenda or 0.0),
+                "preco_site_pix": float(preco_site_pix or 0.0),
+                "link_produto": str(link_produto or "").strip()
+            }
+            res = self.supabase.table("itens_pedido").insert(payload).execute()
+            return bool(res.data)
+        except Exception as e:
+            print(f"Erro ao cadastrar novo item de inventário: {e}")
+            return False
+
     def get_purchase_orders(self, user_id: str) -> List[Dict]:
         """
         Retorna a lista de pedidos de compra do usuário com estatísticas de itens.
