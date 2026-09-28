@@ -2,8 +2,12 @@ import os
 import re
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any, Union
+from dotenv import load_dotenv
 from supabase import create_client, Client
 from werkzeug.security import generate_password_hash, check_password_hash
+
+# Carrega variáveis do arquivo .env
+load_dotenv()
 
 class DatabaseManager:
     """Gerenciador centralizado para operações de banco de dados"""

@@ -157,3 +157,8 @@ scratch/
 test_db.py
 thumbnails/
 static/reports/
+
+# Database dumps and backups
+scripts/backups/
+*.backup.json
+backup_origin_*.json
