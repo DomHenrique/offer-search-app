@@ -3,7 +3,7 @@ Flask==2.3.3
 Werkzeug==2.3.7
 
 # Database
-supabase==1.2.0
+supabase>=2.0.0
 psycopg2-binary
 
 # Data Processing
