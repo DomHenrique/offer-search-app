@@ -751,6 +751,12 @@ def scanner_confirm_link_api():
                 extracted_data['price'] = float(override_price)
             except:
                 pass
+        override_gtin = (data.get('override_gtin') or '').strip()
+        if override_gtin:
+            extracted_data['gtin'] = override_gtin
+            if 'raw_attributes' in extracted_data and isinstance(extracted_data['raw_attributes'], dict):
+                extracted_data['raw_attributes']['GTIN'] = override_gtin
+                extracted_data['raw_attributes']['EAN'] = override_gtin
 
         extracted_data['listing_role'] = role
         extracted_data['is_own_store'] = (role == 'own_store')

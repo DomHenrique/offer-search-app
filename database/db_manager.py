@@ -1978,16 +1978,17 @@ class DatabaseManager:
 
     def add_sku_reference_listing(self, user_id: str, sku: str, listing_data: Dict) -> Dict:
         """
-        Cadastra um novo anúncio de referência ativo para o SKU.
+        Cadastra ou atualiza um anúncio de referência ativo para o SKU.
         """
         try:
             user_uuid = self._get_user_uuid(user_id)
             sku_clean = str(sku or "").strip().upper()
+            clean_listing_id = str(listing_data.get("listing_id") or "").strip()
             payload = {
                 "user_id": user_uuid,
                 "sku": sku_clean,
                 "marketplace": listing_data.get("marketplace") or "MercadoLivre",
-                "listing_id": str(listing_data.get("listing_id") or "").strip(),
+                "listing_id": clean_listing_id,
                 "listing_url": str(listing_data.get("listing_url") or "").strip(),
                 "title": str(listing_data.get("title") or "").strip(),
                 "price": float(listing_data.get("price") or 0.0),
@@ -1997,12 +1998,25 @@ class DatabaseManager:
                 "is_own_store": bool(listing_data.get("is_own_store", True)),
                 "status": listing_data.get("status") or "active"
             }
-            res = self.supabase.table("sku_reference_listings").insert(payload).execute()
+
+            # Verifica se já existe um registro para o mesmo SKU e listing_id
+            existing = (self.supabase.table("sku_reference_listings")
+                        .select("id")
+                        .eq("user_id", user_uuid)
+                        .eq("sku", sku_clean)
+                        .eq("listing_id", clean_listing_id)
+                        .execute())
+            if existing.data and len(existing.data) > 0:
+                rec_id = existing.data[0]["id"]
+                res = self.supabase.table("sku_reference_listings").update(payload).eq("id", rec_id).execute()
+            else:
+                res = self.supabase.table("sku_reference_listings").insert(payload).execute()
+
             if res.data:
                 return res.data[0]
             return payload
         except Exception as e:
-            print(f"Erro ao inserir sku_reference_listings: {e}")
+            print(f"Erro ao cadastrar/atualizar sku_reference_listings: {e}")
             return {}
 
     def delete_sku_reference_listing(self, user_id: str, sku: str, listing_id: str) -> bool:

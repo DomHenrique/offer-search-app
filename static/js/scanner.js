@@ -8,11 +8,72 @@
 let currentExtractedData = null;
 let currentScanRole = 'supplier';
 let selectedCandidateSku = null;
+window.scannerTargetSku = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     initScannerRoleSelection();
     initScannerActions();
 });
+
+function setScannerRole(role) {
+    currentScanRole = role || 'supplier';
+    const roleCards = document.querySelectorAll('.scanner-role-card');
+    roleCards.forEach(card => {
+        const radio = card.querySelector('input[type="radio"]');
+        if (radio && radio.value === currentScanRole) {
+            card.classList.add('active-role');
+            radio.checked = true;
+        } else {
+            card.classList.remove('active-role');
+            if (radio) radio.checked = false;
+        }
+    });
+}
+
+window.openProductScannerModal = function(options = {}) {
+    resetScannerToInput();
+
+    // 1. Configura papel de anúncio
+    if (options.role) {
+        setScannerRole(options.role);
+    } else {
+        setScannerRole('supplier');
+    }
+
+    // 2. Configura SKU alvo pré-selecionado
+    window.scannerTargetSku = options.sku ? options.sku.trim() : null;
+    const banner = document.getElementById('scannerTargetSkuBanner');
+    const badge = document.getElementById('scannerTargetSkuCode');
+    if (banner && badge) {
+        if (window.scannerTargetSku) {
+            badge.textContent = window.scannerTargetSku;
+            banner.classList.remove('d-none');
+        } else {
+            banner.classList.add('d-none');
+        }
+    }
+
+    // 3. Preenche URL se fornecida
+    const inputUrl = document.getElementById('scannerInputUrl');
+    if (inputUrl) {
+        inputUrl.value = options.url || '';
+    }
+
+    // 4. Abre o modal
+    const modalEl = document.getElementById('globalProductScannerModal');
+    if (modalEl) {
+        const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        bsModal.show();
+        if (!options.url && inputUrl) {
+            setTimeout(() => inputUrl.focus(), 350);
+        }
+    }
+
+    // 5. Se já foi fornecida uma URL, dispara extração automática
+    if (options.url) {
+        handleExtractAndMatch();
+    }
+};
 
 function initScannerRoleSelection() {
     const roleCards = document.querySelectorAll('.scanner-role-card');
@@ -112,7 +173,8 @@ async function handleExtractAndMatch() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 url_or_id: urlOrId,
-                role: currentScanRole
+                role: currentScanRole,
+                sku_hint: window.scannerTargetSku || ''
             })
         });
 
@@ -362,6 +424,7 @@ async function handleConfirmLink() {
 
     const editTitle = document.getElementById('scannerEditTitle');
     const editPrice = document.getElementById('scannerEditPrice');
+    const editGtin = document.getElementById('scannerEditGtin');
     const btn = document.getElementById('btnScannerConfirmLink');
 
     if (btn) {
@@ -378,7 +441,8 @@ async function handleConfirmLink() {
                 extracted_data: currentExtractedData,
                 role: currentScanRole,
                 override_title: editTitle ? editTitle.value.trim() : '',
-                override_price: editPrice ? parseFloat(editPrice.value) : null
+                override_price: editPrice ? parseFloat(editPrice.value) : null,
+                override_gtin: editGtin ? editGtin.value.trim() : ''
             })
         });
 
@@ -484,7 +548,12 @@ function resetScannerToInput() {
     const loadingState = document.getElementById('scannerLoadingState');
     const btnBack = document.getElementById('btnScannerBack');
     const btnConfirm = document.getElementById('btnScannerConfirmLink');
+    const alertErr = document.getElementById('scannerAlertError');
 
+    if (alertErr) {
+        alertErr.classList.add('d-none');
+        alertErr.textContent = '';
+    }
     if (resultSection) resultSection.classList.add('d-none');
     if (loadingState) loadingState.classList.add('d-none');
     if (inputSection) inputSection.classList.remove('d-none');

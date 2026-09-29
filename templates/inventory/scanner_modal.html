@@ -26,6 +26,17 @@
                 <!-- ETAPA 1: INPUT DO LINK E SELEÇÃO DE PAPEL -->
                 <div id="scannerInputSection" class="p-3 bg-white rounded-3 shadow-sm border mb-3">
                     
+                    <!-- Banner de Foco em SKU Alvo (ativado quando chamado a partir de um SKU específico) -->
+                    <div id="scannerTargetSkuBanner" class="alert alert-primary border-0 bg-primary-subtle text-primary py-2 px-3 mb-3 rounded-2 small d-none d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="fas fa-crosshairs fs-6"></i>
+                            <div>
+                                Vinculando diretamente ao produto do inventário: <strong class="fs-6 font-monospace" id="scannerTargetSkuCode"></strong>
+                            </div>
+                        </div>
+                        <span class="badge bg-primary text-white">SKU Atual Pré-selecionado</span>
+                    </div>
+
                     <label class="form-label fw-bold text-dark mb-2" style="font-size: 0.92rem;">
                         <i class="fas fa-link text-primary me-1"></i> URL do Produto ou Identificador (MLB / ASIN):
                     </label>

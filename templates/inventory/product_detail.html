@@ -134,7 +134,7 @@
                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="resynthesizeSkuDossier('{{ product.sku }}')" id="btnResynthesizeDossier" title="Recalcular Dossiê Canônico com IA">
                     <i class="fas fa-robot me-1" id="iconResynthesize"></i> Reanalisar com IA
                 </button>
-                <button type="button" class="btn btn-sm btn-primary" onclick="openAddReferenceModal()">
+                <button type="button" class="btn btn-sm btn-primary" onclick="openProductScannerModal({ role: 'own_store', sku: '{{ product.sku }}' })">
                     <i class="fas fa-plus me-1"></i> Adicionar Anúncio de Referência
                 </button>
             </div>
@@ -265,6 +265,9 @@
                                             </div>
                                         </div>
                                         <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                                            <button type="button" class="btn btn-xs btn-outline-primary px-2" onclick="openProductScannerModal({ role: '{{ 'own_store' if ref.is_own_store else 'supplier' }}', sku: '{{ product.sku }}', url: '{{ ref.listing_url or ref.listing_id }}' })" title="Re-escanear, auditar e atualizar dados com IA">
+                                                <i class="fas fa-sync-alt"></i>
+                                            </button>
                                             <a href="{{ ref.listing_url }}" target="_blank" class="btn btn-xs btn-outline-secondary px-2" title="Abrir anúncio">
                                                 <i class="fas fa-external-link-alt"></i>
                                             </a>
@@ -280,7 +283,7 @@
                                     <i class="fas fa-link-slash fa-2x mb-2 opacity-50"></i>
                                     <div class="small fw-bold">Nenhum anúncio ativo cadastrado</div>
                                     <div style="font-size: 0.75rem;">Adicione os links dos anúncios da sua própria loja para treinar o Dossiê Canônico.</div>
-                                    <button type="button" class="btn btn-xs btn-primary mt-2" onclick="openAddReferenceModal()">
+                                    <button type="button" class="btn btn-xs btn-primary mt-2" onclick="openProductScannerModal({ role: 'own_store', sku: '{{ product.sku }}' })">
                                         <i class="fas fa-plus me-1"></i> Cadastrar Anúncio da Loja
                                     </button>
                                 </div>
@@ -1239,6 +1242,10 @@ function showToast(msg) {
 // ─── Funções de Gestão de Conhecimento e Dossiê Canônico ───
 
 function openAddReferenceModal() {
+    if (window.openProductScannerModal) {
+        window.openProductScannerModal({ role: 'own_store', sku: '{{ product.sku }}' });
+        return;
+    }
     const modalEl = document.getElementById('addReferenceListingModal');
     if (!modalEl) return;
     const inputUrl = document.getElementById('refListingUrlOrId');
