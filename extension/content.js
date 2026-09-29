@@ -148,34 +148,81 @@
   // ─── 2. Detecção e Extração de Página de Busca (Listing / Grid) ────
   function isSearchPage() {
     const href = window.location.href;
-    return (
-      href.includes('lista.mercadolivre.com.br') ||
-      href.includes('/c/') ||
-      href.includes('_Desde_') ||
-      href.includes('as_word=') ||
-      Boolean(document.querySelector('.ui-search-layout, .ui-search-results, .poly-card, .ui-search'))
+
+    // Se for PDP individual com botão de compra evidente, não trata como busca
+    const isPdp = Boolean(
+      document.querySelector('.ui-pdp-container, #ui-pdp-main-container, .ui-pdp-buybox, button[id*="bid-action-buy"]')
     );
+    if (isPdp && !href.includes('/p/MLB') && document.querySelector('.ui-pdp-title')) {
+      return false;
+    }
+
+    // 1. URLs padrão de busca e listagem
+    if (
+      href.includes('lista.mercadolivre.com.br') ||
+      href.includes('mercadolivre.com.br/c/') ||
+      href.includes('/c/') ||
+      href.includes('/ofertas') ||
+      href.includes('as_word=') ||
+      href.includes('_Desde_') ||
+      href.includes('_DisplayType_') ||
+      href.includes('search_layout=') ||
+      href.includes('/search')
+    ) {
+      return true;
+    }
+
+    // 2. Elementos característicos de busca no DOM
+    if (
+      document.querySelector(
+        '.ui-search-layout, .ui-search-results, .ui-search-main, .ui-search-sidebar, .poly-card, .ui-search-sort-filter, .ui-search-search-result, .ui-search-breadcrumb'
+      ) ||
+      document.querySelectorAll('li.ui-search-layout__item, .poly-card, div.ui-search-result__wrapper, [data-component="poly-card"]').length > 0
+    ) {
+      return true;
+    }
+
+    // 3. Fallback: Se houver input de busca preenchido ou contador de resultados na tela
+    const resultCountEl = document.querySelector('.ui-search-search-result__quantity-results, .ui-search-breadcrumb__title');
+    if (resultCountEl) {
+      return true;
+    }
+
+    const priceCount = document.querySelectorAll('.andes-money-amount__fraction, .poly-price__current, .price-tag-fraction').length;
+    const mlbLinks = document.querySelectorAll('a[href*="MLB"]').length;
+    if (priceCount >= 2 && mlbLinks >= 2 && !isPdp) {
+      return true;
+    }
+
+    return false;
   }
 
   function extractSearchCards() {
     const cardSelectors = [
       'li.ui-search-layout__item',
-      'div.ui-search-result__wrapper',
+      'div.ui-search-layout__item',
       'div.poly-card',
-      '.ui-search-item'
+      'section.poly-card',
+      '.poly-card--grid',
+      '.poly-card--stack',
+      '.poly-component',
+      'div.ui-search-result__wrapper',
+      'div.ui-search-result',
+      '.ui-search-item',
+      '[data-component="poly-card"]'
     ];
 
-    const cardsMap = new Map();
-    cardSelectors.forEach(sel => {
-      document.querySelectorAll(sel).forEach(el => {
-        // Evita containers pais duplicados
-        if (!el.closest('.os-inpage-card-overlay')) {
-          cardsMap.set(el, el);
-        }
-      });
+    const rawElements = [];
+    document.querySelectorAll(cardSelectors.join(', ')).forEach(el => {
+      if (el.closest('.os-inpage-card-overlay')) return;
+      rawElements.push(el);
     });
 
-    const cards = Array.from(cardsMap.values());
+    // Remove elementos pais se o elemento filho já estiver na lista (ex: li que envolve poly-card)
+    const cards = rawElements.filter(el => {
+      return !rawElements.some(other => other !== el && el.contains(other));
+    });
+
     const extractedItems = [];
 
     cards.forEach((card, index) => {
@@ -185,14 +232,18 @@
         card.setAttribute('data-os-card-id', cardId);
       }
 
-      // Varre links do card para achar /p/MLB ou wid=MLB
-      const allLinks = card.querySelectorAll('a');
+      // Varre links do card para achar /p/MLB ou wid=MLB ou MLB-
+      const allLinks = Array.from(card.querySelectorAll('a'));
+      if (card.tagName.toLowerCase() === 'a') {
+        allLinks.push(card);
+      }
+
       let catalogId = null;
       let itemId = null;
       let productUrl = '';
 
       allLinks.forEach(a => {
-        const href = a.href || '';
+        const href = a.href || a.getAttribute('href') || '';
         if (!href) return;
         const pMatch = href.match(/\/p\/(MLB\d+)/i);
         if (pMatch && !catalogId) {
@@ -212,15 +263,15 @@
       });
 
       // Extrai título
-      const titleEl = card.querySelector('.poly-component__title, .ui-search-item__title, h2, h3, a.poly-component__title');
-      const title = titleEl ? titleEl.textContent.trim() : '';
+      const titleEl = card.querySelector('.poly-component__title, .ui-search-item__title, a.poly-component__title, h2, h3, a[title]');
+      const title = titleEl ? (titleEl.textContent || titleEl.getAttribute('title') || '').trim() : '';
 
       // Extrai preço
       let price = 0.0;
-      const priceFraction = card.querySelector('.andes-money-amount__fraction, .poly-price__current .andes-money-amount__fraction');
+      const priceFraction = card.querySelector('.andes-money-amount__fraction, .poly-price__current .andes-money-amount__fraction, .price-tag-fraction');
       if (priceFraction) {
         const whole = priceFraction.textContent.replace(/\./g, '').trim();
-        const centsEl = card.querySelector('.andes-money-amount__cents, .poly-price__current .andes-money-amount__cents');
+        const centsEl = card.querySelector('.andes-money-amount__cents, .poly-price__current .andes-money-amount__cents, .price-tag-cents');
         const cents = centsEl ? centsEl.textContent.trim() : '00';
         price = parseFloat(`${whole}.${cents}`) || 0.0;
       }
@@ -239,13 +290,34 @@
     return extractedItems;
   }
 
+  let searchScanAttempts = 0;
+  function triggerSearchScan() {
+    if (!isSearchPage()) return;
+    if (isScanningSearchPage) return;
+
+    const cardsData = extractSearchCards();
+    if (cardsData.length > 0) {
+      if (!document.getElementById('os-search-summary-bar')) {
+        renderSearchSummaryBar({
+          total_scanned: cardsData.length,
+          total_catalogs: '...',
+          total_in_stock: '...',
+          isLoading: true
+        });
+      }
+      scanAndInjectSearchPage();
+    } else if (searchScanAttempts < 6) {
+      searchScanAttempts++;
+      setTimeout(triggerSearchScan, 400);
+    }
+  }
+
   async function scanAndInjectSearchPage() {
     if (isScanningSearchPage) return;
     const cardsData = extractSearchCards();
     if (cardsData.length === 0) return;
 
     isScanningSearchPage = true;
-    const apiUrl = await getApiUrl();
 
     // Prepara payload compacto para o backend
     const payloadItems = cardsData.map(c => ({
@@ -293,7 +365,9 @@
       overlay.className = 'os-inpage-card-overlay';
 
       // Posiciona preferencialmente no conteúdo do card
-      const targetContainer = cardEl.querySelector('.poly-card__content, .ui-search-result__content, .ui-search-result__content-wrapper') || cardEl;
+      const targetContainer = cardEl.querySelector(
+        '.poly-card__content, .poly-component__content, .ui-search-result__content, .ui-search-result__content-wrapper'
+      ) || cardEl;
       targetContainer.appendChild(overlay);
     }
 
@@ -366,13 +440,40 @@
       summaryBar.id = 'os-search-summary-bar';
       summaryBar.className = 'os-search-summary-bar';
 
-      // Encontra ponto de inserção no topo da busca
-      const searchContainer = document.querySelector('.ui-search-results, .ui-search-layout, #root-app section, main section') || document.body;
-      if (searchContainer.parentNode) {
-        searchContainer.parentNode.insertBefore(summaryBar, searchContainer);
+      // Posiciona preferencialmente antes do #root-app ou logo após o nav-header
+      const navHeader = document.querySelector('header.nav-header, .nav-header');
+      const rootApp = document.getElementById('root-app') || document.querySelector('main');
+      const searchMain = document.querySelector('.ui-search-main, .ui-search-layout, .ui-search');
+
+      if (rootApp && rootApp.parentNode) {
+        rootApp.parentNode.insertBefore(summaryBar, rootApp);
+      } else if (navHeader && navHeader.parentNode) {
+        navHeader.parentNode.insertBefore(summaryBar, navHeader.nextSibling);
+      } else if (searchMain && searchMain.parentNode) {
+        searchMain.parentNode.insertBefore(summaryBar, searchMain);
       } else {
         document.body.prepend(summaryBar);
       }
+    }
+
+    if (summaryData && summaryData.isLoading) {
+      summaryBar.innerHTML = `
+        <div class="os-summary-left">
+          <div class="os-summary-logo">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fde047" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            <span>Offer Search Intel</span>
+          </div>
+          <div class="os-summary-metrics">
+            <div class="os-summary-pill highlight">
+              <span class="os-spinner" style="width:12px; height:12px; border-width:2px; border-color:rgba(255,255,255,0.3); border-top-color:#fde047;"></span>
+              <span>Analisando oportunidades de catálogo e estoque na página...</span>
+            </div>
+          </div>
+        </div>
+      `;
+      return;
     }
 
     summaryBar.innerHTML = `
@@ -1113,9 +1214,11 @@
 
   // ─── 6. Inicialização Unificada e Observador de Rota/SPA ───────────
   async function init() {
-    // 1. Se estiver em página de busca do ML, executa a varredura em lote
+    searchScanAttempts = 0;
+
+    // 1. Se estiver em página de busca do ML, executa a varredura com retries
     if (isSearchPage()) {
-      scanAndInjectSearchPage();
+      triggerSearchScan();
     }
 
     // 2. Se for uma página de produto (PDP), inicializa também o widget individual
@@ -1133,6 +1236,27 @@
     init();
   }
 
+  // Monitora submissão da barra de busca do Mercado Livre
+  function setupSearchFormListener() {
+    const searchForm = document.querySelector('form.nav-search, form[action*="mercadolivre"]');
+    if (searchForm) {
+      searchForm.addEventListener('submit', () => {
+        searchScanAttempts = 0;
+        setTimeout(init, 500);
+      });
+    }
+    const searchInput = document.querySelector('input.nav-search-input, input#cb1-edit');
+    if (searchInput) {
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          searchScanAttempts = 0;
+          setTimeout(init, 500);
+        }
+      });
+    }
+  }
+  setupSearchFormListener();
+
   // Observa mudanças de rota em SPAs e inserções dinâmicas de cards (scroll infinito)
   let lastUrl = location.href;
   let scrollScanTimeout = null;
@@ -1140,18 +1264,19 @@
   const observer = new MutationObserver(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
-      setTimeout(init, 800);
+      searchScanAttempts = 0;
+      setTimeout(init, 400);
     } else if (isSearchPage()) {
       clearTimeout(scrollScanTimeout);
       scrollScanTimeout = setTimeout(() => {
-        // Varre novos cards inseridos por lazy loading
+        // Varre novos cards inseridos por lazy loading ou renderização tardia
         const unscanned = document.querySelectorAll(
-          'li.ui-search-layout__item:not([data-os-card-id]), .poly-card:not([data-os-card-id])'
+          'li.ui-search-layout__item:not([data-os-card-id]), .poly-card:not([data-os-card-id]), div.ui-search-result__wrapper:not([data-os-card-id])'
         );
         if (unscanned.length > 0) {
-          scanAndInjectSearchPage();
+          triggerSearchScan();
         }
-      }, 500);
+      }, 400);
     }
   });
 
