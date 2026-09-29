@@ -377,3 +377,391 @@
 @keyframes os-spin {
   to { transform: rotate(360deg); }
 }
+
+/* ─── Botão Vender um Igual (Estilo Oficial Mercado Livre) ────────── */
+.os-btn-sell-similar {
+  width: 100%;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #ffe600, #ffd000);
+  color: #2d3277;
+  border: 1px solid #e6b800;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.35);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+}
+
+.os-btn-sell-similar:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(135deg, #fff033, #ffd700);
+  box-shadow: 0 6px 16px rgba(255, 215, 0, 0.45);
+}
+
+/* ─── Caixa de Destaque da Melhor Sugestão de Estoque ────────────── */
+.os-best-match-card {
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  border: 1px solid #86efac;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.os-best-match-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.os-badge-tier {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.os-badge-tier.exact {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.os-badge-tier.high {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.os-badge-tier.partial {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+.os-badge-tier.low {
+  background: #94a3b8;
+  color: #ffffff;
+}
+
+/* ─── Simulador Interativo de BuyBox e Margem ─────────────────────── */
+.os-simulator-container {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.os-simulator-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.os-sim-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.os-sim-input {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  outline: none;
+  background: #fff;
+}
+
+.os-sim-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.os-sim-chips {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.os-chip-btn {
+  background: #e2e8f0;
+  border: none;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.os-chip-btn:hover {
+  background: #cbd5e1;
+  color: #1e293b;
+}
+
+.os-action-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.os-btn-secondary {
+  flex: 1;
+  padding: 7px 10px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: background 0.15s;
+}
+
+.os-btn-secondary:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+/* ==========================================================================
+   Estilos de Busca do Mercado Livre: Overlays nos Cards & Barra de Resumo
+   (Estilo AvantPro / Helium 10 In-Page)
+   ========================================================================== */
+
+/* ─── Barra de Resumo no Topo da Busca ───────────────────────────── */
+.os-search-summary-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #0f172a, #1e1b4b);
+  color: #ffffff;
+  padding: 12px 18px;
+  border-radius: 12px;
+  margin: 14px 0 18px 0;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  z-index: 9999;
+}
+
+.os-summary-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.os-summary-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: -0.3px;
+  color: #f8fafc;
+}
+
+.os-summary-metrics {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.os-summary-pill {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.os-summary-pill.highlight {
+  background: rgba(234, 179, 8, 0.2);
+  border: 1px solid rgba(234, 179, 8, 0.5);
+  color: #fef08a;
+  font-weight: 700;
+}
+
+.os-summary-pill.success {
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: #6ee7b7;
+  font-weight: 700;
+}
+
+.os-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.os-filter-toggle-btn {
+  background: #334155;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.os-filter-toggle-btn:hover {
+  background: #475569;
+}
+
+.os-filter-toggle-btn.active {
+  background: #eab308;
+  color: #0f172a;
+  border-color: #ca8a04;
+  box-shadow: 0 0 12px rgba(234, 179, 8, 0.4);
+}
+
+/* ─── Injeção de Overlay Direto no Card do Produto ────────────────── */
+.os-inpage-card-overlay {
+  display: block;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 11px;
+  line-height: 1.35;
+  box-sizing: border-box;
+}
+
+.os-inpage-card-overlay.is-catalog {
+  background: #fdf4ff;
+  border: 1.5px solid #d8b4fe;
+}
+
+.os-inpage-card-overlay.is-match {
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+}
+
+.os-card-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.os-card-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.os-card-badge.catalog {
+  background: #9333ea;
+  color: #ffffff;
+}
+
+.os-card-badge.non-catalog {
+  background: #94a3b8;
+  color: #ffffff;
+}
+
+.os-card-badge.stock-match {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.os-card-stock-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  font-size: 11px;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+.os-card-stock-grid strong {
+  color: #0f172a;
+}
+
+/* Botão Vender Igual no Card da Busca */
+.os-card-btn-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-sizing: border-box;
+}
+
+.os-card-btn-action.sell-similar {
+  background: #ffe600;
+  color: #2d3277;
+  border: 1px solid #e6ce00;
+}
+
+.os-card-btn-action.sell-similar:hover {
+  background: #fff033;
+}
+
+.os-card-btn-action.view-details {
+  background: #e2e8f0;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.os-card-btn-action.view-details:hover {
+  background: #cbd5e1;
+}
+
+/* Borda destacada no card do ML quando for catálogo */
+.os-highlight-catalog-card {
+  border: 2px solid #c084fc !important;
+  border-radius: 10px !important;
+  transition: border-color 0.2s;
+}
+
+/* Ocultação de cards fora de catálogo quando filtro estiver ativo */
+body.os-only-catalogs-enabled .os-card-non-catalog {
+  display: none !important;
+}

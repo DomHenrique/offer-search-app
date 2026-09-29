@@ -1,8 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Offer Search - In-Page Stock & Catalog Intel",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Sincroniza sessões e injeta comparativo de estoque, custos, BuyBox e vinculação rápida de SKUs direto no Mercado Livre e Amazon.",
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "Offer Search Assistant",
@@ -20,7 +23,8 @@
   "permissions": [
     "cookies",
     "storage",
-    "tabs"
+    "tabs",
+    "alarms"
   ],
   "host_permissions": [
     "*://*.mercadolivre.com.br/*",

@@ -1,6 +1,7 @@
 /**
  * Offer Search App - In-Page Stock & Catalog Intel (Content Script)
- * Assistente de Inteligência de Estoque e Margens direto no Mercado Livre e Amazon.
+ * Assistente de Inteligência de Catálogo, BuyBox, Estoque e Fluxo "Vender Igual"
+ * direto nas páginas de busca e produto do Mercado Livre e Amazon.
  */
 
 (function () {
@@ -14,13 +15,353 @@
   let cachedApiUrl = null;
   let shadowRoot = null;
   let currentIntelData = null;
-  let currentCatalogId = null;
+  let currentProductInfo = null;
   let isCardOpen = false;
   let selectedSkuForLinking = null;
+  let simulatedPriceValue = null;
+  let isScanningSearchPage = false;
+  let isOnlyCatalogsFilterActive = false;
 
-  // ─── 1. Extrator de Identificadores e Metadados da Página ─────────
+  // ─── 1. Utilitários Gerais ─────────────────────────────────────────
+  async function getApiUrl() {
+    if (cachedApiUrl) return cachedApiUrl;
+    return new Promise(resolve => {
+      chrome.storage.local.get(['apiUrl'], res => {
+        cachedApiUrl = (res.apiUrl || DEFAULT_API_URL).replace(/\/+$/, '');
+        resolve(cachedApiUrl);
+      });
+    });
+  }
+
+  function formatMoney(val) {
+    return (parseFloat(val) || 0.0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function calculateMarginLocal(cost, sellPrice, feePct = 0.16) {
+    cost = parseFloat(cost || 0.0);
+    sellPrice = parseFloat(sellPrice || 0.0);
+    let fixedFee = 0.0;
+    if (sellPrice > 0 && sellPrice < 79.0) {
+      fixedFee = 6.0;
+    }
+    if (sellPrice <= 0) {
+      return { net_profit: 0.0, margin_pct: 0.0, marketplace_fee: 0.0, status_label: 'Sem Preço', status_color: '#94a3b8' };
+    }
+    const fee = Math.round(((sellPrice * feePct) + fixedFee) * 100) / 100;
+    const profit = Math.round((sellPrice - fee - cost) * 100) / 100;
+    const pct = sellPrice > 0 ? Math.round((profit / sellPrice) * 1000) / 10 : 0.0;
+
+    let status_label = '🟢 Lucrativo';
+    let status_color = '#22c55e';
+    if (cost <= 0) {
+      status_label = 'Custo Não Cadastrado';
+      status_color = '#64748b';
+    } else if (profit > 0 && pct >= 15.0) {
+      status_label = '🔥 Alta Margem de Lucro';
+      status_color = '#10b981';
+    } else if (profit === 0) {
+      status_label = '⚪ Empate (Zero Lucro)';
+      status_color = '#f59e0b';
+    } else if (profit < 0) {
+      status_label = '🔴 Abaixo do Custo / Prejuízo';
+      status_color = '#ef4444';
+    }
+
+    return {
+      net_profit: profit,
+      margin_pct: pct,
+      marketplace_fee: fee,
+      status_label,
+      status_color
+    };
+  }
+
+  // ─── 2. Detecção e Extração de Página de Busca (Listing / Grid) ────
+  function isSearchPage() {
+    const href = window.location.href;
+    return (
+      href.includes('lista.mercadolivre.com.br') ||
+      href.includes('/c/') ||
+      href.includes('_Desde_') ||
+      href.includes('as_word=') ||
+      Boolean(document.querySelector('.ui-search-layout, .ui-search-results, .poly-card, .ui-search'))
+    );
+  }
+
+  function extractSearchCards() {
+    const cardSelectors = [
+      'li.ui-search-layout__item',
+      'div.ui-search-result__wrapper',
+      'div.poly-card',
+      '.ui-search-item'
+    ];
+
+    const cardsMap = new Map();
+    cardSelectors.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => {
+        // Evita containers pais duplicados
+        if (!el.closest('.os-inpage-card-overlay')) {
+          cardsMap.set(el, el);
+        }
+      });
+    });
+
+    const cards = Array.from(cardsMap.values());
+    const extractedItems = [];
+
+    cards.forEach((card, index) => {
+      let cardId = card.getAttribute('data-os-card-id');
+      if (!cardId) {
+        cardId = `os-card-${index}-${Date.now().toString(36)}`;
+        card.setAttribute('data-os-card-id', cardId);
+      }
+
+      // Varre links do card para achar /p/MLB ou wid=MLB
+      const allLinks = card.querySelectorAll('a');
+      let catalogId = null;
+      let itemId = null;
+      let productUrl = '';
+
+      allLinks.forEach(a => {
+        const href = a.href || '';
+        if (!href) return;
+        const pMatch = href.match(/\/p\/(MLB\d+)/i);
+        if (pMatch && !catalogId) {
+          catalogId = pMatch[1].toUpperCase();
+          productUrl = href;
+        }
+        const widMatch = href.match(/wid=(MLB\d+)/i);
+        if (widMatch && !catalogId) {
+          catalogId = widMatch[1].toUpperCase();
+          productUrl = `https://www.mercadolivre.com.br/p/${catalogId}`;
+        }
+        const itMatch = href.match(/(MLB-?\d+)/i);
+        if (itMatch && !itemId) {
+          itemId = itMatch[1].replace('-', '').toUpperCase();
+          if (!productUrl) productUrl = href;
+        }
+      });
+
+      // Extrai título
+      const titleEl = card.querySelector('.poly-component__title, .ui-search-item__title, h2, h3, a.poly-component__title');
+      const title = titleEl ? titleEl.textContent.trim() : '';
+
+      // Extrai preço
+      let price = 0.0;
+      const priceFraction = card.querySelector('.andes-money-amount__fraction, .poly-price__current .andes-money-amount__fraction');
+      if (priceFraction) {
+        const whole = priceFraction.textContent.replace(/\./g, '').trim();
+        const centsEl = card.querySelector('.andes-money-amount__cents, .poly-price__current .andes-money-amount__cents');
+        const cents = centsEl ? centsEl.textContent.trim() : '00';
+        price = parseFloat(`${whole}.${cents}`) || 0.0;
+      }
+
+      extractedItems.push({
+        id: cardId,
+        cardElement: card,
+        catalog_id: catalogId,
+        item_id: itemId,
+        title,
+        price,
+        url: productUrl
+      });
+    });
+
+    return extractedItems;
+  }
+
+  async function scanAndInjectSearchPage() {
+    if (isScanningSearchPage) return;
+    const cardsData = extractSearchCards();
+    if (cardsData.length === 0) return;
+
+    isScanningSearchPage = true;
+    const apiUrl = await getApiUrl();
+
+    // Prepara payload compacto para o backend
+    const payloadItems = cardsData.map(c => ({
+      id: c.id,
+      catalog_id: c.catalog_id,
+      item_id: c.item_id,
+      title: c.title,
+      price: c.price,
+      url: c.url
+    }));
+
+    try {
+      const res = await fetch(`${apiUrl}/api/extension/scan-search-page`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ items: payloadItems })
+      });
+
+      if (!res.ok) {
+        console.warn(`[Offer Search] Falha ao escanear página de busca: HTTP ${res.status}`);
+        isScanningSearchPage = false;
+        return;
+      }
+
+      const scanResult = await res.json();
+      if (!scanResult || !scanResult.results) {
+        isScanningSearchPage = false;
+        return;
+      }
+
+      // Renderiza barra de resumo no topo da busca
+      renderSearchSummaryBar(scanResult);
+
+      // Injeta overlays nos cards
+      cardsData.forEach(cardItem => {
+        const itemResult = scanResult.results[cardItem.id];
+        if (itemResult) {
+          injectCardIntelOverlay(cardItem.cardElement, itemResult, cardItem);
+        }
+      });
+
+    } catch (err) {
+      console.warn('[Offer Search] Erro ao escanear página de busca:', err.message);
+    } finally {
+      isScanningSearchPage = false;
+    }
+  }
+
+  function injectCardIntelOverlay(cardEl, data, cardInfo) {
+    let overlay = cardEl.querySelector('.os-inpage-card-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'os-inpage-card-overlay';
+
+      // Posiciona preferencialmente no conteúdo do card
+      const targetContainer = cardEl.querySelector('.poly-card__content, .ui-search-result__content, .ui-search-result__content-wrapper') || cardEl;
+      targetContainer.appendChild(overlay);
+    }
+
+    const isCatalog = Boolean(data.is_catalog && data.catalog_id);
+    const isLinked = Boolean(data.is_linked);
+    const hasStockMatch = Boolean(data.has_stock_match && data.match);
+    const match = data.match || (isLinked ? data : null);
+
+    // Ajusta classes do card para destaque e filtros
+    if (isCatalog) {
+      cardEl.classList.add('os-highlight-catalog-card');
+      cardEl.classList.remove('os-card-non-catalog');
+      overlay.classList.add('is-catalog');
+    } else {
+      cardEl.classList.remove('os-highlight-catalog-card');
+      cardEl.classList.add('os-card-non-catalog');
+      overlay.classList.remove('is-catalog');
+    }
+
+    if (match) {
+      overlay.classList.add('is-match');
+    } else {
+      overlay.classList.remove('is-match');
+    }
+
+    // Monta conteúdo HTML do overlay
+    let html = `
+      <div class="os-card-badge-row">
+        <span class="os-card-badge ${isCatalog ? 'catalog' : 'non-catalog'}">
+          ${isCatalog ? `🏷️ Catálogo: ${data.catalog_id}` : '⚪ Fora de Catálogo'}
+        </span>
+        ${match ? `
+          <span class="os-card-badge stock-match">
+            ${isLinked ? '🟢 Vinculado' : (match.match_badge || '⭐ Match de Estoque')}
+          </span>
+        ` : (isCatalog ? `<span style="font-size:10px; color:#9333ea; font-weight:700;">Disputa BuyBox</span>` : '')}
+      </div>
+    `;
+
+    if (match) {
+      html += `
+        <div style="font-weight:800; font-size:11px; color:#0f172a; margin-bottom:4px;">
+          SKU: ${match.sku}
+        </div>
+        <div class="os-card-stock-grid">
+          <div>Estoque: <strong>${match.estoque_total} UN</strong></div>
+          <div>Custo: <strong>${formatMoney(match.preco_custo)}</strong></div>
+          <div>Margem: <strong style="color:${match.margin ? match.margin.status_color : '#10b981'}">${match.margin ? match.margin.margin_pct : 0}%</strong></div>
+          <div>Lucro: <strong style="color:${match.margin ? match.margin.status_color : '#10b981'}">${match.margin ? formatMoney(match.margin.net_profit) : 'R$ 0'}</strong></div>
+        </div>
+      `;
+    }
+
+    if (isCatalog && data.sell_similar_url) {
+      html += `
+        <a href="${data.sell_similar_url}" target="_blank" class="os-card-btn-action sell-similar" title="Abrir criação de anúncio no Mercado Livre para este catálogo">
+          <span>🚀 Vender Igual</span>
+        </a>
+      `;
+    }
+
+    overlay.innerHTML = html;
+  }
+
+  function renderSearchSummaryBar(summaryData) {
+    let summaryBar = document.getElementById('os-search-summary-bar');
+    if (!summaryBar) {
+      summaryBar = document.createElement('div');
+      summaryBar.id = 'os-search-summary-bar';
+      summaryBar.className = 'os-search-summary-bar';
+
+      // Encontra ponto de inserção no topo da busca
+      const searchContainer = document.querySelector('.ui-search-results, .ui-search-layout, #root-app section, main section') || document.body;
+      if (searchContainer.parentNode) {
+        searchContainer.parentNode.insertBefore(summaryBar, searchContainer);
+      } else {
+        document.body.prepend(summaryBar);
+      }
+    }
+
+    summaryBar.innerHTML = `
+      <div class="os-summary-left">
+        <div class="os-summary-logo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fde047" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+          <span>Offer Search Intel</span>
+        </div>
+        <div class="os-summary-metrics">
+          <div class="os-summary-pill">
+            <span>📄</span>
+            <span><strong>${summaryData.total_scanned}</strong> Anúncios</span>
+          </div>
+          <div class="os-summary-pill highlight">
+            <span>🏷️</span>
+            <span><strong>${summaryData.total_catalogs}</strong> em Catálogo</span>
+          </div>
+          <div class="os-summary-pill success">
+            <span>📦</span>
+            <span><strong>${summaryData.total_in_stock}</strong> no seu Estoque</span>
+          </div>
+        </div>
+      </div>
+      <div class="os-summary-actions">
+        <button class="os-filter-toggle-btn ${isOnlyCatalogsFilterActive ? 'active' : ''}" id="osBtnFilterCatalogs">
+          <span>${isOnlyCatalogsFilterActive ? '👁️ Mostrar Todos' : '👁️ Apenas Catálogos'}</span>
+        </button>
+      </div>
+    `;
+
+    // Handler do filtro "Apenas Catálogos"
+    const filterBtn = summaryBar.querySelector('#osBtnFilterCatalogs');
+    if (filterBtn) {
+      filterBtn.addEventListener('click', () => {
+        isOnlyCatalogsFilterActive = !isOnlyCatalogsFilterActive;
+        document.body.classList.toggle('os-only-catalogs-enabled', isOnlyCatalogsFilterActive);
+        filterBtn.classList.toggle('active', isOnlyCatalogsFilterActive);
+        filterBtn.querySelector('span').textContent = isOnlyCatalogsFilterActive ? '👁️ Mostrar Todos' : '👁️ Apenas Catálogos';
+      });
+    }
+  }
+
+  // ─── 3. Extrator de PDP (Página Individual de Produto) ────────────
   function extractProductInfo() {
     const href = window.location.href;
+    const isMeli = href.includes('mercadolivre.com') || href.includes('mercadolibre.com');
+    const isAmazon = href.includes('amazon.com');
+    const marketplace = isMeli ? 'mercadolivre' : (isAmazon ? 'amazon' : 'outro');
+
     let catalogId = null;
     let itemId = null;
 
@@ -30,7 +371,7 @@
       catalogId = pMatch[1].toUpperCase();
     }
 
-    // Procura por canonical link caso seja página de variação ou anúncio de catálogo
+    // Procura por canonical link caso seja página de variação ou anúncio concorrendo em catálogo
     if (!catalogId) {
       const canonical = document.querySelector('link[rel="canonical"]');
       if (canonical && canonical.href) {
@@ -50,6 +391,16 @@
     if (asinMatch) {
       itemId = asinMatch[1].toUpperCase();
     }
+
+    // Detecta se a página possui disputa de múltiplos vendedores na BuyBox
+    const hasOtherSellers = Boolean(
+      document.querySelector('.ui-pdp-other-sellers') ||
+      document.querySelector('a[href*="/s?"]') ||
+      document.querySelector('.ui-pdp-buybox') ||
+      document.querySelector('#olp_feature_div') ||
+      document.querySelector('#all-offers-display')
+    );
+    const isCatalog = Boolean(catalogId || hasOtherSellers);
 
     // Extrai Preço visível na tela
     let price = 0.0;
@@ -73,25 +424,60 @@
     const imgEl = document.querySelector('.ui-pdp-gallery__figure img') || document.querySelector('#landingImage') || document.querySelector('meta[property="og:image"]');
     const image = imgEl ? (imgEl.src || imgEl.getAttribute('content') || '') : '';
 
+    // Extrai Atributos Técnicos (Marca, Modelo, EAN/GTIN)
+    let brand = '';
+    let model = '';
+    let gtin = '';
+
+    const specRows = document.querySelectorAll('.ui-pdp-specs__table tr, .andes-table__row, #productOverview_feature_div tr, table.a-normal tr');
+    specRows.forEach(row => {
+      const th = (row.querySelector('th') || {}).textContent || '';
+      const td = (row.querySelector('td') || {}).textContent || '';
+      const label = th.trim().toLowerCase();
+      const val = td.trim();
+      if (!brand && (label.includes('marca') || label === 'brand')) brand = val;
+      if (!model && (label.includes('modelo') || label.includes('linha') || label === 'model')) model = val;
+      if (!gtin && (label.includes('universal') || label.includes('gtin') || label.includes('ean') || label.includes('código'))) gtin = val;
+    });
+
+    // Fallback: Busca em scripts JSON-LD estruturados
+    try {
+      const jsonLds = document.querySelectorAll('script[type="application/ld+json"]');
+      for (const s of jsonLds) {
+        const parsed = JSON.parse(s.textContent);
+        const pObj = Array.isArray(parsed) ? parsed.find(d => d && d['@type'] === 'Product') : (parsed && parsed['@type'] === 'Product' ? parsed : null);
+        if (pObj) {
+          if (!brand && pObj.brand) brand = typeof pObj.brand === 'string' ? pObj.brand : (pObj.brand.name || '');
+          if (!model && pObj.model) model = pObj.model;
+          if (!gtin) gtin = pObj.gtin || pObj.gtin13 || pObj.gtin12 || pObj.gtin8 || '';
+        }
+      }
+    } catch (e) {}
+
+    // Extrai Vendedor Vencedor da BuyBox
+    let buyboxWinner = '';
+    const sellerEl = document.querySelector('.ui-pdp-seller__link-trigger') ||
+                     document.querySelector('.ui-seller-info .ui-pdp-color--BLUE') ||
+                     document.querySelector('.ui-pdp-seller__header a') ||
+                     document.querySelector('#sellerProfileTriggerId');
+    if (sellerEl) {
+      buyboxWinner = sellerEl.textContent.trim();
+    }
+
     return {
-      catalogId: catalogId || itemId,
+      catalogId: catalogId || (isCatalog ? itemId : null),
       itemId,
+      isCatalog,
       title,
+      brand,
+      model,
+      gtin,
       price,
       image,
+      buyboxWinner,
+      marketplace,
       url: href
     };
-  }
-
-  // ─── 2. Carrega URL da API e Comunicação com Backend ──────────────
-  async function getApiUrl() {
-    if (cachedApiUrl) return cachedApiUrl;
-    return new Promise(resolve => {
-      chrome.storage.local.get(['apiUrl'], res => {
-        cachedApiUrl = (res.apiUrl || DEFAULT_API_URL).replace(/\/+$/, '');
-        resolve(cachedApiUrl);
-      });
-    });
   }
 
   async function fetchProductIntel(info) {
@@ -99,7 +485,12 @@
     const query = new URLSearchParams({
       catalog_id: info.catalogId || '',
       item_id: info.itemId || '',
+      title: info.title || '',
+      brand: info.brand || '',
+      model: info.model || '',
+      gtin: info.gtin || '',
       current_price: info.price || '',
+      marketplace: info.marketplace || 'mercadolivre',
       url: info.url
     });
 
@@ -144,7 +535,8 @@
       catalog_title: productInfo.title,
       catalog_url: productInfo.url,
       catalog_image: productInfo.image,
-      buybox_min_price: productInfo.price
+      buybox_min_price: productInfo.price,
+      buybox_winner: productInfo.buyboxWinner
     };
 
     const res = await fetch(`${apiUrl}/api/extension/link-sku`, {
@@ -155,7 +547,7 @@
     return await res.json();
   }
 
-  // ─── 3. Injeção e Construção do Shadow DOM ────────────────────────
+  // ─── 4. Injeção e Construção do Shadow DOM (Widget PDP) ────────────
   function setupShadowRoot() {
     let host = document.getElementById('offer-search-root');
     if (!host) {
@@ -175,34 +567,52 @@
     return shadowRoot.getElementById('os-widget-wrapper');
   }
 
-  // ─── 4. Renderizadores de Interface (Estilo AvantPro) ─────────────
-  function formatMoney(val) {
-    return (parseFloat(val) || 0.0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  }
-
   function renderWidget(info, intel) {
     const container = setupShadowRoot();
     if (!container) return;
 
     currentIntelData = intel;
-    currentCatalogId = info.catalogId;
+    currentProductInfo = info;
 
     const isLinked = Boolean(intel && intel.is_linked);
     const sku = isLinked ? intel.sku : null;
+    const bestMatch = intel ? intel.best_match : null;
+
+    const baseBuyboxPrice = (intel && intel.buybox_min_price) ? intel.buybox_min_price : (info.price || 0.0);
+    if (simulatedPriceValue === null || simulatedPriceValue === undefined) {
+      simulatedPriceValue = baseBuyboxPrice;
+    }
+
+    const currentCost = isLinked ? intel.preco_custo : (bestMatch ? bestMatch.preco_custo : 0.0);
+    const activeMargin = calculateMarginLocal(currentCost, simulatedPriceValue);
+
+    const sellSimilarUrl = (intel && intel.sell_similar_url) ? intel.sell_similar_url :
+      (info.catalogId ? `https://www.mercadolivre.com.br/anunciar/catalogo?catalog_product_id=${info.catalogId}` : '');
+
+    let fabBadgeText = 'Avulso';
+    let fabBadgeClass = 'unlinked';
+    if (isLinked) {
+      fabBadgeText = `SKU: ${sku}`;
+      fabBadgeClass = 'linked';
+    } else if (bestMatch && bestMatch.match_score >= 50) {
+      fabBadgeText = `⭐ Match: ${bestMatch.sku}`;
+      fabBadgeClass = 'linked';
+    } else if (info.isCatalog) {
+      fabBadgeText = 'Catálogo ML';
+      fabBadgeClass = 'unlinked';
+    }
 
     container.innerHTML = `
       <!-- Trigger Flutuante (FAB) -->
       ${!isCardOpen ? `
-        <div class="os-fab-btn" id="osTriggerBtn">
+        <div class="os-fab-btn" id="osTriggerBtn" title="Abrir Inteligência de Catálogo e Estoque">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
             <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
             <line x1="12" y1="22.08" x2="12" y2="12"></line>
           </svg>
           <span>Offer Search Intel</span>
-          <span class="os-fab-badge ${isLinked ? 'linked' : 'unlinked'}">
-            ${isLinked ? `SKU: ${sku}` : 'Avulso'}
-          </span>
+          <span class="os-fab-badge ${fabBadgeClass}">${fabBadgeText}</span>
         </div>
       ` : `
         <!-- Card Completo de Inteligência -->
@@ -212,7 +622,7 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fde047" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
               </svg>
-              <span>Inteligência de Estoque</span>
+              <span>Inteligência de Catálogo & BuyBox</span>
             </div>
             <div class="os-card-actions">
               <button class="os-icon-btn" id="osBtnMinimize" title="Minimizar">
@@ -225,20 +635,32 @@
             ${!intel ? `
               <div style="background:#fee2e2; border:1px solid #fca5a5; color:#991b1b; padding:12px; border-radius:10px; font-size:11px; margin-bottom:12px;">
                 <strong>⚠️ Falha de comunicação com o Offer Search App</strong>
-                <p style="margin-top:4px; opacity:0.9;">Não foi possível consultar os dados do servidor. Verifique se você está conectado à rede ou se o servidor está ativo.</p>
+                <p style="margin-top:4px; opacity:0.9;">Não foi possível consultar os dados do servidor. Verifique se o servidor está ativo.</p>
                 <button class="os-btn-primary" id="osBtnRetry" style="margin-top:10px; background:#ef4444;">
                   <span>🔄 Tentar Novamente</span>
                 </button>
               </div>
             ` : `
-            <!-- Status de Vínculo -->
-            <div class="os-status-banner ${isLinked ? 'linked' : 'unlinked'}">
-              <div>
-                <strong>${isLinked ? `🟢 Vinculado: ${intel.sku}` : '⚪ Catálogo Avulso (Sem SKU)'}</strong>
-                <div style="font-size:10px; opacity:0.85; margin-top:2px;">ID: ${info.catalogId || 'N/A'}</div>
+              <!-- Banner de Tipo de Página (Catálogo vs Anúncio Simples) -->
+              <div style="display:flex; justify-content:space-between; align-items:center; background:#f1f5f9; padding:8px 10px; border-radius:8px; font-size:11px; margin-bottom:10px;">
+                <span style="display:flex; align-items:center; gap:6px;">
+                  <span>${info.isCatalog ? '🏷️' : '📄'}</span>
+                  <strong>${info.isCatalog ? 'Anúncio de Catálogo Oficial' : 'Anúncio Convencional'}</strong>
+                </span>
+                <span style="color:#64748b; font-weight:700;">ID: ${info.catalogId || info.itemId || 'N/A'}</span>
               </div>
-              ${isLinked ? `<button class="os-icon-btn" id="osBtnChangeSku" title="Alterar SKU" style="background:#065f46; color:#fff;">✏️</button>` : ''}
-            </div>`}
+
+              <!-- Status de Vínculo com Estoque -->
+              <div class="os-status-banner ${isLinked ? 'linked' : 'unlinked'}">
+                <div>
+                  <strong>${isLinked ? `🟢 Vinculado: ${intel.sku}` : '⚪ Catálogo Não Vinculado ao Estoque'}</strong>
+                  <div style="font-size:10px; opacity:0.85; margin-top:2px;">
+                    ${isLinked ? (intel.descricao || 'Produto Cadastrado') : 'Dispute a BuyBox ou vincule ao seu SKU'}
+                  </div>
+                </div>
+                ${isLinked ? `<button class="os-icon-btn" id="osBtnChangeSku" title="Alterar SKU" style="background:#065f46; color:#fff;">✏️</button>` : ''}
+              </div>
+            `}
 
             ${isLinked ? `
               <!-- Métricas Principais de Estoque -->
@@ -261,45 +683,119 @@
                 </div>
               </div>
 
-              <!-- Tabela de Comparativo de Margem Estimada -->
-              ${intel.margin ? `
-                <div class="os-breakdown">
+              <!-- Simulador Interativo de BuyBox e Margem -->
+              <div class="os-simulator-container">
+                <div class="os-simulator-header">
+                  <span>🎯 Simulador de Preço BuyBox</span>
+                  <span style="font-size:11px; color:#64748b;">Taxa ML: 16%</span>
+                </div>
+                <div class="os-sim-input-row">
+                  <span style="font-weight:700; color:#475569;">R$</span>
+                  <input type="number" step="0.10" class="os-sim-input" id="osSimPriceInput" value="${simulatedPriceValue.toFixed(2)}">
+                </div>
+                <div class="os-sim-chips">
+                  <button class="os-chip-btn" id="osChipUndercut" title="Vencer BuyBox dando 1 centavo de desconto">- R$ 0,01 Vencer</button>
+                  <button class="os-chip-btn" id="osChipEqual">Igualar BuyBox</button>
+                  <button class="os-chip-btn" id="osChipMarkup10">+ 10% Lucro</button>
+                </div>
+
+                <!-- Breakdown de Margem Dinâmica -->
+                <div class="os-breakdown" style="margin-bottom:0;">
                   <div class="os-breakdown-row">
-                    <span style="color:#64748b;">Preço de Venda BuyBox:</span>
-                    <strong>${formatMoney(intel.buybox_min_price || info.price)}</strong>
+                    <span style="color:#64748b;">Preço de Venda Simulado:</span>
+                    <strong id="osSimDisplayPrice">${formatMoney(simulatedPriceValue)}</strong>
                   </div>
                   <div class="os-breakdown-row">
                     <span style="color:#64748b;">(-) Custo do Produto:</span>
                     <span style="color:#ef4444;">- ${formatMoney(intel.preco_custo)}</span>
                   </div>
                   <div class="os-breakdown-row">
-                    <span style="color:#64748b;">(-) Taxa ML Est. (16%):</span>
-                    <span style="color:#ef4444;">- ${formatMoney(intel.margin.marketplace_fee)}</span>
+                    <span style="color:#64748b;">(-) Taxa ML Estimada:</span>
+                    <span style="color:#ef4444;" id="osSimDisplayFee">- ${formatMoney(activeMargin.marketplace_fee)}</span>
                   </div>
                   <div class="os-breakdown-row total">
-                    <span>Margem Líquida Estimada:</span>
-                    <span style="color: ${intel.margin.status_color}; font-size:14px;">
-                      ${formatMoney(intel.margin.net_profit)} (${intel.margin.margin_pct}%)
+                    <span>Margem Líquida:</span>
+                    <span id="osSimDisplayProfit" style="color: ${activeMargin.status_color}; font-size:14px;">
+                      ${formatMoney(activeMargin.net_profit)} (${activeMargin.margin_pct}%)
                     </span>
                   </div>
-                  <div style="margin-top: 6px; font-size: 11px; font-weight: 700; color: ${intel.margin.status_color}; text-align: right;">
-                    ${intel.margin.status_label}
+                  <div id="osSimDisplayStatus" style="margin-top: 6px; font-size: 11px; font-weight: 700; color: ${activeMargin.status_color}; text-align: right;">
+                    ${activeMargin.status_label}
                   </div>
                 </div>
+              </div>
+
+              <!-- Botão Vender um Igual (Destaque Principal) -->
+              ${sellSimilarUrl ? `
+                <a href="${sellSimilarUrl}" target="_blank" class="os-btn-sell-similar" id="osBtnSellSimilar">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path>
+                    <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path>
+                    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path>
+                    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path>
+                  </svg>
+                  <span>🚀 Vender um Igual no Mercado Livre</span>
+                </a>
               ` : ''}
+
+              <!-- Ações Secundárias -->
+              <div class="os-action-row">
+                <button class="os-btn-secondary" id="osBtnCopyIntel" title="Copiar SKU, Título e EAN">
+                  <span>📋 Copiar Dados</span>
+                </button>
+                <button class="os-btn-secondary" id="osBtnSwitchSku">
+                  <span>🔄 Trocar SKU</span>
+                </button>
+              </div>
             ` : `
-              <!-- Seção de Vinculação Rápida de SKU -->
+              <!-- Seção para Catálogo Não Vinculado -->
+              ${bestMatch ? `
+                <!-- Sugestão Inteligente do InventoryMatcher -->
+                <div class="os-best-match-card">
+                  <div class="os-best-match-header">
+                    <span style="font-size:11px; font-weight:700; color:#166534;">🏆 Sugestão Inteligente de Estoque</span>
+                    <span class="os-badge-tier high">${bestMatch.match_badge || '⚡ Match Identificado'}</span>
+                  </div>
+                  <div style="font-size:13px; font-weight:800; color:#0f172a; margin-bottom:2px;">
+                    ${bestMatch.sku}
+                  </div>
+                  <div style="font-size:11px; color:#475569; margin-bottom:8px;">
+                    ${bestMatch.descricao}
+                  </div>
+                  <div style="display:flex; justify-content:space-between; font-size:11px; background:#fff; padding:6px 10px; border-radius:6px; border:1px solid #bbf7d0; margin-bottom:8px;">
+                    <span>Estoque: <strong>${bestMatch.estoque_total} UN</strong></span>
+                    <span>Custo: <strong>${formatMoney(bestMatch.preco_custo)}</strong></span>
+                    <span style="color:${bestMatch.margin.status_color}; font-weight:700;">Margem: ${bestMatch.margin.margin_pct}%</span>
+                  </div>
+                  <button class="os-btn-primary" id="osBtnQuickLinkBestMatch" style="background: linear-gradient(135deg, #15803d, #16a34a);">
+                    <span>🔗 Conectar ao SKU ${bestMatch.sku}</span>
+                  </button>
+                </div>
+              ` : ''}
+
+              <!-- Botão Vender um Igual para Catálogo Descoberto -->
+              ${sellSimilarUrl ? `
+                <a href="${sellSimilarUrl}" target="_blank" class="os-btn-sell-similar" id="osBtnSellSimilar">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path>
+                    <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path>
+                  </svg>
+                  <span>🚀 Vender um Igual neste Catálogo</span>
+                </a>
+              ` : ''}
+
+              <!-- Seção de Busca Manual de SKU -->
               <div class="os-link-section">
                 <div class="os-link-title">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                  <span>Conectar a um Produto do Estoque</span>
+                  <span>Ou selecione outro SKU do Estoque:</span>
                 </div>
-                <input type="text" class="os-input" id="osSkuSearchInput" placeholder="Buscar SKU ou descrição no estoque...">
+                <input type="text" class="os-input" id="osSkuSearchInput" placeholder="Buscar SKU ou descrição...">
                 <div class="os-sku-dropdown" id="osSkuList">
                   ${(intel && intel.suggestions && intel.suggestions.length) ? intel.suggestions.map(s => `
-                    <div class="os-sku-item" data-sku="${s.sku}">
+                    <div class="os-sku-item ${selectedSkuForLinking === s.sku ? 'selected' : ''}" data-sku="${s.sku}">
                       <div>
-                        <div class="os-sku-code">${s.sku}</div>
+                        <div class="os-sku-code">${s.sku} ${s.match_score ? `<span style="font-size:9px; color:#10b981;">(${s.match_score}%)</span>` : ''}</div>
                         <div class="os-sku-desc">${s.descricao || ''}</div>
                       </div>
                       <div style="text-align:right;">
@@ -321,7 +817,7 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
               <span>Abrir no Offer Search App</span>
             </a>
-            <span style="color:#94a3b8; font-size:10px;">v1.2</span>
+            <span style="color:#94a3b8; font-size:10px;">v1.3</span>
           </div>
         </div>
       `}
@@ -330,7 +826,7 @@
     bindEvents(info, intel);
   }
 
-  // ─── 5. Event Listeners no Shadow DOM ─────────────────────────────
+  // ─── 5. Event Listeners no Shadow DOM (Widget PDP) ────────────────
   function bindEvents(info, intel) {
     const triggerBtn = shadowRoot.getElementById('osTriggerBtn');
     if (triggerBtn) {
@@ -358,15 +854,113 @@
       });
     }
 
-    const changeSkuBtn = shadowRoot.getElementById('osBtnChangeSku');
+    const changeSkuBtn = shadowRoot.getElementById('osBtnChangeSku') || shadowRoot.getElementById('osBtnSwitchSku');
     if (changeSkuBtn) {
       changeSkuBtn.addEventListener('click', () => {
-        intel.is_linked = false;
+        if (intel) intel.is_linked = false;
         renderWidget(info, intel);
       });
     }
 
-    // Seção de busca de SKU no Dropdown
+    const copyBtn = shadowRoot.getElementById('osBtnCopyIntel');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async () => {
+        const textToCopy = `SKU: ${intel.sku || 'N/A'}\nCatálogo: ${info.catalogId || info.itemId}\nTítulo: ${info.title}\nEAN: ${info.gtin || 'N/A'}\nPreço BuyBox: ${formatMoney(info.price)}`;
+        try {
+          await navigator.clipboard.writeText(textToCopy);
+          copyBtn.innerHTML = '<span>✅ Copiado!</span>';
+          setTimeout(() => {
+            copyBtn.innerHTML = '<span>📋 Copiar Dados</span>';
+          }, 2000);
+        } catch (e) {
+          alert('Dados copiados:\n\n' + textToCopy);
+        }
+      });
+    }
+
+    const simInput = shadowRoot.getElementById('osSimPriceInput');
+    const chipUndercut = shadowRoot.getElementById('osChipUndercut');
+    const chipEqual = shadowRoot.getElementById('osChipEqual');
+    const chipMarkup = shadowRoot.getElementById('osChipMarkup10');
+
+    function updateSimulation(newPrice) {
+      simulatedPriceValue = parseFloat(newPrice) || 0.0;
+      const currentCost = (intel && intel.preco_custo) || 0.0;
+      const m = calculateMarginLocal(currentCost, simulatedPriceValue);
+
+      const dispPrice = shadowRoot.getElementById('osSimDisplayPrice');
+      const dispFee = shadowRoot.getElementById('osSimDisplayFee');
+      const dispProfit = shadowRoot.getElementById('osSimDisplayProfit');
+      const dispStatus = shadowRoot.getElementById('osSimDisplayStatus');
+
+      if (dispPrice) dispPrice.textContent = formatMoney(simulatedPriceValue);
+      if (dispFee) dispFee.textContent = `- ${formatMoney(m.marketplace_fee)}`;
+      if (dispProfit) {
+        dispProfit.style.color = m.status_color;
+        dispProfit.textContent = `${formatMoney(m.net_profit)} (${m.margin_pct}%)`;
+      }
+      if (dispStatus) {
+        dispStatus.style.color = m.status_color;
+        dispStatus.textContent = m.status_label;
+      }
+    }
+
+    if (simInput) {
+      simInput.addEventListener('input', () => {
+        updateSimulation(simInput.value);
+      });
+    }
+
+    if (chipUndercut) {
+      chipUndercut.addEventListener('click', () => {
+        const base = (intel && intel.buybox_min_price) ? intel.buybox_min_price : (info.price || 0.0);
+        const val = Math.max(1, base - 0.01);
+        if (simInput) simInput.value = val.toFixed(2);
+        updateSimulation(val);
+      });
+    }
+
+    if (chipEqual) {
+      chipEqual.addEventListener('click', () => {
+        const base = (intel && intel.buybox_min_price) ? intel.buybox_min_price : (info.price || 0.0);
+        if (simInput) simInput.value = base.toFixed(2);
+        updateSimulation(base);
+      });
+    }
+
+    if (chipMarkup) {
+      chipMarkup.addEventListener('click', () => {
+        const cost = (intel && intel.preco_custo) || 0.0;
+        const val = cost > 0 ? (cost / 0.69) : ((info.price || 100) * 1.10);
+        if (simInput) simInput.value = val.toFixed(2);
+        updateSimulation(val);
+      });
+    }
+
+    const quickLinkBestMatchBtn = shadowRoot.getElementById('osBtnQuickLinkBestMatch');
+    if (quickLinkBestMatchBtn && intel && intel.best_match) {
+      quickLinkBestMatchBtn.addEventListener('click', async () => {
+        const skuToLink = intel.best_match.sku;
+        quickLinkBestMatchBtn.disabled = true;
+        quickLinkBestMatchBtn.innerHTML = '<span class="os-spinner"></span> <span>Vinculando ao estoque...</span>';
+
+        try {
+          const res = await sendLinkSku(info.catalogId || info.itemId, skuToLink, info);
+          if (res.success && res.product_intel) {
+            currentIntelData = res.product_intel;
+            renderWidget(info, res.product_intel);
+          } else {
+            alert('Erro ao vincular: ' + (res.error || 'Falha na requisição'));
+            quickLinkBestMatchBtn.disabled = false;
+            quickLinkBestMatchBtn.innerHTML = `<span>🔗 Conectar ao SKU ${skuToLink}</span>`;
+          }
+        } catch (err) {
+          alert('Erro de conexão com o Offer Search App.');
+          quickLinkBestMatchBtn.disabled = false;
+        }
+      });
+    }
+
     const searchInput = shadowRoot.getElementById('osSkuSearchInput');
     const skuList = shadowRoot.getElementById('osSkuList');
     const submitBtn = shadowRoot.getElementById('osBtnSubmitLink');
@@ -386,7 +980,7 @@
           skuList.innerHTML = items.map(s => `
             <div class="os-sku-item ${selectedSkuForLinking === s.sku ? 'selected' : ''}" data-sku="${s.sku}">
               <div>
-                <div class="os-sku-code">${s.sku}</div>
+                <div class="os-sku-code">${s.sku} ${s.match_score ? `<span style="font-size:9px; color:#10b981;">(${s.match_score}%)</span>` : ''}</div>
                 <div class="os-sku-desc">${s.descricao || ''}</div>
               </div>
               <div style="text-align:right;">
@@ -421,7 +1015,7 @@
           submitBtn.innerHTML = `<span class="os-spinner"></span> <span>Vinculando ao estoque...</span>`;
 
           try {
-            const res = await sendLinkSku(info.catalogId, selectedSkuForLinking, info);
+            const res = await sendLinkSku(info.catalogId || info.itemId, selectedSkuForLinking, info);
             if (res.success && res.product_intel) {
               currentIntelData = res.product_intel;
               renderWidget(info, res.product_intel);
@@ -439,15 +1033,19 @@
     }
   }
 
-  // ─── 6. Inicialização e Observador de SPA ─────────────────────────
+  // ─── 6. Inicialização Unificada e Observador de Rota/SPA ───────────
   async function init() {
-    const info = extractProductInfo();
-    if (!info.catalogId && !info.itemId) {
-      return;
+    // 1. Se estiver em página de busca do ML, executa a varredura em lote
+    if (isSearchPage()) {
+      scanAndInjectSearchPage();
     }
 
-    const intel = await fetchProductIntel(info);
-    renderWidget(info, intel);
+    // 2. Se for uma página de produto (PDP), inicializa também o widget individual
+    const info = extractProductInfo();
+    if (info && (info.catalogId || info.itemId)) {
+      const intel = await fetchProductIntel(info);
+      renderWidget(info, intel);
+    }
   }
 
   // Executa na carga inicial
@@ -457,14 +1055,28 @@
     init();
   }
 
-  // Observa mudanças de rota em SPAs (Mercado Livre e Amazon)
+  // Observa mudanças de rota em SPAs e inserções dinâmicas de cards (scroll infinito)
   let lastUrl = location.href;
+  let scrollScanTimeout = null;
+
   const observer = new MutationObserver(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       setTimeout(init, 800);
+    } else if (isSearchPage()) {
+      clearTimeout(scrollScanTimeout);
+      scrollScanTimeout = setTimeout(() => {
+        // Varre novos cards inseridos por lazy loading
+        const unscanned = document.querySelectorAll(
+          'li.ui-search-layout__item:not([data-os-card-id]), .poly-card:not([data-os-card-id])'
+        );
+        if (unscanned.length > 0) {
+          scanAndInjectSearchPage();
+        }
+      }, 500);
     }
   });
+
   observer.observe(document.body, { childList: true, subtree: true });
 
 })();

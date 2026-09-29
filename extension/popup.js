@@ -130,9 +130,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     btnSync.disabled = true;
-    btnText.textContent = 'Sincronizando...';
+    btnText.textContent = 'Sincronizando em 2º plano...';
     hideFeedback();
 
+    // Tenta sincronizar via service worker em background
+    try {
+      const bgResponse = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: 'FORCE_SYNC' }, (res) => {
+          if (chrome.runtime.lastError) {
+            resolve(null);
+          } else {
+            resolve(res);
+          }
+        });
+      });
+
+      if (bgResponse && bgResponse.results) {
+        const r = bgResponse.results;
+        const successParts = [];
+        if (r.ml && r.ml.success) successParts.push(`Mercado Livre (${r.ml.count} cookies)`);
+        if (r.amazon && r.amazon.success) successParts.push(`Amazon (${r.amazon.count} cookies)`);
+
+        if (successParts.length > 0) {
+          const now = new Date().toISOString();
+          lastSyncText.textContent = `Último sync: ${new Date(now).toLocaleTimeString('pt-BR')} (Automático via Background)`;
+          showFeedback(`✅ Sincronizado via Background: ${successParts.join(' e ')}!`, 'success');
+          btnSync.disabled = false;
+          btnText.textContent = 'Sincronizar Sessões';
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('[Popup] Background sync falhou, tentando sync direto:', err);
+    }
+
+    // Fallback: Sincronização direta se o service worker não responder
     let successMessages = [];
     let errorMessages = [];
 
@@ -156,7 +188,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           body: JSON.stringify({
             cookies: payloadML,
             total_cookies: payloadML.length,
-            synced_from: 'chrome-extension',
+            synced_from: 'chrome-extension-popup',
             timestamp: new Date().toISOString()
           })
         });
@@ -181,7 +213,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           body: JSON.stringify({
             cookies: payloadAmazon,
             total_cookies: payloadAmazon.length,
-            synced_from: 'chrome-extension',
+            synced_from: 'chrome-extension-popup',
             timestamp: new Date().toISOString()
           })
         });
