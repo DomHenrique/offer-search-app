@@ -141,12 +141,19 @@ class InventoryMatcher:
                     calculated_score = int(base_ratio * 70)
 
                     # Bônus se marca estiver presente
-                    if extracted_brand and extracted_brand in str(descricao).lower():
+                    if extracted_brand and (extracted_brand in str(descricao).lower() or extracted_brand in str(termo_busca).lower()):
                         calculated_score += 15
 
-                    # Bônus se modelo estiver presente
-                    if extracted_model and extracted_model in str(descricao).lower():
-                        calculated_score += 15
+                    # Bônus se modelo estiver presente (literal ou núcleo do modelo ex: "delta 3" em "delta 3 plus")
+                    if extracted_model:
+                        model_norm = extracted_model.lower()
+                        model_core = re.sub(r'\b(plus|max|pro|mini|ultra)\b', '', model_norm).strip()
+                        desc_lower = str(descricao).lower()
+                        term_lower = str(termo_busca).lower()
+                        if model_norm in desc_lower or model_norm in term_lower:
+                            calculated_score += 20
+                        elif len(model_core) >= 4 and (model_core in desc_lower or model_core in term_lower):
+                            calculated_score += 15
 
                     score = min(85, max(15, calculated_score))
 
@@ -162,6 +169,18 @@ class InventoryMatcher:
                         match_tier = "LOW_SIMILARITY"
                         match_badge = "⚪ Baixa Probabilidade"
 
+            # Busca imagem de catálogo ou referência se existir para enriquecer a UI
+            candidate_image = ""
+            for cat in catalogs:
+                if isinstance(cat, dict) and cat.get("imagem"):
+                    candidate_image = cat["imagem"]
+                    break
+            if not candidate_image:
+                for ref in sku_references_map.get(sku, []):
+                    if isinstance(ref, dict) and ref.get("image_url"):
+                        candidate_image = ref["image_url"]
+                        break
+
             # Formata o candidato
             candidates.append({
                 "sku": sku,
@@ -170,6 +189,7 @@ class InventoryMatcher:
                 "quantidade_total": item.get("quantidade_total", 0),
                 "preco_custo": float(item.get("preco_custo") or 0.0),
                 "preco_revenda": float(item.get("preco_revenda") or 0.0),
+                "image_url": candidate_image,
                 "match_score": score,
                 "match_tier": match_tier,
                 "match_badge": match_badge,

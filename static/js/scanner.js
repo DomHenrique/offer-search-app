@@ -142,6 +142,40 @@ function initScannerActions() {
             }
         });
     }
+
+    // Recálculo dinâmico de margem quando o usuário edita o preço
+    const editPriceInput = document.getElementById('scannerEditPrice');
+    if (editPriceInput) {
+        editPriceInput.addEventListener('input', recalculateCompetitorMargin);
+    }
+}
+
+function recalculateCompetitorMargin() {
+    if (currentScanRole !== 'competitor') return;
+    const compPanel = document.getElementById('scannerCompetitorPanel');
+    if (!compPanel || compPanel.classList.contains('d-none')) return;
+
+    const editPrice = document.getElementById('scannerEditPrice');
+    const compPrice = editPrice ? (parseFloat(editPrice.value) || 0.0) : 0.0;
+    const cost = (window.currentSelectedCandidateCost !== undefined) ? window.currentSelectedCandidateCost : 0.0;
+
+    const fee = Math.round(compPrice * 0.16 * 100) / 100;
+    const netProfit = Math.round((compPrice - fee - cost) * 100) / 100;
+    const marginPct = compPrice > 0 ? ((netProfit / compPrice) * 100) : 0.0;
+    const isDangerous = (netProfit < 0 || marginPct < 8.0);
+
+    const priceVal = document.getElementById('compPriceVal');
+    const feeVal = document.getElementById('compFeeVal');
+    const costVal = document.getElementById('compCostVal');
+    const mVal = document.getElementById('compMarginVal');
+
+    if (priceVal) priceVal.textContent = `R$ ${compPrice.toFixed(2)}`;
+    if (feeVal) feeVal.textContent = `R$ ${fee.toFixed(2)}`;
+    if (costVal) costVal.textContent = `R$ ${cost.toFixed(2)}`;
+    if (mVal) {
+        mVal.textContent = `${marginPct.toFixed(1)}% (R$ ${netProfit.toFixed(2)})`;
+        mVal.className = isDangerous ? 'text-danger fw-bold' : 'text-success fw-bold';
+    }
 }
 
 async function handleExtractAndMatch() {
@@ -370,16 +404,20 @@ function renderCandidatesList(candidates, topCandidate) {
         const isPreselected = (topCandidate && topCandidate.sku === cand.sku) || idx === 0;
         if (isPreselected && !selectedCandidateSku) {
             selectedCandidateSku = cand.sku;
+            window.currentSelectedCandidateCost = cand.preco_custo || 0.0;
         }
 
         const itemDiv = document.createElement('div');
         itemDiv.className = `candidate-sku-item p-2 rounded-2 cursor-pointer ${isPreselected ? 'selected-sku' : ''}`;
         itemDiv.setAttribute('data-sku', cand.sku);
 
+        const imgHtml = cand.image_url ? `<img src="${cand.image_url}" class="rounded border me-1" style="width: 32px; height: 32px; object-fit: contain;">` : '';
+
         itemDiv.innerHTML = `
             <div class="d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center gap-2">
                     <input type="radio" name="candidateSkuRadio" value="${cand.sku}" class="form-check-input mt-0" ${isPreselected ? 'checked' : ''}>
+                    ${imgHtml}
                     <div>
                         <div class="d-flex align-items-center gap-1">
                             <strong class="text-dark" style="font-size: 0.88rem;">${cand.sku}</strong>
@@ -406,6 +444,8 @@ function renderCandidatesList(candidates, topCandidate) {
             const rad = itemDiv.querySelector('input[type="radio"]');
             if (rad) rad.checked = true;
             selectedCandidateSku = cand.sku;
+            window.currentSelectedCandidateCost = cand.preco_custo || 0.0;
+            recalculateCompetitorMargin();
         });
 
         container.appendChild(itemDiv);

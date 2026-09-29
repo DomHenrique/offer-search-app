@@ -689,6 +689,11 @@ def scanner_extract_and_match_api():
         elif candidates:
             top_candidate = candidates[0]
 
+        # Se a imagem do link extraído veio vazia, tenta herdar a imagem do SKU de melhor match no estoque
+        if not extracted.get('image_url') and top_candidate and top_candidate.get('image_url'):
+            extracted['image_url'] = top_candidate['image_url']
+            extracted['pictures'] = [top_candidate['image_url']]
+
         # 3. Se for Loja Própria: roda auditoria de saúde do anúncio
         audit_data = None
         if role == 'own_store':

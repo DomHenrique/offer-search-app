@@ -74,6 +74,32 @@ def extract_reference_listing(
             listing_data["marketplace"] = "Concorrente"
 
     return listing_data
+EXCLUDED_BRAND_WORDS = {
+    "mercado", "libre", "livre", "loja", "produto", "anúncio", "anuncio",
+    "estação", "estacao", "gerador", "bateria", "painel", "cabo", "fonte",
+    "kit", "combo", "novo", "original", "promoção", "promocao", "super",
+    "mini", "mega", "ultra", "pro", "plus", "max", "alta", "potente",
+    "sistema", "aparelho", "modulo", "módulo", "conversor", "inversor",
+    "delta", "river"
+}
+
+def _is_blocked_text(text: str) -> bool:
+    """Verifica se o texto do título ou página indica página de bloqueio ou desafio"""
+    if not text:
+        return True
+    t = text.strip().lower()
+    blocked_phrases = [
+        "mercado libre", "mercado livre", "mercadolivre", "acesso negado",
+        "segurança — mercado livre", "seguranca — mercado livre", "segurança",
+        "atenção", "por segurança", "complete esta etapa", "não sou um robô",
+        "nao sou um robo", "robot", "this page requires javascript",
+        "account-verification", "403 forbidden", "page not found", "erro 404"
+    ]
+    for bp in blocked_phrases:
+        if bp in t:
+            return True
+    return False
+
 def _extract_attributes_from_text(title: str, description: str = "") -> Dict[str, Any]:
     """Extrai atributos técnicos (marca, modelo, voltagem, potência/capacidade, EAN) a partir de texto"""
     text = f"{title} {description}".strip()
@@ -90,14 +116,17 @@ def _extract_attributes_from_text(title: str, description: str = "") -> Dict[str
         if re.search(rf'\b{re.escape(b)}\b', text, re.IGNORECASE):
             brand = "EcoFlow" if b.lower() == "ecoflow" else ("DJI" if b.lower() == "dji" else b)
             break
+
+    # Se ainda não achou marca, verifica se é linha EcoFlow conhecida (Delta ou River)
+    if not brand and re.search(r'\b(River|Delta)\b', text, re.IGNORECASE):
+        brand = "EcoFlow"
+
     if not brand and title:
-        first_word = title.split()[0]
-        if len(first_word) > 2 and first_word.lower() not in [
-            "estação", "estacao", "gerador", "bateria", "painel", "cabo", "fonte", "anúncio", "anuncio"
-        ]:
+        first_word = title.split()[0].strip()
+        if len(first_word) > 2 and first_word.lower() not in EXCLUDED_BRAND_WORDS:
             brand = first_word
 
-    if brand:
+    if brand and brand.lower() not in EXCLUDED_BRAND_WORDS:
         attrs["Marca"] = brand
         attrs["BRAND"] = brand
 
@@ -117,7 +146,11 @@ def _extract_attributes_from_text(title: str, description: str = "") -> Dict[str
         attrs["CAPACITY"] = cap_power
 
     # 4. Modelo
-    model_match = re.search(r'\b(River\s*(?:3\s*Plus|3|2\s*Pro|2\s*Max|2|Pro|Max|Plus|\w+)*|Delta\s*(?:2\s*Max|2\s*Pro|2|Pro|Max|\w+)*)\b', text, re.IGNORECASE)
+    model_match = re.search(
+        r'\b(River\s*(?:3\s*Plus|3\s*Max|3|2\s*Pro|2\s*Max|2|Pro|Max|Plus|\w+)*|'
+        r'Delta\s*(?:3\s*Plus|3\s*Max|3|2\s*Max|2\s*Pro|2|Pro|Max|Plus|\w+)*)\b',
+        text, re.IGNORECASE
+    )
     if model_match:
         attrs["Modelo"] = model_match.group(1).strip()
         attrs["MODEL"] = model_match.group(1).strip()
@@ -133,77 +166,168 @@ def _extract_attributes_from_text(title: str, description: str = "") -> Dict[str
     return attrs
 
 
-def _scrape_meli_fallback(item_id: str, raw_input: str, is_catalog: bool) -> Optional[Dict[str, Any]]:
-    """Fallback via Selenium headless para obter título real, imagem, preço e atributos quando a API der 401/403"""
+def _scrape_meli_fallback(
+    item_id: str,
+    raw_input: str,
+    is_catalog: bool,
+    user_id: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """Fallback via Selenium headless com suporte a JSON-LD, sanitização de URL e fallback em slug"""
     try:
         from scraping.web_scrap_catalog_ml import CatalogScraper
+        import json
+        import time
+
+        # Sanitiza a URL de entrada removendo fragmentos (#...) e query params (?...)
+        clean_url = raw_input.split("#")[0].split("?")[0].strip()
+
+        # Extrai previamente título e atributos baseados no slug da URL como fallback infalível
+        slug_title = ""
+        slug_attrs: Dict[str, Any] = {}
+        match_slug = re.search(r'/(MLB-?\d+)-([a-zA-Z0-9-]+)(?:_JM)?', clean_url, re.IGNORECASE)
+        if match_slug:
+            slug_words = match_slug.group(2).replace('-', ' ').strip()
+            slug_title = " ".join([w.capitalize() if len(w) > 2 else w.upper() for w in slug_words.split()])
+            slug_attrs = _extract_attributes_from_text(slug_title, "")
+
+        if clean_url.startswith("http"):
+            target_url = clean_url
+        elif is_catalog or (item_id.startswith("MLB") and len(item_id) <= 12 and not item_id.isdigit()):
+            target_url = f"https://www.mercadolivre.com.br/p/{item_id}/s?"
+        else:
+            target_url = f"https://produto.mercadolivre.com.br/{item_id}"
+
         scraper = CatalogScraper()
         driver = scraper.setup_driver()
         if not driver:
+            # Se não conseguiu iniciar o driver mas tem slug, retorna os dados do slug
+            if slug_title:
+                brand = slug_attrs.get("Marca") or slug_attrs.get("BRAND") or ""
+                model = slug_attrs.get("Modelo") or slug_attrs.get("MODEL") or ""
+                return {
+                    "marketplace": "MercadoLivre",
+                    "listing_id": item_id,
+                    "listing_url": target_url,
+                    "title": slug_title,
+                    "price": 0.0,
+                    "image_url": "",
+                    "pictures": [],
+                    "gtin": str(slug_attrs.get("GTIN") or "").strip(),
+                    "brand": str(brand or "").strip(),
+                    "model": str(model or "").strip(),
+                    "seller": "Mercado Livre",
+                    "raw_attributes": slug_attrs,
+                    "status": "active"
+                }
             return None
 
         try:
-            if raw_input.startswith("http"):
-                target_url = raw_input
-            elif is_catalog or (item_id.startswith("MLB") and len(item_id) <= 12 and not item_id.isdigit()):
-                target_url = f"https://www.mercadolivre.com.br/p/{item_id}/s?"
-            else:
-                target_url = f"https://produto.mercadolivre.com.br/{item_id}"
-
             print(f"🌐 [Scanner Extractor] Acessando {target_url} via Selenium headless...")
             driver.get(target_url)
+            time.sleep(2)
 
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.support.ui import WebDriverWait
-            from selenium.webdriver.support import expected_conditions as EC
+            curr_url = (driver.current_url or "").lower()
+            curr_title = (driver.title or "").strip().lower()
 
-            try:
-                WebDriverWait(driver, 6).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-            except Exception:
-                pass
+            # Se caiu em tela de verificação ou segurança, tenta injetar cookies salvos
+            if "captcha/wall" in curr_url or "account-verification" in curr_url or _is_blocked_text(curr_title):
+                if user_id:
+                    print("⚠️ Desafio de segurança detectado. Tentando injetar cookies de sessão...")
+                    if scraper.inject_ml_cookies(user_id=user_id):
+                        driver.get(target_url)
+                        time.sleep(2)
 
             soup = BeautifulSoup(driver.page_source, 'html.parser')
 
-            # 1. Título
-            h1 = soup.find('h1')
-            og_t = soup.find('meta', property='og:title')
-            tw_t = soup.find('meta', property='twitter:title')
-            title = ""
-            if h1 and h1.get_text(strip=True):
-                title = h1.get_text(strip=True)
-            elif og_t and og_t.get('content'):
-                title = og_t['content'].strip()
-            elif tw_t and tw_t.get('content'):
-                title = tw_t['content'].strip()
-            else:
-                title = driver.title
+            # 1. Busca dados estruturados Schema.org JSON-LD (Product)
+            json_ld_product: Dict[str, Any] = {}
+            for script in soup.find_all('script', type='application/ld+json'):
+                if not script.string:
+                    continue
+                try:
+                    data = json.loads(script.string)
+                    if isinstance(data, dict) and data.get('@type') == 'Product':
+                        json_ld_product = data
+                        break
+                except Exception:
+                    pass
 
+            # 2. Título
+            title = ""
+            if json_ld_product.get("name"):
+                title = str(json_ld_product["name"]).strip()
+
+            if not title or _is_blocked_text(title):
+                h1 = soup.find('h1')
+                og_t = soup.find('meta', property='og:title')
+                tw_t = soup.find('meta', property='twitter:title')
+                if h1 and h1.get_text(strip=True) and not _is_blocked_text(h1.get_text(strip=True)):
+                    title = h1.get_text(strip=True)
+                elif og_t and og_t.get('content') and not _is_blocked_text(og_t['content']):
+                    title = og_t['content'].strip()
+                elif tw_t and tw_t.get('content') and not _is_blocked_text(tw_t['content']):
+                    title = tw_t['content'].strip()
+                elif driver.title and not _is_blocked_text(driver.title):
+                    title = driver.title.strip()
+
+            # Limpeza de ruídos no título
+            title = re.sub(r'^\s*\(\d+\+?\)\s*', '', title).strip()
             title = re.sub(r'\s*\|\s*Mercado\s*Livre.*$', '', title, flags=re.IGNORECASE).strip()
             title = re.sub(r'\s*-\s*Mercado\s*Livre.*$', '', title, flags=re.IGNORECASE).strip()
+            title = re.sub(r'\s*\|\s*Frete\s*gr[aá]tis.*$', '', title, flags=re.IGNORECASE).strip()
+            title = re.sub(r'\s*\|\s*Parcelamento\s*sem\s*juros.*$', '', title, flags=re.IGNORECASE).strip()
 
-            if not title or title.lower() in ["mercado livre", "mercadolivre", "acesso negado"]:
-                return None
+            if not title or _is_blocked_text(title):
+                if slug_title:
+                    title = slug_title
+                else:
+                    return None
 
-            # 2. Imagem
-            og_i = soup.find('meta', property='og:image')
-            tw_i = soup.find('meta', property='twitter:image')
+            # 3. Imagem
             image_url = ""
-            if og_i and og_i.get('content'):
-                image_url = og_i['content'].strip()
-            elif tw_i and tw_i.get('content'):
-                image_url = tw_i['content'].strip()
+            if json_ld_product.get("image"):
+                img_val = json_ld_product["image"]
+                if isinstance(img_val, list) and img_val:
+                    image_url = str(img_val[0]).strip()
+                elif isinstance(img_val, str):
+                    image_url = img_val.strip()
 
-            # 3. Descrição
+            if not image_url:
+                og_i = soup.find('meta', property='og:image')
+                tw_i = soup.find('meta', property='twitter:image')
+                if og_i and og_i.get('content'):
+                    image_url = og_i['content'].strip()
+                elif tw_i and tw_i.get('content'):
+                    image_url = tw_i['content'].strip()
+                else:
+                    img_el = soup.select_one('.ui-pdp-gallery__figure img, .ui-pdp-image')
+                    if img_el and img_el.get('src'):
+                        image_url = img_el['src'].strip()
+
+            # 4. Descrição
             og_d = soup.find('meta', property='og:description')
             description = og_d['content'].strip() if og_d and og_d.get('content') else ''
 
-            # 4. Preço e Vendedor
+            # 5. Preço e Vendedor
             price = 0.0
             seller_name = "Mercado Livre"
 
+            if json_ld_product.get("offers"):
+                offers = json_ld_product["offers"]
+                if isinstance(offers, dict) and offers.get("price") is not None:
+                    try:
+                        price = float(offers["price"])
+                    except Exception:
+                        pass
+                elif isinstance(offers, list) and len(offers) > 0 and offers[0].get("price") is not None:
+                    try:
+                        price = float(offers[0]["price"])
+                    except Exception:
+                        pass
+
             if is_catalog or '/p/' in target_url:
                 try:
-                    sellers_res = scraper.scrape_catalog_sellers(item_id)
+                    sellers_res = scraper.scrape_catalog_sellers(item_id, user_id=user_id)
                     sellers_list = sellers_res.get('sellers', []) if isinstance(sellers_res, dict) else []
                     if sellers_list:
                         best = sellers_list[0]
@@ -213,16 +337,54 @@ def _scrape_meli_fallback(item_id: str, raw_input: str, is_catalog: bool) -> Opt
                     print(f"Aviso ao buscar sellers do catálogo no fallback: {e_sellers}")
 
             if price <= 0.0:
-                price_elem = soup.select_one('.ui-pdp-price__second-line .andes-money-amount__fraction, .andes-money-amount__fraction')
+                price_elem = soup.select_one(
+                    '.ui-pdp-price__second-line .andes-money-amount__fraction, '
+                    '.poly-price__current .andes-money-amount__fraction, '
+                    '.andes-money-amount__fraction'
+                )
                 if price_elem:
                     raw_val = price_elem.get_text(strip=True).replace('.', '').replace(',', '.')
                     try:
-                        price = float(raw_val)
+                        cents_elem = soup.select_one(
+                            '.ui-pdp-price__second-line .andes-money-amount__cents, '
+                            '.poly-price__current .andes-money-amount__cents, '
+                            '.andes-money-amount__cents'
+                        )
+                        cents_val = 0.0
+                        if cents_elem and cents_elem.get_text(strip=True).isdigit():
+                            cents_val = float(cents_elem.get_text(strip=True)) / 100.0
+                        price = float(raw_val) + cents_val
                     except Exception:
                         pass
 
-            # 5. Atributos da Ficha Técnica
+            # Extração refinada de vendedor da página
+            seller_elem = soup.select_one(
+                '.ui-seller-data-header__title, '
+                '.ui-pdp-seller-summary__link, '
+                '.ui-pdp-seller-summary__link-trigger-button, '
+                '.ui-pdp-seller__link-trigger'
+            )
+            if seller_elem and seller_elem.get_text(strip=True):
+                seller_text = seller_elem.get_text(strip=True)
+                if seller_text.lower() not in ["mercado livre", "loja oficial do mercado livre"]:
+                    seller_name = seller_text
+
+            # 6. Atributos da Ficha Técnica
             attrs = _extract_attributes_from_text(title, description)
+            if slug_attrs:
+                for k, v in slug_attrs.items():
+                    if k not in attrs or not attrs[k]:
+                        attrs[k] = v
+
+            if json_ld_product.get("brand"):
+                b_val = json_ld_product["brand"]
+                if isinstance(b_val, dict) and b_val.get("name"):
+                    attrs["Marca"] = str(b_val["name"]).strip()
+                    attrs["BRAND"] = str(b_val["name"]).strip()
+                elif isinstance(b_val, str) and b_val.strip():
+                    attrs["Marca"] = b_val.strip()
+                    attrs["BRAND"] = b_val.strip()
+
             for tr in soup.select('table tr, .ui-vpp-striped-specs__table tr, .ui-pdp-specs__table tr'):
                 th = tr.select_one('th')
                 td = tr.select_one('td')
@@ -233,8 +395,13 @@ def _scrape_meli_fallback(item_id: str, raw_input: str, is_catalog: bool) -> Opt
                         attrs[k] = v
 
             brand = attrs.get("Marca") or attrs.get("BRAND") or ""
+            if str(brand).strip().lower() in EXCLUDED_BRAND_WORDS:
+                brand = ""
+                attrs.pop("Marca", None)
+                attrs.pop("BRAND", None)
+
             model = attrs.get("Modelo") or attrs.get("MODEL") or ""
-            gtin = attrs.get("GTIN") or attrs.get("EAN") or ""
+            gtin = attrs.get("GTIN") or attrs.get("EAN") or json_ld_product.get("gtin13") or json_ld_product.get("gtin") or ""
 
             return {
                 "marketplace": "MercadoLivre",
@@ -353,24 +520,36 @@ def _extract_meli_listing(raw_input: str, user_id: Optional[str] = None) -> Dict
         print(f"Aviso ao buscar item na API pública do ML: {e}")
 
     # 3. Fallback inteligente via Selenium Scraping para capturar dados reais
-    scraped_data = _scrape_meli_fallback(item_id, raw_input, is_catalog)
+    scraped_data = _scrape_meli_fallback(item_id, raw_input, is_catalog, user_id=user_id)
     if scraped_data:
         return scraped_data
 
-    # 4. Fallback final caso não haja conexão com a web
+    # 4. Fallback final caso não haja conexão com a web (utiliza slug da URL se existir)
+    clean_url = raw_input.split("#")[0].split("?")[0].strip()
+    match_slug = re.search(r'/(MLB-?\d+)-([a-zA-Z0-9-]+)(?:_JM)?', clean_url, re.IGNORECASE)
+    fallback_title = f"Anúncio Mercado Livre {item_id}"
+    fallback_attrs: Dict[str, Any] = {}
+    if match_slug:
+        slug_words = match_slug.group(2).replace('-', ' ').strip()
+        fallback_title = " ".join([w.capitalize() if len(w) > 2 else w.upper() for w in slug_words.split()])
+        fallback_attrs = _extract_attributes_from_text(fallback_title, "")
+
+    fallback_brand = fallback_attrs.get("Marca") or fallback_attrs.get("BRAND") or ""
+    fallback_model = fallback_attrs.get("Modelo") or fallback_attrs.get("MODEL") or ""
+
     return {
         "marketplace": "MercadoLivre",
         "listing_id": item_id,
-        "listing_url": raw_input if raw_input.startswith("http") else f"https://produto.mercadolivre.com.br/{item_id}",
-        "title": f"Anúncio Mercado Livre {item_id}",
+        "listing_url": clean_url if clean_url.startswith("http") else f"https://produto.mercadolivre.com.br/{item_id}",
+        "title": fallback_title,
         "price": 0.0,
         "image_url": "",
         "pictures": [],
-        "gtin": "",
-        "brand": "",
-        "model": "",
+        "gtin": str(fallback_attrs.get("GTIN") or "").strip(),
+        "brand": str(fallback_brand or "").strip(),
+        "model": str(fallback_model or "").strip(),
         "seller": "Mercado Livre",
-        "raw_attributes": {},
+        "raw_attributes": fallback_attrs,
         "status": "active"
     }
 
