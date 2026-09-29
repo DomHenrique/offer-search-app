@@ -34,53 +34,60 @@
   }
 
   // Requisição segura através do Background Service Worker para contornar CSP da página
-  async function requestApi(endpoint, { method = 'GET', body = null, params = null } = {}) {
-    return new Promise((resolve, reject) => {
-      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-        chrome.runtime.sendMessage({
-          action: 'API_PROXY',
-          endpoint,
-          method,
-          body,
-          params
-        }, response => {
-          if (chrome.runtime.lastError) {
-            console.warn('[Offer Search] Aviso de mensageria background:', chrome.runtime.lastError.message);
-            directFetch(endpoint, { method, body, params }).then(resolve).catch(reject);
-            return;
-          }
-          if (!response) {
-            return reject(new Error('Nenhuma resposta recebida do background'));
-          }
-          if (!response.success) {
-            return reject(new Error(response.error || `HTTP ${response.status}`));
-          }
-          resolve(response.data);
-        });
-      } else {
-        directFetch(endpoint, { method, body, params }).then(resolve).catch(reject);
-      }
-    });
-  }
+  async function requestApi(endpoint, { method = 'GET', body = null, params = null } = {}, maxRetries = 3) {
+    if (!chrome?.runtime?.id) {
+      console.info('[Offer Search] Contexto da extensão reiniciado. Por favor recarregue a aba do navegador.');
+      return null;
+    }
 
-  async function directFetch(endpoint, { method = 'GET', body = null, params = null } = {}) {
-    const apiUrl = await getApiUrl();
-    let fullUrl = `${apiUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
-    if (params) {
-      const q = new URLSearchParams(params);
-      fullUrl += (fullUrl.includes('?') ? '&' : '?') + q.toString();
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const responseData = await new Promise((resolve, reject) => {
+          try {
+            chrome.runtime.sendMessage({
+              action: 'API_PROXY',
+              endpoint,
+              method,
+              body,
+              params
+            }, res => {
+              if (chrome.runtime.lastError) {
+                return reject(new Error(chrome.runtime.lastError.message));
+              }
+              if (!res) {
+                return reject(new Error('Nenhuma resposta do Background Service Worker'));
+              }
+              if (!res.success) {
+                return reject(new Error(res.error || `HTTP ${res.status}`));
+              }
+              resolve(res.data);
+            });
+          } catch (sendErr) {
+            reject(sendErr);
+          }
+        });
+        return responseData;
+      } catch (err) {
+        const msg = err.message || '';
+        const isContextInvalidated = msg.includes('Extension context invalidated');
+        const isConnError = msg.includes('Could not establish connection') ||
+                            msg.includes('Receiving end does not exist') ||
+                            msg.includes('The message port closed');
+
+        if (isContextInvalidated) {
+          console.info('[Offer Search] Extensão recarregada. Recarregue esta página para reativar.');
+          return null;
+        }
+
+        // Se for erro de conexão/wake-up do Service Worker e ainda houver tentativas
+        if (isConnError && attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, attempt * 300));
+          continue;
+        }
+
+        throw err;
+      }
     }
-    const options = {
-      method,
-      headers: { 'Accept': 'application/json' }
-    };
-    if (body && (method === 'POST' || method === 'PUT')) {
-      options.headers['Content-Type'] = 'application/json';
-      options.body = typeof body === 'string' ? body : JSON.stringify(body);
-    }
-    const res = await fetch(fullUrl, options);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
   }
 
   function formatMoney(val) {
