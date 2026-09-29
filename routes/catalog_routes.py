@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
 import threading
 import time
+import uuid
 from datetime import datetime
 import sys
 import os
@@ -713,6 +714,150 @@ def sellers_scrape_status(scrape_id):
         'completed': True,
     })
     return jsonify(status)
+
+
+@catalog_bp.route('/batch-scrape-sellers', methods=['POST'])
+def batch_scrape_sellers():
+    """Inicia varredura em fila controlada de múltiplos catálogos (MLB/Amazon)."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Não autenticado'}), 401
+
+    data = request.get_json() or {}
+    catalog_ids = data.get('catalog_ids', [])
+    if not catalog_ids or not isinstance(catalog_ids, list):
+        return jsonify({'error': 'Lista de catalog_ids é obrigatória'}), 400
+
+    clean_ids = []
+    for cid in catalog_ids:
+        c_str = str(cid).strip().upper()
+        if c_str and c_str not in clean_ids:
+            clean_ids.append(c_str)
+
+    if not clean_ids:
+        return jsonify({'error': 'Nenhum catálogo válido fornecido'}), 400
+
+    user_id = session['user_id']
+    batch_id = f"batch_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+
+    catalog_sellers_status[batch_id] = {
+        'status': 'iniciando',
+        'progress': 0,
+        'message': f'Iniciando varredura controlada de {len(clean_ids)} catálogos...',
+        'total': len(clean_ids),
+        'processed': 0,
+        'current_catalog': None,
+        'results': {},
+        'error': None,
+        'completed': False
+    }
+
+    thread = threading.Thread(
+        target=_batch_scrape_sellers_thread,
+        args=(batch_id, user_id, clean_ids),
+        daemon=True
+    )
+    thread.start()
+
+    return jsonify({
+        'success': True,
+        'scrape_id': batch_id,
+        'batch_id': batch_id,
+        'total': len(clean_ids),
+        'message': f'Varredura de {len(clean_ids)} catálogos iniciada em segundo plano.'
+    })
+
+
+def _batch_scrape_sellers_thread(batch_id: str, user_id: str, catalog_ids: list):
+    """Processa a varredura de concorrentes em fila sequencial para múltiplos catálogos."""
+    total = len(catalog_ids)
+    results = {}
+    try:
+        for idx, cid in enumerate(catalog_ids):
+            catalog_sellers_status[batch_id].update({
+                'status': 'processando',
+                'current_catalog': cid,
+                'processed': idx,
+                'progress': int((idx / total) * 100),
+                'message': f'Consultando concorrentes de {cid} ({idx + 1} de {total})...'
+            })
+
+            is_amazon = not cid.startswith('MLB')
+            sellers = []
+
+            try:
+                if is_amazon:
+                    res_amazon = get_amazon_catalog_sellers(cid, user_id=user_id)
+                    sellers = res_amazon.get('sellers', [])
+                else:
+                    # 1. Tenta API Oficial Meli
+                    try:
+                        comp_data = meli_catalog.get_catalog_competition(cid, user_id=user_id)
+                        if comp_data.get('success') and comp_data.get('competitors'):
+                            for c_idx, c in enumerate(comp_data['competitors']):
+                                sellers.append({
+                                    'seller_name': c.get('seller_name') or f'Vendedor #{c.get("seller_id", c_idx+1)}',
+                                    'preco': float(c.get('price', 0.0)),
+                                    'posicao': 1 if c.get('is_buy_box_winner') else c_idx + 1,
+                                    'is_best_offer': bool(c.get('is_buy_box_winner')),
+                                    'frete_full': c.get('logistic_type') == 'fulfillment',
+                                    'condicao': c.get('condition', 'new'),
+                                    'reputation_level': c.get('reputation_level', 'none'),
+                                    'power_seller_status': c.get('power_seller_status'),
+                                    'city': c.get('city', ''),
+                                    'state': c.get('state', ''),
+                                    'url_vendedor': c.get('permalink', ''),
+                                    'catalog_id': cid,
+                                    'coletado_em': datetime.now().isoformat()
+                                })
+                            sellers.sort(key=lambda s: (not s.get('is_best_offer', False), s.get('preco', 999999)))
+                            for s_idx, s in enumerate(sellers):
+                                s['posicao'] = s_idx + 1
+                    except Exception as e_api:
+                        print(f"⚠️ [Batch] Falha na API Meli para {cid}: {e_api}")
+
+                    # 2. Fallback de scraping se API não retornou
+                    if not sellers:
+                        res_scrap = get_catalog_sellers(cid, user_id=user_id)
+                        if res_scrap.get('success'):
+                            sellers = res_scrap.get('sellers', [])
+
+                if sellers:
+                    db_manager.save_catalog_sellers(cid, sellers)
+                    best_seller = next((s for s in sellers if s.get('is_best_offer')), sellers[0] if sellers else {})
+                    min_price = float(best_seller.get('preco', 0.0))
+                    winner_name = best_seller.get('seller_name', '')
+                    results[cid] = {
+                        'success': True,
+                        'sellers_count': len(sellers),
+                        'buybox_min_price': min_price,
+                        'buybox_winner': winner_name
+                    }
+                else:
+                    results[cid] = {'success': False, 'sellers_count': 0, 'error': 'Nenhum concorrente'}
+
+            except Exception as e_cid:
+                print(f"Erro ao processar concorrentes de {cid} no lote: {e_cid}")
+                results[cid] = {'success': False, 'error': str(e_cid)}
+
+            # Intervalo de segurança amigável a rate-limit
+            time.sleep(1.0)
+
+        catalog_sellers_status[batch_id].update({
+            'status': 'concluida',
+            'progress': 100,
+            'processed': total,
+            'completed': True,
+            'results': results,
+            'message': f'Varredura concluída! {total} catálogos atualizados.'
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        catalog_sellers_status[batch_id].update({
+            'status': 'erro',
+            'error': str(e),
+            'completed': True
+        })
 
 
 @catalog_bp.route('/api/<catalog_id>/sellers')

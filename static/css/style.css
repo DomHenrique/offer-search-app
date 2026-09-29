@@ -1197,3 +1197,90 @@ body {
     width: 100%;
   }
 }
+
+/* ===== FLOATING BULK ACTION BAR & SELECTION STATES ===== */
+
+.floating-bulk-bar,
+.floating-action-bar {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1060;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 20px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  animation: slideUpFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: all 0.25s ease;
+  max-width: 95vw;
+}
+
+.floating-bulk-bar.d-none,
+.floating-action-bar.d-none {
+  display: none !important;
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 25px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.floating-bulk-bar .badge-count,
+.floating-action-bar .badge-count {
+  background: var(--brand-gradient);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+}
+
+/* Custom Checkbox */
+.item-checkbox-custom,
+.form-check-input.catalog-select-cb {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid #cbd5e1;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.item-checkbox-custom:checked,
+.form-check-input.catalog-select-cb:checked {
+  background-color: var(--brand-primary);
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  transform: scale(1.05);
+}
+
+.item-checkbox-custom:hover,
+.form-check-input.catalog-select-cb:hover {
+  border-color: var(--brand-primary);
+}
+
+/* Seleção ativa em cards e tabelas */
+.item-selected-row,
+.sku-catalog-card.selected,
+.saas-catalog-card.selected {
+  border-color: #818cf8 !important;
+  background-color: rgba(238, 242, 255, 0.6) !important;
+  box-shadow: 0 4px 16px -4px rgba(99, 102, 241, 0.18) !important;
+}
+

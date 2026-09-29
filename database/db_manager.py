@@ -1684,6 +1684,103 @@ class DatabaseManager:
             print(f"Erro ao desvincular catálogo do SKU: {e}")
             return False
 
+    def unlink_catalogs_batch(self, user_id: str, sku: str, catalog_ids: List[str]) -> bool:
+        """
+        Remove a vinculação de múltiplos catálogos com um SKU do inventário em lote.
+        """
+        if not catalog_ids:
+            return True
+        try:
+            user_uuid = self._get_user_uuid(user_id)
+            clean_ids = [str(cid).strip().upper() for cid in catalog_ids if str(cid).strip()]
+            if not clean_ids:
+                return True
+            res = (self.supabase.table("sku_catalogs")
+                   .delete()
+                   .eq("user_id", user_uuid)
+                   .eq("sku", str(sku).strip().upper())
+                   .in_("catalog_id", clean_ids)
+                   .execute())
+            return True
+        except Exception as e:
+            print(f"Erro ao desvincular catálogos em lote do SKU: {e}")
+            return False
+
+    def link_catalogs_batch(self, user_id: str, sku: str, catalogs_data: List[Dict]) -> List[Dict]:
+        """
+        Vincula múltiplos catálogos a um SKU do inventário em lote.
+        """
+        if not catalogs_data:
+            return []
+        user_uuid = self._get_user_uuid(user_id)
+        sku_clean = str(sku).strip().upper()
+
+        payloads = []
+        for item in catalogs_data:
+            if isinstance(item, str):
+                cid = item.strip().upper()
+                if not cid:
+                    continue
+                payload = {
+                    "user_id": user_uuid,
+                    "sku": sku_clean,
+                    "catalog_id": cid,
+                    "catalog_title": f"Catálogo {cid}",
+                    "catalog_url": f"https://www.mercadolivre.com.br/p/{cid}",
+                    "catalog_image": '',
+                    "buybox_winner": 'Vendedor Oficial',
+                    "buybox_min_price": 0.0,
+                    "sellers_count": 1
+                }
+            elif isinstance(item, dict):
+                cid = str(item.get("catalog_id") or "").strip().upper()
+                if not cid:
+                    continue
+                payload = {
+                    "user_id": user_uuid,
+                    "sku": sku_clean,
+                    "catalog_id": cid,
+                    "catalog_title": item.get("catalog_title") or item.get("title") or item.get("nome") or f"Catálogo {cid}",
+                    "catalog_url": item.get("catalog_url") or item.get("url") or item.get("url_produto") or f"https://www.mercadolivre.com.br/p/{cid}",
+                    "catalog_image": item.get("catalog_image") or item.get("image") or item.get("imagem") or '',
+                    "buybox_winner": item.get("buybox_winner") or 'Vendedor Oficial',
+                    "buybox_min_price": float(item.get("buybox_min_price") or item.get("preco") or 0.0),
+                    "sellers_count": int(item.get("sellers_count") or 1)
+                }
+                if "role" in item:
+                    payload["role"] = item["role"]
+            else:
+                continue
+
+            payloads.append(payload)
+
+        if not payloads:
+            return []
+
+        try:
+            res = self.supabase.table("sku_catalogs").upsert(payloads, on_conflict="user_id,sku,catalog_id").execute()
+            if res.data:
+                return res.data
+            return payloads
+        except Exception as e:
+            # Fallback iterativo caso upsert em lote dê erro de constraint
+            results = []
+            for p in payloads:
+                try:
+                    res_single = self.supabase.table("sku_catalogs").upsert(p, on_conflict="user_id,sku,catalog_id").execute()
+                    if res_single.data:
+                        results.append(res_single.data[0])
+                    else:
+                        results.append(p)
+                except Exception:
+                    try:
+                        r_ins = self.supabase.table("sku_catalogs").insert(p).execute()
+                        if r_ins.data:
+                            results.append(r_ins.data[0])
+                    except Exception as e_single:
+                        print(f"Erro ao salvar link individual {p.get('catalog_id')}: {e_single}")
+            return results or payloads
+
     def get_previous_search_identifiers(self, user_id: str, search_term: str) -> set:
         """
         Recupera os identificadores (URLs e catalog_ids) da pesquisa anterior mais recente

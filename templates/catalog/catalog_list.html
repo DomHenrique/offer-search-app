@@ -422,6 +422,19 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Seleção em Massa de Catálogos -->
+            <div class="d-flex align-items-center justify-content-between pt-3 mt-2 border-top">
+                <div class="form-check d-flex align-items-center mb-0">
+                    <input class="form-check-input item-checkbox-custom me-2" type="checkbox" id="catalogSelectAllVisible" onchange="toggleSelectAllVisibleCatalogs(this)">
+                    <label class="form-check-label small fw-bold text-secondary" for="catalogSelectAllVisible" style="cursor:pointer;">
+                        Selecionar Todos os Catálogos Visíveis
+                    </label>
+                </div>
+                <div class="small text-muted" id="catalogVisibleCountLabel">
+                    Exibindo catálogos monitorados
+                </div>
+            </div>
         </div>
 
         <!-- Seções Agrupadas por Termo de Busca / SKU de Origem -->
@@ -795,19 +808,55 @@
 <div id="catalogBulkActionBar" class="floating-action-bar d-none">
     <div class="d-flex align-items-center gap-3">
         <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-primary rounded-pill px-2 py-1 fw-bold" id="bulkSelectedCount">0</span>
-            <span class="small fw-bold text-dark d-none d-sm-inline">selecionado(s)</span>
+            <span class="badge bg-primary rounded-pill px-2 py-1 fw-bold font-tabular" id="bulkSelectedCount">0</span>
+            <span class="small fw-bold text-white d-none d-sm-inline">selecionado(s)</span>
         </div>
-        <div class="vr mx-1 d-none d-sm-block"></div>
+        <div class="vr bg-secondary opacity-50 d-none d-sm-block" style="height: 20px;"></div>
         <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm" onclick="openBulkLinkSkuModal()">
             <i class="fas fa-link me-1"></i> Vincular a SKU
         </button>
-        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3 shadow-sm" onclick="confirmBulkDelete()">
+        <button type="button" class="btn btn-sm btn-outline-info rounded-pill px-3 shadow-sm text-white" onclick="bulkScrapeCatalogList()">
+            <i class="fas fa-rotate me-1" id="iconBulkCatalogSync"></i> Atualizar Concorrentes
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3 shadow-sm text-white" onclick="confirmBulkDelete()">
             <i class="fas fa-trash-alt me-1"></i> Excluir Selecionados
         </button>
         <button type="button" class="btn btn-sm btn-light border rounded-pill px-2" onclick="clearCatalogSelection()" title="Desmarcar todos">
             <i class="fas fa-times"></i>
         </button>
+    </div>
+</div>
+
+<!-- Modal: Progresso de Atualização de Concorrentes em Lote na Listagem -->
+<div class="modal fade" id="catalogBatchSyncModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0 rounded-4">
+            <div class="modal-header border-0 pb-0">
+                <div class="d-flex align-items-center gap-2 text-primary">
+                    <div class="rounded-circle bg-primary-subtle p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                        <i class="fas fa-rotate text-primary fa-spin" id="iconCatalogBatchSyncSpin"></i>
+                    </div>
+                    <h5 class="modal-title fw-bold text-dark mb-0">Atualizando Concorrentes em Lote</h5>
+                </div>
+            </div>
+            <div class="modal-body py-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="small fw-semibold text-secondary" id="catalogBatchSyncStatusMessage">Iniciando varredura controlada...</span>
+                    <span class="small font-tabular fw-bold text-primary" id="catalogBatchSyncPercentage">0%</span>
+                </div>
+                <div class="progress" style="height: 10px; border-radius: 9999px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" id="catalogBatchSyncProgressBar" role="progressbar" style="width: 0%"></div>
+                </div>
+                <small class="text-muted d-block mt-3 text-center">
+                    <i class="fas fa-shield-alt text-success me-1"></i>Varredura inteligente com intervalos anti-bloqueio nos marketplaces.
+                </small>
+            </div>
+            <div class="modal-footer border-0 pt-0 d-none" id="catalogBatchSyncModalFooter">
+                <button type="button" class="btn btn-primary rounded-pill px-4 w-100" data-bs-dismiss="modal" onclick="window.location.reload()">
+                    <i class="fas fa-check me-1"></i> Concluído
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1669,11 +1718,47 @@ function handleCatalogSkuSelect(selectEl) {
 }
 
 // ─── Barra de Ações em Massa (Bulk Action Bar) ─────────────────────
+function toggleSelectAllVisibleCatalogs(masterCb) {
+    const isChecked = masterCb.checked;
+    const cards = document.querySelectorAll('.saas-catalog-card');
+    cards.forEach(card => {
+        if (card.offsetParent !== null) {
+            const cb = card.querySelector('.catalog-select-cb');
+            if (cb) {
+                cb.checked = isChecked;
+                if (isChecked) card.classList.add('selected');
+                else card.classList.remove('selected');
+            }
+        }
+    });
+    updateCatalogBulkBar();
+}
+
 function updateCatalogBulkBar() {
-    const checkboxes = document.querySelectorAll('.catalog-select-cb:checked');
-    const count = checkboxes.length;
+    const checkedBoxes = document.querySelectorAll('.catalog-select-cb:checked');
+    const count = checkedBoxes.length;
     const bar = document.getElementById('catalogBulkActionBar');
     const countBadge = document.getElementById('bulkSelectedCount');
+    const masterCb = document.getElementById('catalogSelectAllVisible');
+    
+    // Atualiza classes visuais nos cards
+    document.querySelectorAll('.catalog-select-cb').forEach(cb => {
+        const card = cb.closest('.saas-catalog-card');
+        if (card) {
+            if (cb.checked) card.classList.add('selected');
+            else card.classList.remove('selected');
+        }
+    });
+
+    // Sincroniza checkbox mestre
+    if (masterCb) {
+        const allVisibleCards = Array.from(document.querySelectorAll('.saas-catalog-card')).filter(c => c.offsetParent !== null);
+        const allVisibleCbs = allVisibleCards.map(c => c.querySelector('.catalog-select-cb')).filter(Boolean);
+        const visibleChecked = allVisibleCbs.filter(cb => cb.checked).length;
+        
+        masterCb.checked = (visibleChecked > 0 && visibleChecked === allVisibleCbs.length);
+        masterCb.indeterminate = (visibleChecked > 0 && visibleChecked < allVisibleCbs.length);
+    }
     
     if (!bar) return;
     
@@ -1686,8 +1771,98 @@ function updateCatalogBulkBar() {
 }
 
 function clearCatalogSelection() {
-    document.querySelectorAll('.catalog-select-cb').forEach(cb => cb.checked = false);
+    document.querySelectorAll('.catalog-select-cb').forEach(cb => {
+        cb.checked = false;
+        const card = cb.closest('.saas-catalog-card');
+        if (card) card.classList.remove('selected');
+    });
+    const masterCb = document.getElementById('catalogSelectAllVisible');
+    if (masterCb) {
+        masterCb.checked = false;
+        masterCb.indeterminate = false;
+    }
     updateCatalogBulkBar();
+}
+
+let catalogBatchSyncModalInstance = null;
+
+async function bulkScrapeCatalogList() {
+    const checked = Array.from(document.querySelectorAll('.catalog-select-cb:checked'));
+    if (!checked.length) return;
+
+    const ids = checked.map(cb => cb.getAttribute('data-catalog-id')).filter(Boolean);
+    const modalEl = document.getElementById('catalogBatchSyncModal');
+    if (!modalEl) return;
+
+    if (!catalogBatchSyncModalInstance) {
+        catalogBatchSyncModalInstance = new bootstrap.Modal(modalEl);
+    }
+
+    const progressBar = document.getElementById('catalogBatchSyncProgressBar');
+    const statusMsg = document.getElementById('catalogBatchSyncStatusMessage');
+    const pctLabel = document.getElementById('catalogBatchSyncPercentage');
+    const footer = document.getElementById('catalogBatchSyncModalFooter');
+    const spinIcon = document.getElementById('iconCatalogBatchSyncSpin');
+
+    if (progressBar) {
+        progressBar.style.width = '0%';
+        progressBar.classList.add('progress-bar-animated', 'progress-bar-striped');
+        progressBar.classList.remove('bg-danger', 'bg-success');
+    }
+    if (statusMsg) statusMsg.textContent = `Enfileirando varredura para ${ids.length} catálogos...`;
+    if (pctLabel) pctLabel.textContent = '0%';
+    if (footer) footer.classList.add('d-none');
+    if (spinIcon) spinIcon.classList.add('fa-spin');
+
+    catalogBatchSyncModalInstance.show();
+
+    try {
+        const res = await fetch('/catalog/batch-scrape-sellers', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ catalog_ids: ids })
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Falha ao iniciar varredura em lote');
+        }
+
+        const batchId = data.batch_id || data.scrape_id;
+
+        const pollInterval = setInterval(async () => {
+            try {
+                const pollRes = await fetch(`/catalog/sellers-status/${batchId}`);
+                const status = await pollRes.json();
+
+                if (progressBar) progressBar.style.width = `${status.progress || 0}%`;
+                if (pctLabel) pctLabel.textContent = `${status.progress || 0}%`;
+                if (statusMsg) statusMsg.textContent = status.message || 'Consultando concorrência...';
+
+                if (status.completed || status.status === 'concluida' || status.status === 'erro') {
+                    clearInterval(pollInterval);
+                    if (progressBar) {
+                        progressBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+                        if (status.status === 'erro') {
+                            progressBar.classList.add('bg-danger');
+                        } else {
+                            progressBar.classList.add('bg-success');
+                        }
+                    }
+                    if (spinIcon) spinIcon.classList.remove('fa-spin');
+                    if (footer) footer.classList.remove('d-none');
+                    clearCatalogSelection();
+                }
+            } catch (pollErr) {
+                console.warn('Erro no polling do lote:', pollErr);
+            }
+        }, 1500);
+
+    } catch (err) {
+        if (statusMsg) statusMsg.textContent = 'Erro ao iniciar varredura: ' + err.message;
+        if (footer) footer.classList.remove('d-none');
+        if (spinIcon) spinIcon.classList.remove('fa-spin');
+    }
 }
 
 // ─── Exclusão Individual e em Massa com Modal de Confirmação ───────

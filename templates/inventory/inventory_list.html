@@ -475,6 +475,27 @@ ECO GR32EU1010	Gerador RIVER 3 (220V-EU) + Painel BR	8501.72.10	2 UN	3179.00"></
             </div>
         </div>
     </div>
+
+    <!-- Barra de Ações em Massa no Rodapé do Drawer -->
+    <div class="offcanvas-footer p-2 bg-white border-top d-none" id="drawerBulkActionBar">
+        <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="d-flex align-items-center gap-1">
+                <span class="badge bg-primary rounded-pill font-tabular" id="drawerBulkCount">0</span>
+                <span class="small fw-semibold text-secondary">selecionado(s)</span>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <button type="button" class="btn btn-xs btn-primary py-1 px-2" style="font-size:0.75rem;" onclick="bulkScrapeDrawerCatalogs()">
+                    <i class="fas fa-rotate me-1"></i> Atualizar Concorrentes
+                </button>
+                <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2" style="font-size:0.75rem;" onclick="openDrawerBulkUnlinkModal()">
+                    <i class="fas fa-link-slash me-1"></i> Desvincular
+                </button>
+                <button type="button" class="btn btn-xs btn-light border py-1 px-2" onclick="clearDrawerCatalogSelection()" title="Limpar seleção">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- ─── DRAWER LATERAL DE CONCORRENTES ML INTEGRADO ────────────── -->
@@ -507,6 +528,40 @@ ECO GR32EU1010	Gerador RIVER 3 (220V-EU) + Painel BR	8501.72.10	2 UN	3179.00"></
 
     <div class="offcanvas-body p-4" id="drawerBody">
         <div id="drawerDynamicContent"></div>
+    </div>
+</div>
+
+<!-- Modal: Confirmar Desvinculação em Massa no Drawer -->
+<div class="modal fade" id="drawerBulkUnlinkConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0 rounded-4">
+            <div class="modal-header border-0 pb-0">
+                <div class="d-flex align-items-center gap-2 text-danger">
+                    <div class="rounded-circle bg-danger-subtle p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                        <i class="fas fa-exclamation-triangle text-danger fs-5"></i>
+                    </div>
+                    <h5 class="modal-title fw-bold text-dark mb-0">Confirmar Desvinculação em Massa</h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body py-3">
+                <p class="text-secondary mb-3">
+                    Você está prestes a desvincular <strong id="drawerBulkUnlinkCountBadge" class="text-danger">0</strong> catálogo(s) do SKU <strong id="drawerBulkUnlinkSkuBadge"></strong>.
+                </p>
+                <div class="p-3 bg-light rounded-3 border mb-2" style="max-height: 180px; overflow-y: auto;">
+                    <ul class="list-unstyled mb-0 small" id="drawerBulkUnlinkItemsList"></ul>
+                </div>
+                <small class="text-muted">
+                    <i class="fas fa-info-circle me-1"></i>Os catálogos permanecerão salvos no histórico global, sendo apenas desvinculados deste produto.
+                </small>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger rounded-pill px-4" id="btnConfirmDrawerBulkUnlink" onclick="executeDrawerBulkUnlink()">
+                    <i class="fas fa-link-slash me-1"></i> Desvincular Agora
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -673,6 +728,12 @@ function renderSkuProductDrawer(p, openAddCatalog = false) {
 
                     return `
                     <div class="sku-catalog-card" id="drawer-cat-${catalogIdSafe}">
+                        <div class="d-flex align-items-center pe-1">
+                            <input type="checkbox" class="form-check-input item-checkbox-custom drawer-cat-select-cb"
+                                   data-catalog-id="${catalogIdSafe}"
+                                   data-catalog-title="${safeCatTitle}"
+                                   onchange="updateDrawerBulkBar('${escapeHtml(p.sku)}')">
+                        </div>
                         <div class="d-flex align-items-center gap-3 min-w-0 flex-grow-1">
                             <div class="sku-catalog-img">
                                 <img src="${escapeHtml(imgUrl)}" alt="${safeCatTitle}" loading="lazy"
@@ -772,9 +833,16 @@ function renderSkuProductDrawer(p, openAddCatalog = false) {
         <!-- Seção de Catálogos Conectados -->
         <div class="mb-4">
             <div class="d-flex align-items-center justify-content-between mb-2">
-                <span class="fw-bold text-dark" style="font-size: 0.85rem;">
-                    <i class="fas fa-layer-group text-warning me-1"></i> Catálogos Mercado Livre Conectados (${catalogs.length})
-                </span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold text-dark" style="font-size: 0.85rem;">
+                        <i class="fas fa-layer-group text-warning me-1"></i> Catálogos Mercado Livre Conectados (${catalogs.length})
+                    </span>
+                    ${catalogs.length > 0 ? `
+                    <div class="form-check d-flex align-items-center ms-2">
+                        <input class="form-check-input item-checkbox-custom" type="checkbox" id="drawerSelectAllCatalogs" onchange="toggleSelectAllDrawerCatalogs(this, '${escapeHtml(p.sku)}')">
+                        <label class="form-check-label small text-secondary ms-1" for="drawerSelectAllCatalogs" style="cursor:pointer; font-size:0.75rem;">Todos</label>
+                    </div>` : ''}
+                </div>
                 <button type="button" class="btn btn-xs btn-primary py-1 px-2" style="font-size:0.75rem;" onclick="toggleDrawerAddCatalog()">
                     <i class="fas fa-plus me-1"></i> Vincular Novo
                 </button>
@@ -860,6 +928,192 @@ async function linkCatalogFromDrawer(sku) {
         }
     } catch (err) {
         alert('Erro na requisição: ' + err.message);
+    }
+}
+
+// ─── Ações em Massa no Drawer de SKU ───────────────────────────────
+let drawerBulkUnlinkModalInstance = null;
+
+function toggleSelectAllDrawerCatalogs(masterCb, sku) {
+    const isChecked = masterCb.checked;
+    const checkboxes = document.querySelectorAll('.drawer-cat-select-cb');
+    checkboxes.forEach(cb => {
+        cb.checked = isChecked;
+        const card = cb.closest('.sku-catalog-card');
+        if (card) {
+            if (isChecked) card.classList.add('selected');
+            else card.classList.remove('selected');
+        }
+    });
+    updateDrawerBulkBar(sku);
+}
+
+function updateDrawerBulkBar(sku) {
+    const checkboxes = document.querySelectorAll('.drawer-cat-select-cb:checked');
+    const totalCount = document.querySelectorAll('.drawer-cat-select-cb').length;
+    const count = checkboxes.length;
+    const bar = document.getElementById('drawerBulkActionBar');
+    const countBadge = document.getElementById('drawerBulkCount');
+    const masterCb = document.getElementById('drawerSelectAllCatalogs');
+
+    document.querySelectorAll('.drawer-cat-select-cb').forEach(cb => {
+        const card = cb.closest('.sku-catalog-card');
+        if (card) {
+            if (cb.checked) card.classList.add('selected');
+            else card.classList.remove('selected');
+        }
+    });
+
+    if (masterCb) {
+        masterCb.checked = (count > 0 && count === totalCount);
+        masterCb.indeterminate = (count > 0 && count < totalCount);
+    }
+
+    if (!bar) return;
+
+    if (count > 0) {
+        if (countBadge) countBadge.textContent = count;
+        bar.classList.remove('d-none');
+    } else {
+        bar.classList.add('d-none');
+    }
+}
+
+function clearDrawerCatalogSelection() {
+    document.querySelectorAll('.drawer-cat-select-cb').forEach(cb => {
+        cb.checked = false;
+        const card = cb.closest('.sku-catalog-card');
+        if (card) card.classList.remove('selected');
+    });
+    const masterCb = document.getElementById('drawerSelectAllCatalogs');
+    if (masterCb) {
+        masterCb.checked = false;
+        masterCb.indeterminate = false;
+    }
+    const bar = document.getElementById('drawerBulkActionBar');
+    if (bar) bar.classList.add('d-none');
+}
+
+function openDrawerBulkUnlinkModal() {
+    const checked = Array.from(document.querySelectorAll('.drawer-cat-select-cb:checked'));
+    if (!checked.length) return;
+
+    const countBadge = document.getElementById('drawerBulkUnlinkCountBadge');
+    const skuBadge = document.getElementById('drawerBulkUnlinkSkuBadge');
+    const listEl = document.getElementById('drawerBulkUnlinkItemsList');
+
+    if (countBadge) countBadge.textContent = checked.length;
+    if (skuBadge) skuBadge.textContent = currentDrawerSku || '';
+
+    if (listEl) {
+        listEl.innerHTML = checked.map(cb => {
+            const cid = cb.getAttribute('data-catalog-id');
+            const title = cb.getAttribute('data-catalog-title') || cid;
+            return `<li class="d-flex align-items-center gap-2 py-1 border-bottom border-light">
+                <span class="badge bg-secondary font-tabular">${cid}</span>
+                <span class="text-truncate">${title}</span>
+            </li>`;
+        }).join('');
+    }
+
+    const modalEl = document.getElementById('drawerBulkUnlinkConfirmModal');
+    if (modalEl) {
+        if (!drawerBulkUnlinkModalInstance) {
+            drawerBulkUnlinkModalInstance = new bootstrap.Modal(modalEl);
+        }
+        drawerBulkUnlinkModalInstance.show();
+    }
+}
+
+async function executeDrawerBulkUnlink() {
+    const checked = Array.from(document.querySelectorAll('.drawer-cat-select-cb:checked'));
+    if (!checked.length) return;
+
+    const ids = checked.map(cb => cb.getAttribute('data-catalog-id')).filter(Boolean);
+    const sku = currentDrawerSku;
+    const btn = document.getElementById('btnConfirmDrawerBulkUnlink');
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i> Desvinculando...`;
+    }
+
+    try {
+        const res = await fetch('/inventory/unlink-catalogs-batch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ sku: sku, catalog_ids: ids })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showInventoryToast(`${ids.length} catálogo(s) desvinculado(s) com sucesso!`);
+            if (drawerBulkUnlinkModalInstance) drawerBulkUnlinkModalInstance.hide();
+            
+            // Remove do DOM no drawer
+            ids.forEach(cid => {
+                const el = document.getElementById(`drawer-cat-${cid}`);
+                if (el) el.remove();
+            });
+
+            clearDrawerCatalogSelection();
+            if (typeof openSkuProductDrawer === 'function' && sku) {
+                openSkuProductDrawer(sku, false);
+            }
+        } else {
+            alert('Erro ao desvincular em lote: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (err) {
+        alert('Erro de conexão ao desvincular em lote: ' + err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fas fa-link-slash me-1"></i> Desvincular Agora`;
+        }
+    }
+}
+
+async function bulkScrapeDrawerCatalogs() {
+    const checked = Array.from(document.querySelectorAll('.drawer-cat-select-cb:checked'));
+    if (!checked.length) return;
+
+    const ids = checked.map(cb => cb.getAttribute('data-catalog-id')).filter(Boolean);
+    showInventoryToast(`Iniciando varredura para ${ids.length} catálogos...`);
+
+    try {
+        const res = await fetch('/catalog/batch-scrape-sellers', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ catalog_ids: ids })
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Falha ao iniciar varredura');
+        }
+
+        const batchId = data.batch_id || data.scrape_id;
+        const pollInterval = setInterval(async () => {
+            try {
+                const pollRes = await fetch(`/catalog/sellers-status/${batchId}`);
+                const status = await pollRes.json();
+
+                if (status.completed || status.status === 'concluida') {
+                    clearInterval(pollInterval);
+                    showInventoryToast('Varredura em lote concluída com sucesso!');
+                    clearDrawerCatalogSelection();
+                    if (currentDrawerSku) openSkuProductDrawer(currentDrawerSku, false);
+                } else if (status.status === 'erro') {
+                    clearInterval(pollInterval);
+                    alert('Erro na varredura: ' + (status.error || 'Erro desconhecido'));
+                }
+            } catch (err) {
+                console.warn('Polling drawer error:', err);
+            }
+        }, 1500);
+
+    } catch (err) {
+        alert('Erro ao disparar varredura em lote: ' + err.message);
     }
 }
 

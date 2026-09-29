@@ -473,6 +473,64 @@ def unlink_catalog_api():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@inventory_bp.route('/unlink-catalogs-batch', methods=['POST'])
+@login_required
+def unlink_catalogs_batch_api():
+    """Desvincula múltiplos catálogos de um SKU do inventário em lote."""
+    try:
+        user_id = session['user_id']
+        data = request.get_json() or {}
+
+        sku = data.get('sku')
+        catalog_ids = data.get('catalog_ids', [])
+
+        if not sku or not catalog_ids:
+            return jsonify({'success': False, 'error': 'SKU e lista de catalog_ids são obrigatórios.'}), 400
+
+        clean_ids = [str(cid).strip().upper() for cid in catalog_ids if str(cid).strip()]
+        if not clean_ids:
+            return jsonify({'success': False, 'error': 'Nenhum ID de catálogo válido fornecido.'}), 400
+
+        success = db.unlink_catalogs_batch(user_id=user_id, sku=sku, catalog_ids=clean_ids)
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f"{len(clean_ids)} catálogo(s) desvinculado(s) do SKU {sku}.",
+                'unlinked_count': len(clean_ids),
+                'sku': sku,
+                'catalog_ids': clean_ids
+            })
+        return jsonify({'success': False, 'error': 'Falha ao desvincular catálogos em lote.'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@inventory_bp.route('/link-catalogs-batch', methods=['POST'])
+@login_required
+def link_catalogs_batch_api():
+    """Vincula múltiplos catálogos a um SKU do inventário em lote."""
+    try:
+        user_id = session['user_id']
+        data = request.get_json() or {}
+
+        sku = data.get('sku')
+        catalogs = data.get('catalogs') or data.get('catalog_items') or data.get('catalog_ids') or []
+
+        if not sku or not catalogs:
+            return jsonify({'success': False, 'error': 'SKU e lista de catálogos são obrigatórios.'}), 400
+
+        results = db.link_catalogs_batch(user_id=user_id, sku=sku, catalogs_data=catalogs)
+        return jsonify({
+            'success': True,
+            'message': f"{len(results)} catálogo(s) vinculado(s) ao SKU {sku}.",
+            'linked_count': len(results),
+            'sku': sku,
+            'data': results
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ─── Detalhes do Produto / SKU (Página Dedicada e API JSON para Drawer) ──────────
 
 @inventory_bp.route('/product/<path:sku>')

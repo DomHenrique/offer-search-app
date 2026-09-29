@@ -303,7 +303,15 @@
                 </h6>
                 <small class="text-muted">Estes catálogos do Mercado Livre monitoram a concorrência e a BuyBox para este produto</small>
             </div>
-            <div>
+            <div class="d-flex align-items-center gap-2">
+                {% if product.catalogs and product.catalogs|length > 0 %}
+                <div class="form-check d-flex align-items-center me-2">
+                    <input class="form-check-input item-checkbox-custom" type="checkbox" id="selectAllProductCatalogs" onchange="toggleSelectAllProductCatalogs(this)">
+                    <label class="form-check-label small fw-bold text-secondary ms-1" for="selectAllProductCatalogs" style="cursor: pointer;">
+                        Selecionar Todos
+                    </label>
+                </div>
+                {% endif %}
                 <button type="button" class="btn btn-sm btn-primary" onclick="toggleAddCatalogSection()">
                     <i class="fas fa-plus me-1"></i> Conectar Novo Catálogo
                 </button>
@@ -335,6 +343,12 @@
                 <div class="sku-catalogs-grid">
                     {% for cat in product.catalogs %}
                     <div class="sku-catalog-card" id="catalog-card-{{ cat.catalog_id }}">
+                        <div class="d-flex align-items-center pe-1">
+                            <input type="checkbox" class="form-check-input item-checkbox-custom sku-catalog-select-cb"
+                                   data-catalog-id="{{ cat.catalog_id }}"
+                                   data-catalog-title="{{ (cat.catalog_title or ('Catálogo ' ~ cat.catalog_id))|replace('\"', '&quot;') }}"
+                                   onchange="updateSkuCatalogsBulkBar()">
+                        </div>
                         <div class="d-flex align-items-center gap-3 min-w-0 flex-grow-1">
                             <div class="sku-catalog-img">
                                 {% if cat.catalog_image %}
@@ -350,7 +364,7 @@
                                     <span class="badge-saas badge-saas-neutral font-tabular">{{ cat.sellers_count or 1 }} Concorrentes</span>
                                     {% if cat.buybox_min_price and cat.buybox_min_price > 0 %}
                                         <span class="badge-saas badge-saas-success font-tabular">
-                                            Menor Preço: R$ {{ "%.2f"|format(cat.buybox_min_price)|replace('.', ',') }}
+                                             Menor Preço: R$ {{ "%.2f"|format(cat.buybox_min_price)|replace('.', ',') }}
                                         </span>
                                     {% endif %}
                                 </div>
@@ -526,6 +540,93 @@
     </div>
 </div>
 
+<!-- Barra Flutuante de Ações em Massa no SKU -->
+<div id="productCatalogsBulkBar" class="floating-bulk-bar d-none">
+    <div class="d-flex align-items-center gap-3">
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge-count" id="skuBulkSelectedCount">0</span>
+            <span class="small fw-bold d-none d-sm-inline">selecionado(s)</span>
+        </div>
+        <div class="vr bg-secondary opacity-50 d-none d-sm-block" style="height: 20px;"></div>
+        <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm" onclick="bulkScrapeSkuCatalogs()">
+            <i class="fas fa-rotate me-1" id="iconBulkSync"></i> Atualizar Concorrentes em Lote
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3 shadow-sm text-white" onclick="openBulkUnlinkModal()">
+            <i class="fas fa-link-slash me-1"></i> Desvincular Selecionados
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-light rounded-pill px-2" onclick="clearSkuCatalogsSelection()" title="Desmarcar todos">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Modal: Confirmar Desvinculação em Massa -->
+<div class="modal fade" id="bulkUnlinkConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0 rounded-4">
+            <div class="modal-header border-0 pb-0">
+                <div class="d-flex align-items-center gap-2 text-danger">
+                    <div class="rounded-circle bg-danger-subtle p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                        <i class="fas fa-exclamation-triangle text-danger fs-5"></i>
+                    </div>
+                    <h5 class="modal-title fw-bold text-dark mb-0">Confirmar Desvinculação em Massa</h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body py-3">
+                <p class="text-secondary mb-3">
+                    Você está prestes a desvincular <strong id="bulkUnlinkCountBadge" class="text-danger">0</strong> catálogo(s) do SKU <strong>{{ product.sku }}</strong>.
+                </p>
+                <div class="p-3 bg-light rounded-3 border mb-2" style="max-height: 180px; overflow-y: auto;">
+                    <ul class="list-unstyled mb-0 small" id="bulkUnlinkItemsList"></ul>
+                </div>
+                <small class="text-muted">
+                    <i class="fas fa-info-circle me-1"></i>Os catálogos não serão excluídos da base global, apenas desassociados deste SKU.
+                </small>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger rounded-pill px-4" id="btnConfirmBulkUnlink" onclick="executeBulkUnlink('{{ product.sku }}')">
+                    <i class="fas fa-link-slash me-1"></i> Desvincular Agora
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Progresso de Atualização de Concorrentes em Lote -->
+<div class="modal fade" id="bulkSyncProgressModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0 rounded-4">
+            <div class="modal-header border-0 pb-0">
+                <div class="d-flex align-items-center gap-2 text-primary">
+                    <div class="rounded-circle bg-primary-subtle p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                        <i class="fas fa-rotate text-primary fa-spin" id="iconBulkSyncSpin"></i>
+                    </div>
+                    <h5 class="modal-title fw-bold text-dark mb-0" id="bulkSyncModalTitle">Atualizando Concorrentes em Lote</h5>
+                </div>
+            </div>
+            <div class="modal-body py-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="small fw-semibold text-secondary" id="bulkSyncStatusMessage">Iniciando varredura controlada...</span>
+                    <span class="small font-tabular fw-bold text-primary" id="bulkSyncPercentage">0%</span>
+                </div>
+                <div class="progress" style="height: 10px; border-radius: 9999px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" id="bulkSyncProgressBar" role="progressbar" style="width: 0%"></div>
+                </div>
+                <small class="text-muted d-block mt-3 text-center" id="bulkSyncHelpText">
+                    <i class="fas fa-shield-alt text-success me-1"></i>Fila inteligente anti-bloqueio respeitando os rate-limits dos marketplaces.
+                </small>
+            </div>
+            <div class="modal-footer border-0 pt-0 d-none" id="bulkSyncModalFooter">
+                <button type="button" class="btn btn-primary rounded-pill px-4 w-100" data-bs-dismiss="modal" onclick="window.location.reload()">
+                    <i class="fas fa-check me-1"></i> Concluído
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Toast de Notificação -->
 <div class="copy-toast" id="skuToast">
     <i class="fas fa-check-circle me-2"></i> <span id="skuToastMsg">Sucesso</span>
@@ -574,6 +675,231 @@ async function linkCatalogManual(sku) {
         }
     } catch (err) {
         alert('Erro na requisição: ' + err.message);
+    }
+}
+
+// ─── Ações em Massa de Catálogos no SKU ──────────────────────────────
+let bulkUnlinkModalInstance = null;
+let bulkSyncModalInstance = null;
+
+function toggleSelectAllProductCatalogs(masterCb) {
+    const isChecked = masterCb.checked;
+    const checkboxes = document.querySelectorAll('.sku-catalog-select-cb');
+    checkboxes.forEach(cb => {
+        cb.checked = isChecked;
+        const card = cb.closest('.sku-catalog-card');
+        if (card) {
+            if (isChecked) card.classList.add('selected');
+            else card.classList.remove('selected');
+        }
+    });
+    updateSkuCatalogsBulkBar();
+}
+
+function updateSkuCatalogsBulkBar() {
+    const checkboxes = document.querySelectorAll('.sku-catalog-select-cb:checked');
+    const totalCount = document.querySelectorAll('.sku-catalog-select-cb').length;
+    const count = checkboxes.length;
+    const bar = document.getElementById('productCatalogsBulkBar');
+    const countBadge = document.getElementById('skuBulkSelectedCount');
+    const masterCb = document.getElementById('selectAllProductCatalogs');
+
+    // Atualiza classes visuais nos cards
+    document.querySelectorAll('.sku-catalog-select-cb').forEach(cb => {
+        const card = cb.closest('.sku-catalog-card');
+        if (card) {
+            if (cb.checked) card.classList.add('selected');
+            else card.classList.remove('selected');
+        }
+    });
+
+    if (masterCb) {
+        masterCb.checked = (count > 0 && count === totalCount);
+        masterCb.indeterminate = (count > 0 && count < totalCount);
+    }
+
+    if (!bar) return;
+
+    if (count > 0) {
+        if (countBadge) countBadge.textContent = count;
+        bar.classList.remove('d-none');
+    } else {
+        bar.classList.add('d-none');
+    }
+}
+
+function clearSkuCatalogsSelection() {
+    document.querySelectorAll('.sku-catalog-select-cb').forEach(cb => {
+        cb.checked = false;
+        const card = cb.closest('.sku-catalog-card');
+        if (card) card.classList.remove('selected');
+    });
+    const masterCb = document.getElementById('selectAllProductCatalogs');
+    if (masterCb) {
+        masterCb.checked = false;
+        masterCb.indeterminate = false;
+    }
+    updateSkuCatalogsBulkBar();
+}
+
+function openBulkUnlinkModal() {
+    const checked = Array.from(document.querySelectorAll('.sku-catalog-select-cb:checked'));
+    if (!checked.length) return;
+
+    const countBadge = document.getElementById('bulkUnlinkCountBadge');
+    const listEl = document.getElementById('bulkUnlinkItemsList');
+    if (countBadge) countBadge.textContent = checked.length;
+
+    if (listEl) {
+        listEl.innerHTML = checked.map(cb => {
+            const cid = cb.getAttribute('data-catalog-id');
+            const title = cb.getAttribute('data-catalog-title') || cid;
+            return `<li class="d-flex align-items-center gap-2 py-1 border-bottom border-light">
+                <span class="badge bg-secondary font-tabular">${cid}</span>
+                <span class="text-truncate">${title}</span>
+            </li>`;
+        }).join('');
+    }
+
+    const modalEl = document.getElementById('bulkUnlinkConfirmModal');
+    if (modalEl) {
+        if (!bulkUnlinkModalInstance) {
+            bulkUnlinkModalInstance = new bootstrap.Modal(modalEl);
+        }
+        bulkUnlinkModalInstance.show();
+    }
+}
+
+async function executeBulkUnlink(sku) {
+    const checked = Array.from(document.querySelectorAll('.sku-catalog-select-cb:checked'));
+    if (!checked.length) return;
+
+    const ids = checked.map(cb => cb.getAttribute('data-catalog-id')).filter(Boolean);
+    const btn = document.getElementById('btnConfirmBulkUnlink');
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i> Desvinculando...`;
+    }
+
+    try {
+        const res = await fetch('/inventory/unlink-catalogs-batch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ sku: sku, catalog_ids: ids })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showToast(`${ids.length} catálogo(s) desvinculado(s) com sucesso!`);
+            if (bulkUnlinkModalInstance) bulkUnlinkModalInstance.hide();
+            
+            // Remove do DOM
+            ids.forEach(cid => {
+                const el = document.getElementById(`catalog-card-${cid}`);
+                if (el) el.remove();
+            });
+
+            // Atualiza contadores
+            const remainingCount = document.querySelectorAll('.sku-catalog-card').length;
+            const badgeCount = document.getElementById('connectedCatalogsCount');
+            if (badgeCount) badgeCount.textContent = remainingCount;
+
+            clearSkuCatalogsSelection();
+            if (remainingCount === 0) {
+                setTimeout(() => window.location.reload(), 600);
+            }
+        } else {
+            alert('Erro ao desvincular em lote: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (err) {
+        alert('Erro de conexão ao desvincular em lote: ' + err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fas fa-link-slash me-1"></i> Desvincular Agora`;
+        }
+    }
+}
+
+async function bulkScrapeSkuCatalogs() {
+    const checked = Array.from(document.querySelectorAll('.sku-catalog-select-cb:checked'));
+    if (!checked.length) return;
+
+    const ids = checked.map(cb => cb.getAttribute('data-catalog-id')).filter(Boolean);
+    const modalEl = document.getElementById('bulkSyncProgressModal');
+    if (!modalEl) return;
+
+    if (!bulkSyncModalInstance) {
+        bulkSyncModalInstance = new bootstrap.Modal(modalEl);
+    }
+
+    // Reseta estado do modal
+    const progressBar = document.getElementById('bulkSyncProgressBar');
+    const statusMsg = document.getElementById('bulkSyncStatusMessage');
+    const pctLabel = document.getElementById('bulkSyncPercentage');
+    const footer = document.getElementById('bulkSyncModalFooter');
+    const spinIcon = document.getElementById('iconBulkSyncSpin');
+
+    if (progressBar) {
+        progressBar.style.width = '0%';
+        progressBar.classList.add('progress-bar-animated', 'progress-bar-striped');
+        progressBar.classList.remove('bg-danger', 'bg-success');
+    }
+    if (statusMsg) statusMsg.textContent = `Enfileirando varredura para ${ids.length} catálogos...`;
+    if (pctLabel) pctLabel.textContent = '0%';
+    if (footer) footer.classList.add('d-none');
+    if (spinIcon) spinIcon.classList.add('fa-spin');
+
+    bulkSyncModalInstance.show();
+
+    try {
+        const res = await fetch('/catalog/batch-scrape-sellers', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ catalog_ids: ids })
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Falha ao iniciar varredura em lote');
+        }
+
+        const batchId = data.batch_id || data.scrape_id;
+
+        // Inicia Polling
+        const pollInterval = setInterval(async () => {
+            try {
+                const pollRes = await fetch(`/catalog/sellers-status/${batchId}`);
+                const status = await pollRes.json();
+
+                if (progressBar) progressBar.style.width = `${status.progress || 0}%`;
+                if (pctLabel) pctLabel.textContent = `${status.progress || 0}%`;
+                if (statusMsg) statusMsg.textContent = status.message || 'Consultando concorrência...';
+
+                if (status.completed || status.status === 'concluida' || status.status === 'erro') {
+                    clearInterval(pollInterval);
+                    if (progressBar) {
+                        progressBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+                        if (status.status === 'erro') {
+                            progressBar.classList.add('bg-danger');
+                        } else {
+                            progressBar.classList.add('bg-success');
+                        }
+                    }
+                    if (spinIcon) spinIcon.classList.remove('fa-spin');
+                    if (footer) footer.classList.remove('d-none');
+                    clearSkuCatalogsSelection();
+                }
+            } catch (pollErr) {
+                console.warn('Erro no polling do lote:', pollErr);
+            }
+        }, 1500);
+
+    } catch (err) {
+        if (statusMsg) statusMsg.textContent = 'Erro ao iniciar varredura: ' + err.message;
+        if (footer) footer.classList.remove('d-none');
+        if (spinIcon) spinIcon.classList.remove('fa-spin');
     }
 }
 
