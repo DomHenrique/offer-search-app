@@ -87,6 +87,26 @@ def _calculate_margin_metrics(cost: float, sell_price: float, fee_pct: float = 0
     }
 
 
+def build_meli_sell_similar_url(catalog_id: str = None, item_id: str = None) -> str:
+    """
+    Constrói a URL oficial do fluxo 'Vender um igual' (SYI) do Mercado Livre.
+    Padrão oficial: https://www.mercadolivre.com.br/syi/core/list/equals?itemId=MLB...&productId=MLB...
+    """
+    params = []
+    if item_id:
+        clean_item = str(item_id).replace("-", "").strip()
+        params.append(f"itemId={clean_item}")
+    if catalog_id:
+        clean_cat = str(catalog_id).strip()
+        params.append(f"productId={clean_cat}")
+
+    if not params:
+        return ""
+
+    query = "&".join(params)
+    return f"https://www.mercadolivre.com.br/syi/core/list/equals?{query}"
+
+
 @extension_bp.after_request
 def add_cors_headers(response):
     """Permite requisições da extensão Chrome e páginas de marketplace"""
@@ -201,12 +221,8 @@ def get_product_intel():
 
     best_match = ranked_suggestions[0] if (ranked_suggestions and ranked_suggestions[0].get('match_score', 0) >= 50) else None
 
-    # URL oficial para "Vender um Igual" no Mercado Livre
-    sell_similar_url = ""
-    target_catalog = catalog_id or item_id
-    if target_catalog.startswith("MLB"):
-        # Fluxo de entrada em catálogo oficial
-        sell_similar_url = f"https://www.mercadolivre.com.br/anunciar/catalogo?catalog_product_id={target_catalog}"
+    # URL oficial para "Vender um Igual" no Mercado Livre (Fluxo SYI)
+    sell_similar_url = build_meli_sell_similar_url(catalog_id=catalog_id, item_id=item_id)
 
     if matched_link:
         sku = str(matched_link.get('sku', '')).strip().upper()
@@ -442,7 +458,7 @@ def scan_search_page():
                 'estoque_total': stock_qty,
                 'preco_custo': cost,
                 'margin': margin,
-                'sell_similar_url': f"https://www.mercadolivre.com.br/anunciar/catalogo?catalog_product_id={catalog_id}"
+                'sell_similar_url': build_meli_sell_similar_url(catalog_id=catalog_id, item_id=item_id)
             }
         else:
             # Não vinculado: roda o matcher para tentar achar correspondência no estoque
@@ -468,7 +484,7 @@ def scan_search_page():
                     'margin': margin
                 }
 
-            sell_similar_url = f"https://www.mercadolivre.com.br/anunciar/catalogo?catalog_product_id={catalog_id}" if is_catalog else ""
+            sell_similar_url = build_meli_sell_similar_url(catalog_id=catalog_id, item_id=item_id) if is_catalog else ""
 
             results[card_id] = {
                 'is_catalog': is_catalog,

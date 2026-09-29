@@ -133,6 +133,18 @@
     };
   }
 
+  function buildSellSimilarUrl(catalogId, itemId) {
+    const params = [];
+    if (itemId) {
+      params.push(`itemId=${encodeURIComponent(String(itemId).replace('-', '').trim())}`);
+    }
+    if (catalogId) {
+      params.push(`productId=${encodeURIComponent(String(catalogId).trim())}`);
+    }
+    if (!params.length) return '';
+    return `https://www.mercadolivre.com.br/syi/core/list/equals?${params.join('&')}`;
+  }
+
   // ─── 2. Detecção e Extração de Página de Busca (Listing / Grid) ────
   function isSearchPage() {
     const href = window.location.href;
@@ -335,9 +347,10 @@
       `;
     }
 
-    if (isCatalog && data.sell_similar_url) {
+    const cardSellSimilarUrl = (data && data.sell_similar_url) || buildSellSimilarUrl(data.catalog_id, cardInfo.item_id);
+    if (isCatalog && cardSellSimilarUrl) {
       html += `
-        <a href="${data.sell_similar_url}" target="_blank" class="os-card-btn-action sell-similar" title="Abrir criação de anúncio no Mercado Livre para este catálogo">
+        <a href="${cardSellSimilarUrl}" target="_blank" class="os-card-btn-action sell-similar" title="Abrir criação de anúncio no Mercado Livre para este catálogo">
           <span>🚀 Vender Igual</span>
         </a>
       `;
@@ -513,10 +526,40 @@
       buyboxWinner = sellerEl.textContent.trim();
     }
 
+    // Extrai Link Nativo 'Vender um igual' diretamente do DOM se existir na página (Prioridade Máxima)
+    let nativeSellSimilarUrl = '';
+    const syiLinkEl = document.querySelector('a[href*="/syi/core/list/equals"]') ||
+                      document.querySelector('.ui-pdp-syi a, a.ui-pdp-syi__link');
+    if (syiLinkEl && syiLinkEl.href) {
+      nativeSellSimilarUrl = syiLinkEl.href;
+    } else {
+      // Busca resiliente por qualquer link cujo texto contenha "vender um igual" (conforme orientação do usuário)
+      const allCandidateLinks = document.querySelectorAll('a');
+      for (const a of allCandidateLinks) {
+        const text = (a.textContent || '').trim().toLowerCase();
+        if (text.includes('vender um igual') && a.href) {
+          nativeSellSimilarUrl = a.href;
+          break;
+        }
+      }
+    }
+
+    // Se encontramos o link nativo do SYI, extraímos com precisão itemId e productId
+    if (nativeSellSimilarUrl) {
+      try {
+        const parsedUrl = new URL(nativeSellSimilarUrl);
+        const pId = parsedUrl.searchParams.get('productId');
+        const iId = parsedUrl.searchParams.get('itemId');
+        if (pId && !catalogId) catalogId = pId.toUpperCase();
+        if (iId && !itemId) itemId = iId.toUpperCase();
+      } catch (e) {}
+    }
+
     return {
       catalogId: catalogId || (isCatalog ? itemId : null),
       itemId,
       isCatalog,
+      nativeSellSimilarUrl,
       title,
       brand,
       model,
@@ -621,8 +664,8 @@
     const currentCost = isLinked ? intel.preco_custo : (bestMatch ? bestMatch.preco_custo : 0.0);
     const activeMargin = calculateMarginLocal(currentCost, simulatedPriceValue);
 
-    const sellSimilarUrl = (intel && intel.sell_similar_url) ? intel.sell_similar_url :
-      (info.catalogId ? `https://www.mercadolivre.com.br/anunciar/catalogo?catalog_product_id=${info.catalogId}` : '');
+    const fallbackSellSimilar = buildSellSimilarUrl(info.catalogId, info.itemId);
+    const sellSimilarUrl = info.nativeSellSimilarUrl || (intel && intel.sell_similar_url) || fallbackSellSimilar;
 
     let fabBadgeText = 'Avulso';
     let fabBadgeClass = 'unlinked';
