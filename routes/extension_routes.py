@@ -430,11 +430,16 @@ def scan_search_page():
 
     for item in items:
         card_id = str(item.get('id') or item.get('client_id') or item.get('url') or '')
-        catalog_id = str(item.get('catalog_id') or '').strip().upper()
+        raw_catalog_id = str(item.get('catalog_id') or '').strip().upper()
         item_id = str(item.get('item_id') or '').strip().upper()
         title = str(item.get('title') or '').strip()
         price = float(item.get('price') or 0.0)
-        is_catalog = bool(catalog_id)
+        has_other_sellers = bool(item.get('has_other_sellers', False))
+        sellers_count = int(item.get('sellers_count') or (2 if has_other_sellers else 1))
+
+        # Regra de negócio: Só é catálogo se possuir o elemento 'Outras opções de compra' / múltiplos vendedores
+        is_catalog = bool(has_other_sellers or sellers_count > 1)
+        catalog_id = raw_catalog_id if is_catalog else ""
         if is_catalog:
             total_catalogs += 1
 
@@ -450,15 +455,17 @@ def scan_search_page():
                 total_in_stock += 1
 
             results[card_id] = {
-                'is_catalog': True,
-                'catalog_id': catalog_id,
+                'is_catalog': is_catalog,
+                'catalog_id': catalog_id if is_catalog else None,
+                'has_other_sellers': is_catalog,
+                'sellers_count': sellers_count,
                 'is_linked': True,
                 'sku': sku,
                 'descricao': inv_item.get('descricao') or matched_link.get('catalog_title') or title,
                 'estoque_total': stock_qty,
                 'preco_custo': cost,
                 'margin': margin,
-                'sell_similar_url': build_meli_sell_similar_url(catalog_id=catalog_id, item_id=item_id)
+                'sell_similar_url': build_meli_sell_similar_url(catalog_id=catalog_id, item_id=item_id) if is_catalog else ""
             }
         else:
             # Não vinculado: roda o matcher para tentar achar correspondência no estoque
@@ -488,7 +495,9 @@ def scan_search_page():
 
             results[card_id] = {
                 'is_catalog': is_catalog,
-                'catalog_id': catalog_id,
+                'catalog_id': catalog_id if is_catalog else None,
+                'has_other_sellers': is_catalog,
+                'sellers_count': sellers_count,
                 'is_linked': False,
                 'has_stock_match': bool(best_match),
                 'match': match_info,

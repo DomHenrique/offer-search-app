@@ -276,6 +276,67 @@
         price = parseFloat(`${whole}.${cents}`) || 0.0;
       }
 
+      // Extrai elemento 'Outras opções de compra' e quantidade de vendedores
+      let hasOtherSellers = false;
+      let sellersCount = 1;
+
+      // 1. Inspeciona texto de todo o card procurando padrões de vendedores / opções
+      const cardText = (card.innerText || card.textContent || '').replace(/\s+/g, ' ');
+      const optMatch = cardText.match(/(?:ver\s+)?(\d+)\s+opç(?:õ|o)es\s+a\s+partir\s+de/i);
+      if (optMatch) {
+        hasOtherSellers = true;
+        sellersCount = parseInt(optMatch[1], 10);
+      } else {
+        const vendMatch = cardText.match(/(\d+)\s+vendedores(?:\s+a\s+partir\s+de)?/i) ||
+                          cardText.match(/dispon[íi]vel\s+em\s+(\d+)\s+vendedores/i);
+        if (vendMatch) {
+          hasOtherSellers = true;
+          sellersCount = parseInt(vendMatch[1], 10);
+        } else if (/outras\s+opç(?:õ|o)es\s+de\s+compra/i.test(cardText)) {
+          hasOtherSellers = true;
+          const anyOpt = cardText.match(/(\d+)\s+opç(?:õ|o)es/i);
+          sellersCount = anyOpt ? parseInt(anyOpt[1], 10) : 2;
+        } else {
+          const maisOpt = cardText.match(/(?:mais|outras)\s+(\d+)\s+opç(?:õ|o)es/i);
+          if (maisOpt) {
+            hasOtherSellers = true;
+            sellersCount = parseInt(maisOpt[1], 10);
+          }
+        }
+      }
+
+      // 2. Inspeciona links específicos ou seletores do Mercado Livre
+      allLinks.forEach(a => {
+        const aText = (a.textContent || '').trim().toLowerCase();
+        const aOpt = aText.match(/(?:ver\s+)?(\d+)\s+opç(?:õ|o)es/i);
+        if (aOpt) {
+          hasOtherSellers = true;
+          const c = parseInt(aOpt[1], 10);
+          if (c > sellersCount) sellersCount = c;
+        }
+        if (aText.includes('outras opções de compra')) {
+          hasOtherSellers = true;
+        }
+      });
+
+      // 3. Seletores DOM auxiliares do ML para outros vendedores
+      if (!hasOtherSellers) {
+        const otherEl = card.querySelector(
+          '.poly-component__sellers, .ui-search-item__group__element--sellers, .ui-search-item__options, .poly-sellers, .poly-component__other-sellers'
+        );
+        if (otherEl) {
+          hasOtherSellers = true;
+          const elText = (otherEl.textContent || '').trim();
+          const m = elText.match(/(\d+)/);
+          sellersCount = m ? parseInt(m[1], 10) : 2;
+        }
+      }
+
+      // Regra de negócio estrita: se não tem 'Outras opções de compra' (ou sellers <= 1), não é catálogo para disputa!
+      if (!hasOtherSellers || sellersCount <= 1) {
+        catalogId = null;
+      }
+
       extractedItems.push({
         id: cardId,
         cardElement: card,
@@ -283,7 +344,9 @@
         item_id: itemId,
         title,
         price,
-        url: productUrl
+        url: productUrl,
+        has_other_sellers: hasOtherSellers,
+        sellers_count: sellersCount
       });
     });
 
@@ -326,7 +389,9 @@
       item_id: c.item_id,
       title: c.title,
       price: c.price,
-      url: c.url
+      url: c.url,
+      has_other_sellers: c.has_other_sellers,
+      sellers_count: c.sellers_count
     }));
 
     try {
@@ -371,7 +436,15 @@
       targetContainer.appendChild(overlay);
     }
 
-    const isCatalog = Boolean(data.is_catalog && data.catalog_id);
+    // Regra estrita: só é catálogo se possuir o elemento de Outras opções de compra
+    const hasOtherSellers = Boolean(
+      (data && data.has_other_sellers) ||
+      (cardInfo && cardInfo.has_other_sellers) ||
+      (data && data.sellers_count > 1) ||
+      (cardInfo && cardInfo.sellers_count > 1)
+    );
+    const sellersCount = (data && data.sellers_count) || (cardInfo && cardInfo.sellers_count) || (hasOtherSellers ? 2 : 1);
+    const isCatalog = Boolean(data.is_catalog && data.catalog_id && hasOtherSellers);
     const isLinked = Boolean(data.is_linked);
     const hasStockMatch = Boolean(data.has_stock_match && data.match);
     const match = data.match || (isLinked ? data : null);
@@ -396,16 +469,34 @@
     // Monta conteúdo HTML do overlay
     let html = `
       <div class="os-card-badge-row">
-        <span class="os-card-badge ${isCatalog ? 'catalog' : 'non-catalog'}">
-          ${isCatalog ? `🏷️ Catálogo: ${data.catalog_id}` : '⚪ Fora de Catálogo'}
-        </span>
-        ${match ? `
-          <span class="os-card-badge stock-match">
-            ${isLinked ? '🟢 Vinculado' : (match.match_badge || '⭐ Match de Estoque')}
-          </span>
-        ` : (isCatalog ? `<span style="font-size:10px; color:#9333ea; font-weight:700;">Disputa BuyBox</span>` : '')}
-      </div>
     `;
+
+    if (isCatalog) {
+      html += `
+        <span class="os-card-badge catalog">
+          🏷️ Catálogo: ${data.catalog_id}
+        </span>
+        <span class="os-card-badge sellers-count" title="${sellersCount} vendedores disputando este catálogo">
+          👥 ${sellersCount} vendedores
+        </span>
+      `;
+    } else {
+      html += `
+        <span class="os-card-badge non-catalog">
+          ⚪ Vendedor Único (Sem BuyBox)
+        </span>
+      `;
+    }
+
+    if (match) {
+      html += `
+        <span class="os-card-badge stock-match">
+          ${isLinked ? '🟢 Vinculado' : (match.match_badge || '⭐ Match de Estoque')}
+        </span>
+      `;
+    }
+
+    html += `</div>`;
 
     if (match) {
       html += `
@@ -421,13 +512,16 @@
       `;
     }
 
-    const cardSellSimilarUrl = (data && data.sell_similar_url) || buildSellSimilarUrl(data.catalog_id, cardInfo.item_id);
-    if (isCatalog && cardSellSimilarUrl) {
-      html += `
-        <a href="${cardSellSimilarUrl}" target="_blank" class="os-card-btn-action sell-similar" title="Abrir criação de anúncio no Mercado Livre para este catálogo">
-          <span>🚀 Vender Igual</span>
-        </a>
-      `;
+    // Botão Vender Igual: SOMENTE SE FOR CATÁLOGO COM ELEMENTO DE OUTRAS OPÇÕES DE COMPRA
+    if (isCatalog) {
+      const cardSellSimilarUrl = (data && data.sell_similar_url) || buildSellSimilarUrl(data.catalog_id, cardInfo.item_id);
+      if (cardSellSimilarUrl) {
+        html += `
+          <a href="${cardSellSimilarUrl}" target="_blank" class="os-card-btn-action sell-similar" title="Abrir criação de anúncio no Mercado Livre para este catálogo">
+            <span>🚀 Vender Igual</span>
+          </a>
+        `;
+      }
     }
 
     overlay.innerHTML = html;
@@ -555,15 +649,58 @@
       itemId = asinMatch[1].toUpperCase();
     }
 
-    // Detecta se a página possui disputa de múltiplos vendedores na BuyBox
-    const hasOtherSellers = Boolean(
-      document.querySelector('.ui-pdp-other-sellers') ||
-      document.querySelector('a[href*="/s?"]') ||
-      document.querySelector('.ui-pdp-buybox') ||
-      document.querySelector('#olp_feature_div') ||
-      document.querySelector('#all-offers-display')
+    // Detecta se a página possui o elemento 'Outras opções de compra' (Disputa real de BuyBox)
+    let hasOtherSellers = false;
+    let sellersCount = 1;
+
+    // 1. Procura bloco característico do Mercado Livre (.ui-pdp-other-sellers, etc.)
+    const otherSellersContainer = document.querySelector(
+      '.ui-pdp-other-sellers, .ui-pdp-buybox__other-sellers, #other-sellers, .ui-pdp-container__other-sellers'
     );
-    const isCatalog = Boolean(catalogId || hasOtherSellers);
+    if (otherSellersContainer) {
+      hasOtherSellers = true;
+      const text = otherSellersContainer.innerText || otherSellersContainer.textContent || '';
+      const m = text.match(/(?:ver\s+)?(\d+)\s+opç(?:õ|o)es/i) || text.match(/(\d+)\s+vendedores/i);
+      sellersCount = m ? parseInt(m[1], 10) : 2;
+    }
+
+    // 2. Busca por links que contenham "opções a partir de" ou títulos "Outras opções de compra"
+    if (!hasOtherSellers) {
+      const candidateElements = Array.from(document.querySelectorAll('a, h2, h3, div, span, p'));
+      for (const el of candidateElements) {
+        const text = (el.textContent || '').trim().replace(/\s+/g, ' ');
+        const optMatch = text.match(/(?:ver\s+)?(\d+)\s+opç(?:õ|o)es\s+a\s+partir\s+de/i);
+        if (optMatch) {
+          hasOtherSellers = true;
+          sellersCount = parseInt(optMatch[1], 10);
+          break;
+        }
+        if (/outras\s+opç(?:õ|o)es\s+de\s+compra/i.test(text)) {
+          hasOtherSellers = true;
+          const anyOpt = text.match(/(\d+)\s+opç/i);
+          sellersCount = anyOpt ? parseInt(anyOpt[1], 10) : 2;
+          break;
+        }
+      }
+    }
+
+    // 3. Suporte Amazon (Buybox / All offers)
+    if (!hasOtherSellers && isAmazon) {
+      const amzOther = document.querySelector('#olp_feature_div, #all-offers-display, #dynamic-aod-ingress-box');
+      if (amzOther) {
+        hasOtherSellers = true;
+        const m = (amzOther.textContent || '').match(/(\d+)/);
+        sellersCount = m ? parseInt(m[1], 10) : 2;
+      }
+    }
+
+    // Regra estrita do usuário:
+    // "os produtos que não tem esse elemento 'Outras opções de compra' não sao produtos de catalogo, pode retirar o botao de vender igual e numero de catalogo"
+    const isCatalog = Boolean(hasOtherSellers && sellersCount > 1);
+    if (!isCatalog) {
+      catalogId = null;
+      nativeSellSimilarUrl = '';
+    }
 
     // Extrai Preço visível na tela
     let price = 0.0;
@@ -651,16 +788,18 @@
         const parsedUrl = new URL(nativeSellSimilarUrl);
         const pId = parsedUrl.searchParams.get('productId');
         const iId = parsedUrl.searchParams.get('itemId');
-        if (pId && !catalogId) catalogId = pId.toUpperCase();
+        if (pId && !catalogId && isCatalog) catalogId = pId.toUpperCase();
         if (iId && !itemId) itemId = iId.toUpperCase();
       } catch (e) {}
     }
 
     return {
-      catalogId: catalogId || (isCatalog ? itemId : null),
+      catalogId: isCatalog ? catalogId : null,
       itemId,
       isCatalog,
-      nativeSellSimilarUrl,
+      hasOtherSellers,
+      sellersCount,
+      nativeSellSimilarUrl: isCatalog ? nativeSellSimilarUrl : '',
       title,
       brand,
       model,
@@ -766,9 +905,11 @@
     const activeMargin = calculateMarginLocal(currentCost, simulatedPriceValue);
 
     const fallbackSellSimilar = buildSellSimilarUrl(info.catalogId, info.itemId);
-    const sellSimilarUrl = info.nativeSellSimilarUrl || (intel && intel.sell_similar_url) || fallbackSellSimilar;
+    const sellSimilarUrl = (info.isCatalog && (info.hasOtherSellers || info.nativeSellSimilarUrl))
+      ? (info.nativeSellSimilarUrl || (intel && intel.sell_similar_url) || fallbackSellSimilar)
+      : '';
 
-    let fabBadgeText = 'Avulso';
+    let fabBadgeText = 'Vendedor Único';
     let fabBadgeClass = 'unlinked';
     if (isLinked) {
       fabBadgeText = `SKU: ${sku}`;
@@ -777,7 +918,7 @@
       fabBadgeText = `⭐ Match: ${bestMatch.sku}`;
       fabBadgeClass = 'linked';
     } else if (info.isCatalog) {
-      fabBadgeText = 'Catálogo ML';
+      fabBadgeText = `Catálogo (${info.sellersCount} vend.)`;
       fabBadgeClass = 'unlinked';
     }
 
@@ -824,17 +965,18 @@
               <div style="display:flex; justify-content:space-between; align-items:center; background:#f1f5f9; padding:8px 10px; border-radius:8px; font-size:11px; margin-bottom:10px;">
                 <span style="display:flex; align-items:center; gap:6px;">
                   <span>${info.isCatalog ? '🏷️' : '📄'}</span>
-                  <strong>${info.isCatalog ? 'Anúncio de Catálogo Oficial' : 'Anúncio Convencional'}</strong>
+                  <strong>${info.isCatalog ? 'Anúncio de Catálogo Oficial' : 'Anúncio Convencional (Sem BuyBox)'}</strong>
+                  ${info.isCatalog && info.sellersCount > 1 ? `<span class="os-card-badge sellers-count" style="margin-left:4px;">👥 ${info.sellersCount} vendedores</span>` : ''}
                 </span>
-                <span style="color:#64748b; font-weight:700;">ID: ${info.catalogId || info.itemId || 'N/A'}</span>
+                <span style="color:#64748b; font-weight:700;">${info.isCatalog && info.catalogId ? `ID: ${info.catalogId}` : (info.itemId ? `Item: ${info.itemId}` : '')}</span>
               </div>
 
               <!-- Status de Vínculo com Estoque -->
               <div class="os-status-banner ${isLinked ? 'linked' : 'unlinked'}">
                 <div>
-                  <strong>${isLinked ? `🟢 Vinculado: ${intel.sku}` : '⚪ Catálogo Não Vinculado ao Estoque'}</strong>
+                  <strong>${isLinked ? `🟢 Vinculado: ${intel.sku}` : (info.isCatalog ? '⚪ Catálogo Não Vinculado ao Estoque' : '⚪ Anúncio de Vendedor Único')}</strong>
                   <div style="font-size:10px; opacity:0.85; margin-top:2px;">
-                    ${isLinked ? (intel.descricao || 'Produto Cadastrado') : 'Dispute a BuyBox ou vincule ao seu SKU'}
+                    ${isLinked ? (intel.descricao || 'Produto Cadastrado') : (info.isCatalog ? 'Dispute a BuyBox ou vincule ao seu SKU' : 'Anúncio exclusivo sem disputa de outros vendedores')}
                   </div>
                 </div>
                 ${isLinked ? `<button class="os-icon-btn" id="osBtnChangeSku" title="Alterar SKU" style="background:#065f46; color:#fff;">✏️</button>` : ''}

@@ -708,6 +708,13 @@
   color: #ffffff;
 }
 
+.os-card-badge.sellers-count {
+  background: #fef08a;
+  color: #1e1b4b;
+  border: 1px solid #facc15;
+  font-weight: 800;
+}
+
 .os-card-stock-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
