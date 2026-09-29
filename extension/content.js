@@ -33,6 +33,56 @@
     });
   }
 
+  // Requisição segura através do Background Service Worker para contornar CSP da página
+  async function requestApi(endpoint, { method = 'GET', body = null, params = null } = {}) {
+    return new Promise((resolve, reject) => {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({
+          action: 'API_PROXY',
+          endpoint,
+          method,
+          body,
+          params
+        }, response => {
+          if (chrome.runtime.lastError) {
+            console.warn('[Offer Search] Aviso de mensageria background:', chrome.runtime.lastError.message);
+            directFetch(endpoint, { method, body, params }).then(resolve).catch(reject);
+            return;
+          }
+          if (!response) {
+            return reject(new Error('Nenhuma resposta recebida do background'));
+          }
+          if (!response.success) {
+            return reject(new Error(response.error || `HTTP ${response.status}`));
+          }
+          resolve(response.data);
+        });
+      } else {
+        directFetch(endpoint, { method, body, params }).then(resolve).catch(reject);
+      }
+    });
+  }
+
+  async function directFetch(endpoint, { method = 'GET', body = null, params = null } = {}) {
+    const apiUrl = await getApiUrl();
+    let fullUrl = `${apiUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+    if (params) {
+      const q = new URLSearchParams(params);
+      fullUrl += (fullUrl.includes('?') ? '&' : '?') + q.toString();
+    }
+    const options = {
+      method,
+      headers: { 'Accept': 'application/json' }
+    };
+    if (body && (method === 'POST' || method === 'PUT')) {
+      options.headers['Content-Type'] = 'application/json';
+      options.body = typeof body === 'string' ? body : JSON.stringify(body);
+    }
+    const res = await fetch(fullUrl, options);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+
   function formatMoney(val) {
     return (parseFloat(val) || 0.0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
@@ -189,19 +239,11 @@
     }));
 
     try {
-      const res = await fetch(`${apiUrl}/api/extension/scan-search-page`, {
+      const scanResult = await requestApi('/api/extension/scan-search-page', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ items: payloadItems })
+        body: { items: payloadItems }
       });
 
-      if (!res.ok) {
-        console.warn(`[Offer Search] Falha ao escanear página de busca: HTTP ${res.status}`);
-        isScanningSearchPage = false;
-        return;
-      }
-
-      const scanResult = await res.json();
       if (!scanResult || !scanResult.results) {
         isScanningSearchPage = false;
         return;
@@ -481,8 +523,7 @@
   }
 
   async function fetchProductIntel(info) {
-    const apiUrl = await getApiUrl();
-    const query = new URLSearchParams({
+    const params = {
       catalog_id: info.catalogId || '',
       item_id: info.itemId || '',
       title: info.title || '',
@@ -492,19 +533,13 @@
       current_price: info.price || '',
       marketplace: info.marketplace || 'mercadolivre',
       url: info.url
-    });
+    };
 
     try {
-      const res = await fetch(`${apiUrl}/api/extension/product-intel?${query.toString()}`, {
+      return await requestApi('/api/extension/product-intel', {
         method: 'GET',
-        headers: { 'Accept': 'application/json' },
-        credentials: 'include'
+        params
       });
-      if (!res.ok) {
-        console.warn(`[Offer Search Intel] Servidor retornou HTTP ${res.status}`);
-        return null;
-      }
-      return await res.json();
     } catch (err) {
       console.warn('[Offer Search Intel] Erro ao consultar backend:', err.message);
       return null;
@@ -512,15 +547,11 @@
   }
 
   async function fetchInventoryList(queryStr = '') {
-    const apiUrl = await getApiUrl();
     try {
-      const res = await fetch(`${apiUrl}/api/extension/inventory-list?q=${encodeURIComponent(queryStr)}`, {
+      const data = await requestApi('/api/extension/inventory-list', {
         method: 'GET',
-        headers: { 'Accept': 'application/json' },
-        credentials: 'include'
+        params: { q: queryStr }
       });
-      if (!res.ok) return [];
-      const data = await res.json();
       return data.items || [];
     } catch (err) {
       return [];
@@ -528,7 +559,6 @@
   }
 
   async function sendLinkSku(catalogId, sku, productInfo) {
-    const apiUrl = await getApiUrl();
     const payload = {
       catalog_id: catalogId,
       sku: sku,
@@ -539,12 +569,10 @@
       buybox_winner: productInfo.buyboxWinner
     };
 
-    const res = await fetch(`${apiUrl}/api/extension/link-sku`, {
+    return await requestApi('/api/extension/link-sku', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(payload)
+      body: payload
     });
-    return await res.json();
   }
 
   // ─── 4. Injeção e Construção do Shadow DOM (Widget PDP) ────────────

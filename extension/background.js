@@ -71,8 +71,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === 'API_PROXY') {
+    const { endpoint, method = 'GET', body = null, params = null } = message;
+    handleApiProxy(endpoint, method, body, params)
+      .then(res => sendResponse(res))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true; // Resposta assíncrona
+  }
+
   return false;
 });
+
+async function handleApiProxy(endpoint, method = 'GET', body = null, params = null) {
+  const apiUrl = await getApiUrl();
+  let fullUrl = `${apiUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+  if (params) {
+    const q = new URLSearchParams(params);
+    fullUrl += (fullUrl.includes('?') ? '&' : '?') + q.toString();
+  }
+
+  const options = {
+    method,
+    headers: {
+      'Accept': 'application/json'
+    }
+  };
+
+  if (body && (method === 'POST' || method === 'PUT')) {
+    options.headers['Content-Type'] = 'application/json';
+    options.body = typeof body === 'string' ? body : JSON.stringify(body);
+  }
+
+  try {
+    const res = await fetch(fullUrl, options);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      return {
+        success: false,
+        status: res.status,
+        error: `HTTP ${res.status}: ${errText || res.statusText}`
+      };
+    }
+    const data = await res.json();
+    return { success: true, status: res.status, data };
+  } catch (err) {
+    return { success: false, status: 0, error: err.message };
+  }
+}
 
 // ─── 3. Motor de Coleta e Sincronização de Cookies ──────────────────
 async function getApiUrl() {
